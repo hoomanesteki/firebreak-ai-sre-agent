@@ -1,5 +1,7 @@
 """Tests for firebreak.lab.verify."""
 
+import json
+
 import httpx
 
 from firebreak.lab.endpoints import DemoEndpoints
@@ -204,18 +206,28 @@ def test_check_flagd_fails_when_variant_missing():
     check = check_flagd(_client(handler), ENDPOINTS, "cartFailure")
 
     assert check.passed is False
-    assert check.detail == "cartFailure served as None"
-    assert check.measured == {"flag": "cartFailure", "variant": None}
+    assert "FlagVerificationError" in check.detail
+    assert check.measured == {"flag": "cartFailure"}
 
 
-def test_check_flagd_posts_no_context_body_unlike_flag_controller_evaluate():
-    """Documents a bug: FlagController.evaluate (flags.py) always posts
-    json={"context": {}} to this same OFREP path, but check_flagd posts with
-    no body and no content-type header at all. Against a real flagd server
-    this check exercises a different request shape than the evaluation path
-    it is supposed to stand in for, and OFREP implementations that require a
-    JSON body would reject this call while flags.py's identical-looking call
-    succeeds.
+def test_check_flagd_fails_when_flagd_does_not_know_the_flag():
+    def handler(request):
+        return httpx.Response(404)
+
+    check = check_flagd(_client(handler), ENDPOINTS, "notAFlag")
+
+    assert check.passed is False
+    assert "UnknownFlagError" in check.detail
+
+
+def test_check_flagd_sends_the_same_request_as_the_flag_controller():
+    """The check must exercise the path it stands in for.
+
+    FlagController.evaluate posts json={"context": {}} to this OFREP path.
+    A check that sent a different request shape could pass while the real
+    evaluation path failed, which is the opposite of what verification is
+    for, so check_flagd goes through the controller rather than calling
+    OFREP itself.
     """
     captured = {}
 
@@ -226,8 +238,8 @@ def test_check_flagd_posts_no_context_body_unlike_flag_controller_evaluate():
 
     check_flagd(_client(handler), ENDPOINTS, "cartFailure")
 
-    assert captured["content"] == b""
-    assert captured["content_type"] is None
+    assert json.loads(captured["content"]) == {"context": {}}
+    assert captured["content_type"] == "application/json"
 
 
 # --- check_load_generator ----------------------------------------------------

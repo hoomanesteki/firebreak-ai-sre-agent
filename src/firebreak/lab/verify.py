@@ -16,6 +16,7 @@ from typing import Any
 import httpx
 
 from firebreak.lab.endpoints import DemoEndpoints
+from firebreak.lab.flags import FlagController, FlagError
 
 # A recording needs enough samples inside a rate window for the window to
 # evaluate. Below this, alert rules written as rate(...[5m]) return nothing
@@ -113,13 +114,25 @@ def check_sample_density(client: httpx.Client, endpoints: DemoEndpoints, now: fl
 
 
 def check_flagd(client: httpx.Client, endpoints: DemoEndpoints, flag: str) -> Check:
-    """flagd must answer, since every fault is injected through it."""
-    response = client.post(f"{endpoints.flagd_ofrep}/ofrep/v1/evaluate/flags/{flag}")
-    response.raise_for_status()
-    variant = response.json().get("variant")
+    """flagd must answer, since every fault is injected through it.
+
+    This goes through FlagController rather than calling OFREP directly, so
+    the check exercises the exact request the recorder will make. A check
+    that sent a different request shape could pass while the path it stands
+    in for fails, which is the opposite of what a verification is for.
+    """
+    try:
+        variant = FlagController(client, endpoints).evaluate(flag)
+    except FlagError as error:
+        return Check(
+            name="flagd_serving",
+            passed=False,
+            detail=f"{type(error).__name__}: {error}",
+            measured={"flag": flag},
+        )
     return Check(
         name="flagd_serving",
-        passed=isinstance(variant, str),
+        passed=True,
         detail=f"{flag} served as {variant!r}",
         measured={"flag": flag, "variant": variant},
     )
