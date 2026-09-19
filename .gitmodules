@@ -1,0 +1,4 @@
+[submodule "vendor/otel-demo"]
+	path = vendor/otel-demo
+	url = https://github.com/open-telemetry/opentelemetry-demo.git
+	branch = main

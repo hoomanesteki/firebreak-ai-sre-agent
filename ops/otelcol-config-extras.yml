@@ -1,0 +1,61 @@
+# Firebreak overlay for the OpenTelemetry Demo collector.
+#
+# Loaded last through the OTEL_COLLECTOR_CONFIG_EXTRAS variable, which is the
+# seam upstream documents for forks. Nothing under vendor/ is edited.
+#
+# The collector merges config files but REPLACES arrays rather than appending
+# to them, so every array touched here repeats the upstream entries. The
+# entries below were read from the pinned files in this load order:
+#
+#   src/otel-collector/otelcol-config.yml
+#   src/otel-collector/otelcol-config-full.yml            (sets metrics receivers)
+#   src/otel-collector/otelcol-config-observability.yml   (sets exporters)
+#   this file
+#
+# The comment inside upstream's own otelcol-config-extras.yml lists a shorter
+# set of metrics receivers than the observability profile actually runs with.
+# Copying that list would drop postgresql and kafkametrics, and the Kafka
+# scenario family depends on kafkametrics. Only arrays that need a new entry
+# are repeated here; everything else is left alone so there is less to get
+# wrong when the pin moves.
+
+connectors:
+  # Pairs client and server spans to derive service-to-service edges, which is
+  # where the knowledge graph gets its CALLS relationships. The type is
+  # service_graph; the older servicegraph spelling is deprecated in collector
+  # 0.159.0, which is the version this tag pins. See docs/adr/0005-service-graph.md.
+  service_graph:
+    # The slowest injected faults add 10 seconds, so the buckets run past that
+    # and the tail stays measurable instead of being clipped into the last one.
+    latency_histogram_buckets:
+      [2ms, 4ms, 6ms, 8ms, 10ms, 50ms, 100ms, 200ms, 400ms, 800ms, 1s, 1400ms, 2s, 5s, 10s, 15s]
+    store:
+      # A client span and its server span have to arrive within this window to
+      # be paired. The 2s default drops pairs once latency faults are injected,
+      # which is exactly when the edges matter most.
+      ttl: 10s
+      max_items: 10000
+    # Flushed on the SDK export cadence so edges and RED metrics land in the
+    # same time buckets.
+    metrics_flush_interval: 15s
+
+service:
+  pipelines:
+    traces:
+      # Upstream set from otelcol-config-observability.yml, plus the connector.
+      exporters: [debug, otlp_grpc/jaeger, span_metrics, service_graph]
+    metrics:
+      # Upstream set from otelcol-config-full.yml, plus the connector.
+      receivers:
+        [
+          docker_stats,
+          http_check/frontend-proxy,
+          host_metrics,
+          nginx,
+          otlp,
+          redis,
+          postgresql,
+          span_metrics,
+          kafkametrics,
+          service_graph,
+        ]

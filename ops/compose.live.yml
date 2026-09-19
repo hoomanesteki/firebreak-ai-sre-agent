@@ -1,0 +1,122 @@
+# Firebreak overlay on the pinned OpenTelemetry Demo.
+#
+# Layered after the demo's own files. Use `make live`, which sets the
+# variables this overlay depends on.
+#
+# Relative paths resolve against the project directory, which is
+# vendor/otel-demo, so paths here climb out with ../../. Nothing under
+# vendor/ is edited. See docs/target-system.md.
+#
+# The collector's extras file is not switched here. Its path comes from the
+# OTEL_COLLECTOR_CONFIG_EXTRAS variable, which the Makefile sets, because
+# overriding the volume would mean repeating all four collector config
+# mounts and they change between demo releases.
+
+# The SDKs default to exporting metrics every 60 seconds, and the demo does
+# not override it. That is too coarse twice over: SPEC.md Section 6.2 records
+# bundles at a 15 second step, and an alert written as rate(...[5m]) needs
+# several samples inside its window to evaluate at all. Measured on the demo
+# at the default, one series produced 5 samples in 15 minutes, which left the
+# error rate rules permanently empty while the service graph rules, flushed
+# every 15 seconds by Firebreak's connector config, fired normally.
+x-metric-export: &metric-export
+  environment:
+    - OTEL_METRIC_EXPORT_INTERVAL=15000
+
+services:
+  # The demo keeps Jaeger, OpenSearch, and the flagd OFREP port on the
+  # container network only. Firebreak's tool layer queries them directly, so
+  # they get host ports here, bound to the loopback address because SPEC.md
+  # Section 11 says the demo is never exposed beyond localhost.
+  #
+  # !override replaces the upstream list instead of adding to it. Compose
+  # concatenates sequences by default, which would leave Prometheus trying to
+  # bind 9090 twice, once on every interface and once on loopback, and the
+  # stack would fail to start.
+  jaeger:
+    ports: !override
+      - "127.0.0.1:16686:16686"
+      - "127.0.0.1:4317:4317"
+
+  opensearch:
+    ports: !override
+      - "127.0.0.1:9200:9200"
+
+  # flagd-ui writes flag changes into the directory it serves, and the demo
+  # bind mounts src/flagd into both containers. Left alone, every fault
+  # injection would edit the pinned submodule. Both mounts point at a copy
+  # Firebreak owns, rendered by: make live-config
+  flagd:
+    ports: !override
+      - "127.0.0.1:8013:8013"
+      - "127.0.0.1:8016:8016"
+    volumes: !override
+      - ../../ops/generated/flagd:/etc/flagd
+
+  flagd-ui:
+    volumes: !override
+      - ../../ops/generated/flagd:/app/data
+
+  prometheus:
+    ports: !override
+      - "127.0.0.1:9090:9090"
+    volumes:
+      # Compose merges volume lists by target path, so this replaces the
+      # demo's mount with the rendered config that adds rule_files and an
+      # alerting block. Render it with: make live-config
+      - ../../ops/generated/prometheus-config.yaml:/etc/prometheus/prometheus-config.yaml
+      - ../../ops/alert_rules.yml:/etc/prometheus/firebreak-alert-rules.yml:ro
+    depends_on:
+      alertmanager:
+        condition: service_started
+
+  alertmanager:
+    image: quay.io/prometheus/alertmanager:v0.34.0
+    container_name: alertmanager
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --log.level=info
+    volumes:
+      - ../../ops/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "127.0.0.1:9093:9093"
+    extra_hosts:
+      # Lets the webhook reach Firebreak running on the host. Docker Desktop
+      # provides this name; this line makes it work on plain Linux too.
+      - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  load-generator:
+    environment:
+      # Headless Chromium users are the largest memory consumer in the stack
+      # and they make load levels hard to reproduce between recordings.
+      - LOCUST_BROWSER_TRAFFIC_ENABLED=false
+      - OTEL_METRIC_EXPORT_INTERVAL=15000
+
+  # Every service that reports RED metrics gets the denser export interval.
+  # Compose appends to a service's environment list, so these add to whatever
+  # the demo already sets.
+  accounting: *metric-export
+  ad: *metric-export
+  cart: *metric-export
+  checkout: *metric-export
+  currency: *metric-export
+  email: *metric-export
+  fraud-detection: *metric-export
+  frontend: *metric-export
+  image-provider: *metric-export
+  payment: *metric-export
+  product-catalog: *metric-export
+  quote: *metric-export
+  recommendation: *metric-export
+  shipping: *metric-export

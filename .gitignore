@@ -222,3 +222,7 @@ __marimo__/
 # raw transcripts are not. See SPEC.md Section 9.6.
 reports/eval/**/transcripts/
 requirements-audit.txt
+
+# Generated stack configuration, rendered from the pinned demo
+ops/generated/
+reports/lab/alerts.jsonl

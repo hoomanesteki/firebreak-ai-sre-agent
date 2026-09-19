@@ -12,6 +12,7 @@ dependencies = [
     "pyyaml>=6.0",
     "typer>=0.15",
     "rich>=13.9",
+    "httpx>=0.28.1",
 ]
 
 [project.scripts]
@@ -39,10 +40,16 @@ packages = ["src/firebreak"]
 line-length = 100
 target-version = "py312"
 src = ["src", "tests", "scripts"]
+# vendor/ is the pinned OpenTelemetry Demo submodule and is never edited.
+extend-exclude = ["vendor", "ops/generated"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM", "RUF", "ANN", "C4", "PTH", "T20"]
 ignore = ["ANN401"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Typer declares CLI options as call expressions in argument defaults.
+extend-immutable-calls = ["typer.Option", "typer.Argument"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["ANN", "T20"]
