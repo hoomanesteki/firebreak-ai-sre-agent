@@ -1,0 +1,120 @@
+# Rules enforced by scripts/check_repo_hygiene.py and
+# scripts/hooks/check_commit_msg.py. See SPEC.md Section 19.4.
+
+allowed_author_emails:
+  - esteki.net@gmail.com
+
+# Characters banned everywhere in tracked text files.
+banned_characters:
+  - "\u2014"  # em dash
+  - "\u2013"  # en dash
+
+# Paths excluded from character and word checks.
+excluded_paths:
+  - vendor/
+  - bundles/
+  - labels/
+  - recordings/
+  - reports/
+  - uv.lock
+  - src/firebreak/web/static/vendor/
+  - site/static/vendor/
+
+# Extensions treated as text and scanned for banned characters.
+text_extensions:
+  - .md
+  - .py
+  - .yaml
+  - .yml
+  - .toml
+  - .json
+  - .cfg
+  - .ini
+  - .txt
+  - .html
+  - .css
+  - .js
+  - .cypher
+  - .sql
+  - .sh
+
+# Filler and marketing words banned in prose files.
+flagged_words:
+  - delve
+  - seamless
+  - seamlessly
+  - cutting-edge
+  - state-of-the-art
+  - game-changer
+  - revolutionize
+  - unlock
+  - unleash
+  - harness the power
+  - supercharge
+  - elevate
+  - empower
+  - leverage
+  - utilize
+  - in today's fast-paced
+  - it's worth noting
+  - it is important to note
+  - plays a crucial role
+  - a testament to
+  - navigate the complexities
+  - embark
+  - journey
+  - tapestry
+  - realm
+  - moreover
+  - furthermore
+
+# Files scanned for flagged words (glob patterns, relative to repo root).
+prose_globs:
+  - README.md
+  - docs/**/*.md
+  - site/templates/**
+
+# Patterns that mark a commit as AI-attributed. Case insensitive.
+ai_attribution_patterns:
+  - "co-authored-by:.*(claude|anthropic|gpt|openai|copilot|codex|gemini|cursor)"
+  - "generated with"
+  - "noreply@anthropic\\.com"
+  - "\U0001F916"
+
+# Conventional Commits settings for the commit-msg hook.
+commit_types:
+  - feat
+  - fix
+  - refactor
+  - perf
+  - test
+  - docs
+  - build
+  - ci
+  - chore
+commit_subject_max_length: 72
+
+# Allowed commit scopes. A scope is optional; when present it must be
+# in this list. See SPEC.md Section 18.3.
+commit_scopes:
+  - lab
+  - bundles
+  - backends
+  - tools
+  - graph
+  - triage
+  - agent
+  - critic
+  - gates
+  - cascade
+  - approvals
+  - feedback
+  - optimize
+  - evals
+  - security
+  - telemetry
+  - web
+  - site
+  - ops
+  - deps
+  - repo
