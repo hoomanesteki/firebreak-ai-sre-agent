@@ -71,12 +71,13 @@ make live-down     # stops it and removes its volumes
 
 Resource notes, so the first run is not a surprise:
 
-- The 25 services in the two Compose files declare 6.7 GB of memory limits
-  between them, and Firebreak's overlay adds 128 MB for Alertmanager. Limits
-  are ceilings rather than reservations, so steady-state usage is lower, but
-  Docker needs headroom well past 8 GB to start the stack comfortably.
-- The three largest single limits are the load generator at 1.5 GB, Jaeger at
-  1.2 GB, and OpenSearch at 1 GB.
+- The 28 services declare 7.9 GB of memory limits between them, including
+  128 MB for the Alertmanager that Firebreak's overlay adds. Limits are
+  ceilings rather than reservations, so steady-state usage is lower, but
+  give Docker 10 GB or more. The stack has been started on a 16 GB machine
+  with 7.8 GB allocated to Docker, which works and leaves little room.
+- The four largest single limits are the load generator at 1.5 GB, Jaeger at
+  1.2 GB, OpenSearch at 1 GB, and Kafka at 620 MB.
 - Firebreak's overlay turns off the load generator's headless browser users.
   They are the largest single memory consumer and they make load levels hard
   to reproduce between recordings.

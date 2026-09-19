@@ -15,24 +15,33 @@ with no Prometheus, Jaeger, Grafana, or OpenSearch.
 | File | Contents |
 |---|---|
 | `compose.yaml` | Application services, flagd, flagd-ui, load generator, OTel Collector |
+| `compose.full.yaml` | Adds `kafka`, `fraud-detection`, and `accounting`, and overrides `checkout` and `otel-collector` |
 | `compose.observability.yaml` | Jaeger, Grafana, Prometheus, OpenSearch, OpAMP server, and collector overrides |
-| `compose.full.yaml`, `compose.extras.yaml`, `compose.agent.yaml`, `compose.profiling.yaml`, `compose.tests.yaml` | Other profiles, not used by Firebreak |
+| `compose.extras.yaml` | Empty. Upstream's seam for local customisation, which Firebreak's own overlay takes the place of |
+| `compose.agent.yaml`, `compose.profiling.yaml`, `compose.tests.yaml` | Other profiles, not used by Firebreak |
+
+Firebreak runs `compose.yaml`, `compose.full.yaml`, `compose.observability.yaml`,
+and its own overlay, which is the combination the demo's own Makefile uses by
+default. Leaving `compose.full.yaml` out is not a smaller working stack: the
+observability profile's collector config includes a `kafkametrics` receiver, so
+without the broker the collector logs a scrape failure every 10 seconds.
 
 ## Services
 
-Application: `ad`, `cart`, `checkout`, `currency`, `email`, `frontend`,
-`frontend-proxy`, `image-provider`, `load-generator`, `payment`,
-`product-catalog`, `quote`, `recommendation`, `shipping`.
+Application: `accounting`, `ad`, `cart`, `checkout`, `currency`, `email`,
+`fraud-detection`, `frontend`, `frontend-proxy`, `image-provider`,
+`load-generator`, `payment`, `product-catalog`, `quote`, `recommendation`,
+`shipping`.
 
-Infrastructure: `flagd`, `flagd-ui`, `telemetry-docs`, `astronomy-db`,
-`valkey-cart`, `otel-collector`.
+Infrastructure: `flagd`, `flagd-ui`, `kafka`, `telemetry-docs`,
+`astronomy-db`, `valkey-cart`, `otel-collector`.
 
 Observability: `jaeger`, `grafana`, `prometheus`, `opensearch`,
 `opamp-server`.
 
-The demo at this tag has no `fraud-detection` or `accounting` service, so
-the Kafka scenario family covers `checkout` and the Kafka broker rather than
-a fraud detection consumer.
+`checkout` produces to Kafka and `fraud-detection` and `accounting` consume
+from it, which is the path the `kafkaQueueProblems` scenario family
+exercises. All three arrive with `compose.full.yaml`.
 
 ## Ports
 

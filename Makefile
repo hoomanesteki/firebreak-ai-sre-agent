@@ -55,9 +55,13 @@ clean:  ## Remove build and test artefacts
 	rm -rf .pytest_cache .mypy_cache .ruff_cache htmlcov .coverage
 	find . -type d -name __pycache__ -not -path "./.venv/*" -exec rm -rf {} +
 
-# The demo's own Compose files first, then Firebreak's overlay. The project
-# directory is fixed so relative paths inside every file resolve the same way
-# no matter where make is run from. See docs/target-system.md.
+# The demo's own Compose files first, then Firebreak's overlay, which takes
+# the place of the demo's empty compose.extras.yaml. compose.full.yaml is
+# not optional: it carries Kafka, fraud-detection, and accounting, and the
+# observability profile's collector config scrapes Kafka whether or not the
+# broker is there. The project directory is fixed so relative paths inside
+# every file resolve the same way no matter where make is run from. See
+# docs/target-system.md.
 #
 # OTEL_COLLECTOR_CONFIG_EXTRAS is the seam upstream documents for forks. The
 # demo's .env points it at an empty vendored file; this points it at
@@ -74,6 +78,7 @@ COMPOSE_ENV := OTEL_COLLECTOR_CONFIG_EXTRAS=../../ops/otelcol-config-extras.yml 
                DEMO_VERSION=$(DEMO_TAG)
 COMPOSE_LIVE := $(COMPOSE_ENV) docker compose --project-directory vendor/otel-demo \
 	-f vendor/otel-demo/compose.yaml \
+	-f vendor/otel-demo/compose.full.yaml \
 	-f vendor/otel-demo/compose.observability.yaml \
 	-f ops/compose.live.yml
 

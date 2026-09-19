@@ -61,9 +61,12 @@ validation in Phase 12 rather than the primary source.
   service flags that need a demo profile Firebreak does not run. The no fault
   family uses `loadGeneratorFloodHomepage` for a demand spike with no service
   defect, which is a cleaner control than changing load settings mid run.
-- This tag has no fraud detection service, so the Kafka family covers
-  checkout and the broker rather than a fraud consumer. SPEC.md Section 3.1
-  names a service that does not exist here.
+- Kafka, fraud detection, and accounting arrive with `compose.full.yaml`,
+  which the demo's own Makefile includes by default. Leaving it out is not a
+  smaller working stack: the observability profile's collector config
+  scrapes Kafka whether or not the broker is running, so the collector logs
+  a failure every 10 seconds. The first live run of this stack found exactly
+  that, which is why the composition now matches upstream's.
 - Tag 3.1.0 added a scheduler to flagd-ui that activates random flags on its
   own. It defaults to off and has no REST route, so the recorder lists it as
   a manual precondition rather than checking it.
