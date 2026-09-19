@@ -1,16 +1,22 @@
 """Read and set the demo's feature flags.
 
-Faults are injected by changing a flag's default variant. The lab goes
-through flagd-ui's REST API rather than editing the flag file, so nothing
-under `vendor/` is touched and no volume has to be remapped.
+Faults are injected by changing a flag's default variant, through flagd-ui's
+REST API rather than by editing a file directly.
 
-Writing replaces the whole configuration, which is how the upstream API
-works, so every write is a read, one change, and a write back.
+That API replaces the whole configuration on every write, so each change is
+a read, one edit, and a write back.
+
+flagd-ui writes into the directory it serves, and the demo bind mounts
+`src/flagd` into both flagd and flagd-ui. The live overlay remounts both at
+a copy Firebreak owns, so injecting a fault does not edit the submodule.
+See `render_flag_store` in `firebreak.lab.stack`.
 """
 
 from __future__ import annotations
 
 import json
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -21,6 +27,8 @@ from firebreak.lab.endpoints import DEFAULT_ENDPOINTS, DEMO_TAG, DemoEndpoints
 
 OFF_VARIANT = "off"
 DEFAULT_TIMEOUT_SECONDS = 10.0
+CONVERGENCE_TIMEOUT_SECONDS = 15.0
+CONVERGENCE_POLL_SECONDS = 0.25
 
 
 class FlagError(Exception):
@@ -37,6 +45,10 @@ class UnknownVariantError(FlagError):
 
 class FlagVerificationError(FlagError):
     """The change was written but the running system did not take it."""
+
+
+class FlagConvergenceError(FlagError):
+    """flagd did not start serving the new variant before the timeout."""
 
 
 @dataclass(frozen=True)
@@ -177,6 +189,63 @@ class FlagController:
         if not isinstance(variant, str):
             raise FlagVerificationError(f"flagd returned no variant for {flag!r}")
         return variant
+
+    def await_variant(
+        self,
+        flag: str,
+        variant: str,
+        timeout_seconds: float = CONVERGENCE_TIMEOUT_SECONDS,
+        poll_seconds: float = CONVERGENCE_POLL_SECONDS,
+        sleep: Callable[[float], None] = time.sleep,
+        monotonic: Callable[[], float] = time.monotonic,
+    ) -> float:
+        """Block until flagd serves a variant, and return the seconds it took.
+
+        Writing a flag and reading the configuration back only proves the file
+        changed. flagd reloads that file on its own schedule, and for about a
+        second after a write it still serves the old variant. A recorder that
+        started its clock on the write would put the labelled onset before the
+        fault existed, and every onset error in the eval would inherit that
+        offset.
+        """
+        started = monotonic()
+        while True:
+            try:
+                served: str | None = self.evaluate(flag)
+            except FlagVerificationError:
+                served = None
+            if served == variant:
+                return monotonic() - started
+            waited = monotonic() - started
+            if waited >= timeout_seconds:
+                raise FlagConvergenceError(
+                    f"flagd still serves {served!r} for {flag!r} after "
+                    f"{waited:.1f}s, expected {variant!r}"
+                )
+            sleep(poll_seconds)
+
+    def apply_fault(
+        self,
+        flag: str,
+        variant: str,
+        timeout_seconds: float = CONVERGENCE_TIMEOUT_SECONDS,
+        sleep: Callable[[float], None] = time.sleep,
+        monotonic: Callable[[], float] = time.monotonic,
+    ) -> tuple[FlagState, float]:
+        """Set a variant and wait until flagd serves it.
+
+        Returns the new state and how long convergence took, which a recording
+        stores so the labelled onset is the moment the fault became real.
+        """
+        state = self.set_variant(flag, variant)
+        waited = self.await_variant(
+            flag,
+            variant,
+            timeout_seconds=timeout_seconds,
+            sleep=sleep,
+            monotonic=monotonic,
+        )
+        return state, waited
 
     def _write_config(self, config: dict[str, Any]) -> None:
         response = self._client.post(f"{self._endpoints.flag_api}/write", json={"data": config})

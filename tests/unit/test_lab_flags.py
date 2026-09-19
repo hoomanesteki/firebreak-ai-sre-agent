@@ -10,6 +10,7 @@ import pytest
 from firebreak.lab.endpoints import DEMO_TAG
 from firebreak.lab.flags import (
     FlagController,
+    FlagConvergenceError,
     FlagError,
     FlagState,
     FlagVerificationError,
@@ -260,3 +261,121 @@ def test_evaluate_raises_flag_verification_error_when_variant_is_not_a_string():
 
     with pytest.raises(FlagVerificationError, match="adFailure"):
         controller.evaluate("adFailure")
+
+
+# --- convergence -------------------------------------------------------
+
+
+class _Clock:
+    """A monotonic clock that only advances when sleep is called."""
+
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def sleep(self, seconds: float) -> None:
+        self.now += seconds
+
+    def monotonic(self) -> float:
+        return self.now
+
+
+def _ofrep_handler(variants):
+    """Serve a queue of variants from the OFREP endpoint, one per call."""
+    remaining = list(variants)
+
+    def handler(request):
+        if "/ofrep/" in request.url.path:
+            value = remaining.pop(0) if len(remaining) > 1 else remaining[0]
+            return httpx.Response(200, json={"key": "f", "variant": value, "value": True})
+        raise AssertionError(f"unexpected request: {request.url}")
+
+    return handler
+
+
+def test_await_variant_returns_immediately_when_already_served():
+    clock = _Clock()
+    controller = FlagController(_client(_ofrep_handler(["on"])))
+
+    waited = controller.await_variant(
+        "adFailure", "on", sleep=clock.sleep, monotonic=clock.monotonic
+    )
+
+    assert waited == 0.0
+
+
+def test_await_variant_polls_until_flagd_catches_up():
+    clock = _Clock()
+    controller = FlagController(_client(_ofrep_handler(["off", "off", "on"])))
+
+    waited = controller.await_variant(
+        "adFailure",
+        "on",
+        poll_seconds=0.25,
+        sleep=clock.sleep,
+        monotonic=clock.monotonic,
+    )
+
+    assert waited == pytest.approx(0.5)
+
+
+def test_await_variant_raises_when_flagd_never_catches_up():
+    clock = _Clock()
+    controller = FlagController(_client(_ofrep_handler(["off"])))
+
+    with pytest.raises(FlagConvergenceError, match="still serves 'off'"):
+        controller.await_variant(
+            "adFailure",
+            "on",
+            timeout_seconds=1.0,
+            poll_seconds=0.25,
+            sleep=clock.sleep,
+            monotonic=clock.monotonic,
+        )
+
+
+def test_await_variant_tolerates_a_flagd_response_with_no_variant():
+    clock = _Clock()
+    calls = {"n": 0}
+
+    def handler(request):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return httpx.Response(200, json={"reason": "DEFAULT"})
+        return httpx.Response(200, json={"variant": "on"})
+
+    controller = FlagController(_client(handler))
+
+    waited = controller.await_variant(
+        "adFailure", "on", poll_seconds=0.5, sleep=clock.sleep, monotonic=clock.monotonic
+    )
+
+    assert waited == pytest.approx(0.5)
+
+
+def test_apply_fault_writes_then_waits_for_flagd():
+    store = {"config": copy.deepcopy(_cart_failure_config())}
+    served = {"variant": "off"}
+
+    def handler(request):
+        path = request.url.path
+        if path.endswith("/feature/api/read"):
+            return httpx.Response(200, json=store["config"])
+        if path.endswith("/feature/api/write"):
+            store["config"] = json.loads(request.content)["data"]
+            return httpx.Response(200, json={"status": "ok"})
+        if "/ofrep/" in path:
+            current = served["variant"]
+            served["variant"] = "10%"
+            return httpx.Response(200, json={"variant": current})
+        raise AssertionError(f"unexpected request: {path}")
+
+    clock = _Clock()
+    controller = FlagController(_client(handler))
+
+    state, waited = controller.apply_fault(
+        "cartFailure", "10%", sleep=clock.sleep, monotonic=clock.monotonic
+    )
+
+    assert state.default_variant == "10%"
+    assert store["config"]["flags"]["cartFailure"]["defaultVariant"] == "10%"
+    assert waited > 0.0

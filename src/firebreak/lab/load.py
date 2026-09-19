@@ -11,6 +11,8 @@ cannot be reproduced.
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -21,6 +23,8 @@ from firebreak.lab.endpoints import DEFAULT_ENDPOINTS, DemoEndpoints
 MIN_USERS = 1
 MAX_USERS = 500
 DEFAULT_SPAWN_RATE = 5.0
+RAMP_TIMEOUT_SECONDS = 60.0
+RAMP_POLL_SECONDS = 1.0
 
 
 class LoadError(Exception):
@@ -29,6 +33,10 @@ class LoadError(Exception):
 
 class InvalidLoadError(LoadError):
     """The requested load is outside the range the lab allows."""
+
+
+class LoadRampError(LoadError):
+    """The generator did not reach the requested user count in time."""
 
 
 @dataclass(frozen=True)
@@ -55,8 +63,22 @@ class LoadController:
         self._client = client
         self._endpoints = endpoints
 
-    def set_users(self, users: int, spawn_rate: float = DEFAULT_SPAWN_RATE) -> LoadState:
-        """Ramp the generator to a user count and return the resulting state."""
+    def set_users(
+        self,
+        users: int,
+        spawn_rate: float = DEFAULT_SPAWN_RATE,
+        wait: bool = False,
+        timeout_seconds: float = RAMP_TIMEOUT_SECONDS,
+        sleep: Callable[[float], None] = time.sleep,
+        monotonic: Callable[[], float] = time.monotonic,
+    ) -> LoadState:
+        """Ramp the generator to a user count.
+
+        Locust adds users at spawn_rate, so reading the state straight after
+        the request reports the count from before the ramp. Pass wait=True to
+        block until the requested count is actually running, which is what a
+        recording needs before its warmup window starts.
+        """
         if not MIN_USERS <= users <= MAX_USERS:
             raise InvalidLoadError(
                 f"users must be between {MIN_USERS} and {MAX_USERS}, got {users}"
@@ -69,7 +91,36 @@ class LoadController:
             data={"user_count": str(users), "spawn_rate": str(spawn_rate)},
         )
         response.raise_for_status()
+        if wait:
+            return self.wait_for_users(
+                users,
+                timeout_seconds=timeout_seconds,
+                sleep=sleep,
+                monotonic=monotonic,
+            )
         return self.read_state()
+
+    def wait_for_users(
+        self,
+        users: int,
+        timeout_seconds: float = RAMP_TIMEOUT_SECONDS,
+        poll_seconds: float = RAMP_POLL_SECONDS,
+        sleep: Callable[[float], None] = time.sleep,
+        monotonic: Callable[[], float] = time.monotonic,
+    ) -> LoadState:
+        """Block until the generator reports at least the requested users."""
+        started = monotonic()
+        while True:
+            state = self.read_state()
+            if state.user_count >= users:
+                return state
+            waited = monotonic() - started
+            if waited >= timeout_seconds:
+                raise LoadRampError(
+                    f"load generator reached {state.user_count} of {users} users "
+                    f"after {waited:.1f}s"
+                )
+            sleep(poll_seconds)
 
     def stop(self) -> LoadState:
         """Stop generating load."""

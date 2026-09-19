@@ -11,6 +11,7 @@ from firebreak.lab.load import (
     InvalidLoadError,
     LoadController,
     LoadError,
+    LoadRampError,
     LoadState,
 )
 
@@ -99,3 +100,78 @@ def test_stop_calls_load_api_stop_endpoint():
 )
 def test_load_state_is_running_matches_locust_states(state, expected):
     assert LoadState(state=state, user_count=1).is_running is expected
+
+
+class _Clock:
+    """A monotonic clock that only advances when sleep is called."""
+
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def sleep(self, seconds: float) -> None:
+        self.now += seconds
+
+    def monotonic(self) -> float:
+        return self.now
+
+
+def _ramp_handler(counts):
+    """Answer stats requests with a queue of user counts, one per call."""
+    remaining = list(counts)
+
+    def handler(request):
+        if request.url.path.endswith("/swarm"):
+            return httpx.Response(200, json={"message": "Swarming started"})
+        value = remaining.pop(0) if len(remaining) > 1 else remaining[0]
+        return httpx.Response(200, json={"state": "spawning", "user_count": value})
+
+    return handler
+
+
+def test_wait_for_users_returns_once_the_count_is_reached():
+    clock = _Clock()
+    controller = LoadController(_client(_ramp_handler([20])))
+
+    state = controller.wait_for_users(20, sleep=clock.sleep, monotonic=clock.monotonic)
+
+    assert state.user_count == 20
+    assert clock.now == 0.0
+
+
+def test_wait_for_users_polls_while_the_generator_ramps():
+    clock = _Clock()
+    controller = LoadController(_client(_ramp_handler([5, 12, 20])))
+
+    state = controller.wait_for_users(
+        20, poll_seconds=1.0, sleep=clock.sleep, monotonic=clock.monotonic
+    )
+
+    assert state.user_count == 20
+    assert clock.now == pytest.approx(2.0)
+
+
+def test_wait_for_users_raises_when_the_ramp_stalls():
+    clock = _Clock()
+    controller = LoadController(_client(_ramp_handler([5])))
+
+    with pytest.raises(LoadRampError, match="reached 5 of 20 users"):
+        controller.wait_for_users(
+            20, timeout_seconds=3.0, poll_seconds=1.0, sleep=clock.sleep, monotonic=clock.monotonic
+        )
+
+
+def test_set_users_without_wait_reports_the_pre_ramp_count():
+    controller = LoadController(_client(_ramp_handler([5])))
+
+    state = controller.set_users(20)
+
+    assert state.user_count == 5
+
+
+def test_set_users_with_wait_blocks_until_the_ramp_finishes():
+    clock = _Clock()
+    controller = LoadController(_client(_ramp_handler([5, 20])))
+
+    state = controller.set_users(20, wait=True, sleep=clock.sleep, monotonic=clock.monotonic)
+
+    assert state.user_count == 20
