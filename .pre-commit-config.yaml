@@ -4,14 +4,16 @@ repos:
     hooks:
       - id: ruff-check
         name: ruff check
-        entry: uv run ruff check --fix
+        # Check only. A hook that rewrites files mid-commit fights partial
+        # staging; run make format to apply fixes.
+        entry: uv run ruff check
         language: system
         types_or: [python, pyi]
         require_serial: true
 
       - id: ruff-format
         name: ruff format
-        entry: uv run ruff format
+        entry: uv run ruff format --check
         language: system
         types_or: [python, pyi]
         require_serial: true
@@ -39,6 +41,10 @@ repos:
       - id: check-added-large-files
         args: ["--maxkb=1024"]
       - id: check-yaml
+        # ops/compose.live.yml uses Compose's !override merge tag, which a
+        # plain safe_load cannot resolve. tests/unit/test_ops_overlays.py
+        # parses that file with a tag tolerant loader and checks its contents.
+        exclude: ^ops/compose\.live\.yml$
       - id: check-toml
       - id: detect-private-key
 
