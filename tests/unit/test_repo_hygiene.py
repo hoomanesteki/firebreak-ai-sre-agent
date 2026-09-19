@@ -29,8 +29,11 @@ def write(root: Path, rel_path: str, text: str) -> str:
     return rel_path
 
 
-def test_load_config_has_owner_email_only():
-    assert CONFIG.allowed_author_emails == ["esteki.net@gmail.com"]
+def test_load_config_allows_only_the_owner_addresses():
+    assert CONFIG.allowed_author_emails == [
+        "esteki.net@gmail.com",
+        "67445158+hoomanesteki@users.noreply.github.com",
+    ]
 
 
 def test_load_config_rejects_missing_keys(tmp_path: Path):

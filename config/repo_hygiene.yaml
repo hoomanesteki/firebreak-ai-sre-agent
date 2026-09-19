@@ -3,6 +3,8 @@
 
 allowed_author_emails:
   - esteki.net@gmail.com
+  # The owner's GitHub noreply address, on commits made in the web UI.
+  - 67445158+hoomanesteki@users.noreply.github.com
 
 # Characters banned everywhere in tracked text files.
 banned_characters:
