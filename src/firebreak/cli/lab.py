@@ -11,7 +11,12 @@ from rich.console import Console
 from rich.table import Table
 
 from firebreak.lab.endpoints import DEFAULT_ENDPOINTS, DEMO_TAG
-from firebreak.lab.flags import FlagController, FlagError, read_vendored_defaults
+from firebreak.lab.flags import (
+    FlagController,
+    FlagError,
+    parse_flag_config,
+    read_vendored_defaults,
+)
 from firebreak.lab.load import LoadController, LoadError
 from firebreak.lab.smoke import EXCLUDED_FLAGS, build_report, smoke_one_flag
 from firebreak.lab.stack import render_prometheus_config
@@ -24,6 +29,7 @@ VENDORED_PROMETHEUS_CONFIG = (
 )
 GENERATED_PROMETHEUS_CONFIG = REPO_ROOT / "ops" / "generated" / "prometheus-config.yaml"
 SMOKE_REPORT = REPO_ROOT / "reports" / "lab" / "flag_smoke.json"
+INVENTORY_REPORT = REPO_ROOT / "reports" / "lab" / "flag_inventory.json"
 WEBHOOK_LOG = REPO_ROOT / "reports" / "lab" / "alerts.jsonl"
 HTTP_TIMEOUT_SECONDS = 15.0
 
@@ -65,6 +71,41 @@ def list_flags(
             continue
         table.add_row(name, state.default_variant, ", ".join(sorted(state.variants)))
     console.print(table)
+
+
+@flags_app.command("inventory")
+def flag_inventory() -> None:
+    """Write every flag and variant in the pinned demo to a report.
+
+    Reads the vendored file, so this needs no running stack. Phase 2 checks
+    scenario specs against it instead of against flag names typed by hand.
+    """
+    if not VENDORED_FLAG_FILE.is_file():
+        _fail(
+            f"pinned flag file not found at {VENDORED_FLAG_FILE}; run git submodule update --init"
+        )
+        return
+    config = json.loads(VENDORED_FLAG_FILE.read_text(encoding="utf-8"))
+    flags = parse_flag_config(config)
+    report = {
+        "demo_tag": DEMO_TAG,
+        "source": str(VENDORED_FLAG_FILE.relative_to(REPO_ROOT)),
+        "flag_count": len(flags),
+        "flags": {
+            name: {
+                "resting_variant": state.default_variant,
+                "variants": sorted(state.variants),
+                "state": state.state,
+            }
+            for name, state in sorted(flags.items())
+        },
+    }
+    INVENTORY_REPORT.parent.mkdir(parents=True, exist_ok=True)
+    INVENTORY_REPORT.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    console.print(
+        f"[green]{len(flags)} flag(s) at demo {DEMO_TAG}; "
+        f"wrote {INVENTORY_REPORT.relative_to(REPO_ROOT)}[/green]"
+    )
 
 
 @flags_app.command("get")

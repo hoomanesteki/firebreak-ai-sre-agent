@@ -1,0 +1,168 @@
+{
+  "demo_tag": "3.1.0",
+  "source": "vendor/otel-demo/src/flagd/demo.flagd.json",
+  "flag_count": 18,
+  "flags": {
+    "adFailure": {
+      "resting_variant": "off",
+      "variants": [
+        "off",
+        "on"
+      ],
+      "state": "ENABLED"
+    },
+    "adHighCpu": {
+      "resting_variant": "off",
+      "variants": [
+        "off",
+        "on"
+      ],
+      "state": "ENABLED"
+    },
+    "adManualGc": {
+      "resting_variant": "off",
+      "variants": [
+        "off",
+        "on"
+      ],
+      "state": "ENABLED"
+    },
+    "aiRunawayAgent": {
+      "resting_variant": "off",
+      "variants": [
+        "off",
+        "on"
+      ],
+      "state": "ENABLED"
+    },
+    "aiSlowResponse": {
+      "resting_variant": "off",
+      "variants": [
+        "10sec",
+        "5sec",
+        "off"
+      ],
+      "state": "ENABLED"
+    },
+    "cartFailure": {
+      "resting_variant": "off",
+      "variants": [
+        "10%",
+        "100%",
+        "25%",
+        "50%",
+        "75%",
+        "90%",
+        "off"
+      ],
+      "state": "ENABLED"
+    },
+    "emailMemoryLeak": {
+      "resting_variant": "off",
+      "variants": [
+        "10000x",
+        "1000x",
+        "100x",
+        "10x",
+        "1x",
+        "off"
+      ],
+      "state": "ENABLED"
+    },
+    "emitRawPii": {
+      "resting_variant": "off",
+      "variants": [
+        "off",
+        "on"
+      ],
+      "state": "ENABLED"
+    },
+    "failedReadinessProbe": {
+      "resting_variant": "off",
+      "variants": [
+        "off",
+        "on"
+      ],
+      "state": "ENABLED"
+    },
+    "imageSlowLoad": {
+      "resting_variant": "off",
+      "variants": [
+        "10sec",
+        "5sec",
+        "off"
+      ],
+      "state": "ENABLED"
+    },
+    "intlShippingSlowdown": {
+      "resting_variant": "off",
+      "variants": [
+        "10sec",
+        "5sec",
+        "off"
+      ],
+      "state": "ENABLED"
+    },
+    "kafkaQueueProblems": {
+      "resting_variant": "off",
+      "variants": [
+        "off",
+        "on"
+      ],
+      "state": "ENABLED"
+    },
+    "loadGeneratorFloodHomepage": {
+      "resting_variant": "off",
+      "variants": [
+        "off",
+        "on"
+      ],
+      "state": "ENABLED"
+    },
+    "paymentFailure": {
+      "resting_variant": "off",
+      "variants": [
+        "10%",
+        "100%",
+        "25%",
+        "50%",
+        "75%",
+        "90%",
+        "off"
+      ],
+      "state": "ENABLED"
+    },
+    "paymentUnreachable": {
+      "resting_variant": "off",
+      "variants": [
+        "off",
+        "on"
+      ],
+      "state": "ENABLED"
+    },
+    "productCatalogFailure": {
+      "resting_variant": "off",
+      "variants": [
+        "off",
+        "on"
+      ],
+      "state": "ENABLED"
+    },
+    "productCatalogLockContention": {
+      "resting_variant": "off",
+      "variants": [
+        "off",
+        "on"
+      ],
+      "state": "ENABLED"
+    },
+    "recommendationCacheFailure": {
+      "resting_variant": "off",
+      "variants": [
+        "off",
+        "on"
+      ],
+      "state": "ENABLED"
+    }
+  }
+}
