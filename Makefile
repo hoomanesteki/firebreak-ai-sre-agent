@@ -3,7 +3,7 @@
 SHELL := /bin/bash
 
 .PHONY: help setup verify lint format types test test-cov hygiene clean unhide \
-        live live-config live-down live-logs lab-smoke lab-webhook
+        live live-config live-down live-logs lab-flags lab-smoke lab-webhook
 
 help:  ## Show the available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -19,6 +19,12 @@ setup:  ## Install dependencies, git hooks, and a starter .env
 	uv run pre-commit install --hook-type pre-commit --hook-type commit-msg
 	@test -f .env || cp .env.example .env
 	@echo "setup complete; edit .env if you need non-default settings"
+
+# Invoking the CLI through PYTHONPATH rather than the installed console
+# script, because uv rebuilds the editable install on every run and some
+# macOS tooling re-applies the hidden flag to the .pth file each time, which
+# CPython's site module then skips. See the unhide target.
+FIREBREAK := PYTHONPATH=src uv run firebreak
 
 unhide:
 	@# Some tooling on macOS writes .pth files with the hidden flag set, and
@@ -82,10 +88,10 @@ COMPOSE_LIVE := $(COMPOSE_ENV) docker compose --project-directory vendor/otel-de
 	-f vendor/otel-demo/compose.observability.yaml \
 	-f ops/compose.live.yml
 
-live-config: unhide  ## Render the Prometheus config the live stack mounts
+live-config:  ## Render the Prometheus config the live stack mounts
 	@test -f vendor/otel-demo/compose.yaml || \
 		(echo "submodule missing; run: git submodule update --init --recursive"; exit 1)
-	uv run firebreak lab render-config
+	$(FIREBREAK) lab render-config
 
 live: live-config  ## Start the pinned OpenTelemetry Demo with Firebreak's overlay
 	@docker info >/dev/null 2>&1 || (echo "Docker is not running"; exit 1)
@@ -103,8 +109,11 @@ live-down:  ## Stop the live stack and remove its volumes
 live-logs:  ## Follow the live stack logs
 	$(COMPOSE_LIVE) logs -f --tail=100
 
-lab-smoke: unhide  ## Turn each feature flag on in turn and record the effect
-	uv run firebreak lab smoke
+lab-flags:  ## Write the pinned demo's flag inventory to a report
+	$(FIREBREAK) lab flags inventory
 
-lab-webhook: unhide  ## Receive Alertmanager deliveries on port 8000
-	uv run firebreak lab webhook
+lab-smoke:  ## Turn each feature flag on in turn and record the effect
+	$(FIREBREAK) lab smoke
+
+lab-webhook:  ## Receive Alertmanager deliveries on port 8000
+	$(FIREBREAK) lab webhook
