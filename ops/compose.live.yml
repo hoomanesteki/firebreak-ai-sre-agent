@@ -1,0 +1,86 @@
+# Firebreak overlay on the pinned OpenTelemetry Demo.
+#
+# Layered after the demo's own files:
+#
+#   docker compose --project-directory vendor/otel-demo \
+#     -f vendor/otel-demo/compose.yaml \
+#     -f vendor/otel-demo/compose.observability.yaml \
+#     -f ops/compose.live.yml up -d
+#
+# Relative paths resolve against the project directory, which is
+# vendor/otel-demo, so paths here climb out with ../../. Nothing under
+# vendor/ is edited. See docs/target-system.md.
+#
+# The collector's extras file is not switched here. Its path comes from the
+# OTEL_COLLECTOR_CONFIG_EXTRAS variable, which the Makefile sets, because
+# overriding the volume would mean repeating all four collector config
+# mounts and they change between demo releases.
+
+services:
+  # The demo keeps Jaeger, OpenSearch, and the flagd OFREP port on the
+  # container network only. Firebreak's tool layer queries them directly, so
+  # they get host ports here, bound to the loopback address because SPEC.md
+  # Section 11 says the demo is never exposed beyond localhost.
+  #
+  # !override replaces the upstream list instead of adding to it. Compose
+  # concatenates sequences by default, which would leave Prometheus trying to
+  # bind 9090 twice, once on every interface and once on loopback, and the
+  # stack would fail to start.
+  jaeger:
+    ports: !override
+      - "127.0.0.1:16686:16686"
+      - "127.0.0.1:4317:4317"
+
+  opensearch:
+    ports: !override
+      - "127.0.0.1:9200:9200"
+
+  flagd:
+    ports: !override
+      - "127.0.0.1:8013:8013"
+      - "127.0.0.1:8016:8016"
+
+  prometheus:
+    ports: !override
+      - "127.0.0.1:9090:9090"
+    volumes:
+      # Compose merges volume lists by target path, so this replaces the
+      # demo's mount with the rendered config that adds rule_files and an
+      # alerting block. Render it with: make live-config
+      - ../../ops/generated/prometheus-config.yaml:/etc/prometheus/prometheus-config.yaml
+      - ../../ops/alert_rules.yml:/etc/prometheus/firebreak-alert-rules.yml:ro
+    depends_on:
+      alertmanager:
+        condition: service_started
+
+  alertmanager:
+    image: quay.io/prometheus/alertmanager:v0.34.0
+    container_name: alertmanager
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --log.level=info
+    volumes:
+      - ../../ops/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "127.0.0.1:9093:9093"
+    extra_hosts:
+      # Lets the webhook reach Firebreak running on the host. Docker Desktop
+      # provides this name; this line makes it work on plain Linux too.
+      - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  load-generator:
+    environment:
+      # Headless Chromium users are the largest memory consumer in the stack
+      # and they make load levels hard to reproduce between recordings.
+      - LOCUST_BROWSER_TRAFFIC_ENABLED=false

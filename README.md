@@ -55,8 +55,37 @@ make setup
 make verify
 ```
 
-`make demo` (offline replay), `make demo-local` (local models), and
-`make live` (the full OpenTelemetry Demo) arrive in later phases.
+`make demo` (offline replay) and `make demo-local` (local models) arrive in
+later phases.
+
+### Running the live target system
+
+Firebreak investigates the OpenTelemetry Demo, pinned as a submodule at tag
+3.1.0. Start it with:
+
+```bash
+git submodule update --init --recursive
+make live          # starts the demo plus Firebreak's overlay
+make live-down     # stops it and removes its volumes
+```
+
+Resource notes, so the first run is not a surprise:
+
+- The 25 services in the two Compose files declare 6.7 GB of memory limits
+  between them, and Firebreak's overlay adds 128 MB for Alertmanager. Limits
+  are ceilings rather than reservations, so steady-state usage is lower, but
+  Docker needs headroom well past 8 GB to start the stack comfortably.
+- The three largest single limits are the load generator at 1.5 GB, Jaeger at
+  1.2 GB, and OpenSearch at 1 GB.
+- Firebreak's overlay turns off the load generator's headless browser users.
+  They are the largest single memory consumer and they make load levels hard
+  to reproduce between recordings.
+- The first `make live` builds several images and takes a long time. Later
+  runs start from cache.
+
+Everything after the recording step runs from frozen incident bundles, so the
+demo is needed to record a scenario library and to run `make live`, and for
+nothing else.
 
 ## Architecture
 

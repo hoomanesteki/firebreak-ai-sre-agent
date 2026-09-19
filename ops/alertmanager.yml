@@ -1,0 +1,23 @@
+# Alertmanager routes every demo alert to Firebreak's webhook.
+#
+# Prometheus cannot send webhooks on its own, so the live stack runs
+# Alertmanager next to it. Firebreak's entry gate does the deduplication that
+# matters for an investigation (SPEC.md Section 6.8), so grouping here is kept
+# short rather than clever.
+
+global:
+  resolve_timeout: 2m
+
+route:
+  receiver: firebreak
+  group_by: [alertname, service]
+  group_wait: 10s
+  group_interval: 30s
+  repeat_interval: 1h
+
+receivers:
+  - name: firebreak
+    webhook_configs:
+      - url: http://host.docker.internal:8000/alerts
+        send_resolved: true
+        max_alerts: 0

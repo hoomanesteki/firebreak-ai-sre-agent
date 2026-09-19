@@ -1,0 +1,93 @@
+# Prometheus alert rules for Firebreak.
+#
+# Metric and label names were read from the pinned demo's own Grafana
+# dashboards at tag 3.1.0, not assumed:
+#   traces_span_metrics_calls_total{service_name, status_code}
+#   traces_span_metrics_duration_milliseconds_bucket{service_name, le}
+#   traces_service_graph_request_total{client, server}
+#   traces_service_graph_request_failed_total{client, server}
+# The first two come from the demo's span_metrics connector. The last two
+# come from Firebreak's service_graph connector in ops/otelcol-config-extras.yml.
+#
+# Alerts name the symptom, never the cause. An alert that said which service
+# was at fault would hand the agent its answer. See SPEC.md Section 8.4.
+
+groups:
+  - name: firebreak-red
+    interval: 15s
+    rules:
+      # The demo's user-visible failure. This is the alert most scenarios
+      # expect, and it fires on checkout whatever the underlying cause is.
+      - alert: checkout_error_rate_high
+        expr: |
+          (
+            sum(rate(traces_span_metrics_calls_total{service_name="checkout",status_code="STATUS_CODE_ERROR"}[5m]))
+            /
+            clamp_min(sum(rate(traces_span_metrics_calls_total{service_name="checkout"}[5m])), 0.001)
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          environment: demo
+          service: checkout
+        annotations:
+          summary: Checkout error rate above 5 percent
+          description: >-
+            More than 5 percent of checkout spans have ended in error for the
+            last 2 minutes. Customers cannot complete orders.
+
+      - alert: service_error_rate_high
+        expr: |
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{status_code="STATUS_CODE_ERROR"}[5m]))
+            /
+            clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total[5m])), 0.001)
+          ) > 0.10
+        for: 2m
+        labels:
+          severity: warning
+          environment: demo
+          service: "{{ $labels.service_name }}"
+        annotations:
+          summary: Error rate above 10 percent for {{ $labels.service_name }}
+          description: >-
+            {{ $labels.service_name }} has returned errors on more than 10
+            percent of its spans for the last 2 minutes.
+
+      - alert: service_latency_p95_high
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (service_name, le) (rate(traces_span_metrics_duration_milliseconds_bucket[5m]))
+          ) > 1000
+        for: 3m
+        labels:
+          severity: warning
+          environment: demo
+          service: "{{ $labels.service_name }}"
+        annotations:
+          summary: 95th percentile latency above 1 second for {{ $labels.service_name }}
+          description: >-
+            The 95th percentile span duration for {{ $labels.service_name }}
+            has been above 1000 ms for the last 3 minutes.
+
+  - name: firebreak-dependencies
+    interval: 15s
+    rules:
+      - alert: dependency_edge_failing
+        expr: |
+          (
+            sum by (client, server) (rate(traces_service_graph_request_failed_total[5m]))
+            /
+            clamp_min(sum by (client, server) (rate(traces_service_graph_request_total[5m])), 0.001)
+          ) > 0.10
+        for: 2m
+        labels:
+          severity: warning
+          environment: demo
+          service: "{{ $labels.client }}"
+        annotations:
+          summary: Calls from {{ $labels.client }} to {{ $labels.server }} are failing
+          description: >-
+            More than 10 percent of calls on this dependency edge have failed
+            for the last 2 minutes.
