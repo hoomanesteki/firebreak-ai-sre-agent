@@ -1,11 +1,7 @@
 # Firebreak overlay on the pinned OpenTelemetry Demo.
 #
-# Layered after the demo's own files:
-#
-#   docker compose --project-directory vendor/otel-demo \
-#     -f vendor/otel-demo/compose.yaml \
-#     -f vendor/otel-demo/compose.observability.yaml \
-#     -f ops/compose.live.yml up -d
+# Layered after the demo's own files. Use `make live`, which sets the
+# variables this overlay depends on.
 #
 # Relative paths resolve against the project directory, which is
 # vendor/otel-demo, so paths here climb out with ../../. Nothing under
@@ -15,6 +11,17 @@
 # OTEL_COLLECTOR_CONFIG_EXTRAS variable, which the Makefile sets, because
 # overriding the volume would mean repeating all four collector config
 # mounts and they change between demo releases.
+
+# The SDKs default to exporting metrics every 60 seconds, and the demo does
+# not override it. That is too coarse twice over: SPEC.md Section 6.2 records
+# bundles at a 15 second step, and an alert written as rate(...[5m]) needs
+# several samples inside its window to evaluate at all. Measured on the demo
+# at the default, one series produced 5 samples in 15 minutes, which left the
+# error rate rules permanently empty while the service graph rules, flushed
+# every 15 seconds by Firebreak's connector config, fired normally.
+x-metric-export: &metric-export
+  environment:
+    - OTEL_METRIC_EXPORT_INTERVAL=15000
 
 services:
   # The demo keeps Jaeger, OpenSearch, and the flagd OFREP port on the
@@ -35,10 +42,20 @@ services:
     ports: !override
       - "127.0.0.1:9200:9200"
 
+  # flagd-ui writes flag changes into the directory it serves, and the demo
+  # bind mounts src/flagd into both containers. Left alone, every fault
+  # injection would edit the pinned submodule. Both mounts point at a copy
+  # Firebreak owns, rendered by: make live-config
   flagd:
     ports: !override
       - "127.0.0.1:8013:8013"
       - "127.0.0.1:8016:8016"
+    volumes: !override
+      - ../../ops/generated/flagd:/etc/flagd
+
+  flagd-ui:
+    volumes: !override
+      - ../../ops/generated/flagd:/app/data
 
   prometheus:
     ports: !override
@@ -84,3 +101,22 @@ services:
       # Headless Chromium users are the largest memory consumer in the stack
       # and they make load levels hard to reproduce between recordings.
       - LOCUST_BROWSER_TRAFFIC_ENABLED=false
+      - OTEL_METRIC_EXPORT_INTERVAL=15000
+
+  # Every service that reports RED metrics gets the denser export interval.
+  # Compose appends to a service's environment list, so these add to whatever
+  # the demo already sets.
+  accounting: *metric-export
+  ad: *metric-export
+  cart: *metric-export
+  checkout: *metric-export
+  currency: *metric-export
+  email: *metric-export
+  fraud-detection: *metric-export
+  frontend: *metric-export
+  image-provider: *metric-export
+  payment: *metric-export
+  product-catalog: *metric-export
+  quote: *metric-export
+  recommendation: *metric-export
+  shipping: *metric-export

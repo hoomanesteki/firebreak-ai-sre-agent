@@ -1,9 +1,16 @@
 """Render the configuration the live stack needs.
 
-The demo's Prometheus config has no `rule_files` and no `alerting` block, so
-Firebreak adds both. Rather than keeping a copy of the upstream config, which
-would drift the next time the pin moves, the file is generated from the
-vendored one every time the stack starts.
+Two files are generated from the pinned demo rather than copied into the
+repository, so neither drifts when the pin moves.
+
+The Prometheus config gains a `rule_files` entry and an `alerting` block,
+which upstream's has neither of.
+
+The flag file is copied out of `vendor/` because flagd-ui writes to the
+directory it is served from. The demo bind mounts `src/flagd` into both
+flagd and flagd-ui, so setting a flag through the API edits the submodule.
+The overlay mounts this generated copy instead, which keeps `vendor/`
+pristine and makes a reset a question of re-rendering.
 """
 
 from __future__ import annotations
@@ -20,6 +27,7 @@ GENERATED_HEADER = (
     "# Prometheus configuration. Do not edit. Change ops/alert_rules.yml or\n"
     "# src/firebreak/lab/stack.py instead.\n"
 )
+FLAG_FILE_NAME = "demo.flagd.json"
 
 
 class StackConfigError(Exception):
@@ -49,4 +57,22 @@ def render_prometheus_config(source: Path, destination: Path) -> Path:
         GENERATED_HEADER + yaml.safe_dump(rendered, sort_keys=False),
         encoding="utf-8",
     )
+    return destination
+
+
+def render_flag_store(source: Path, destination_dir: Path, overwrite: bool = True) -> Path:
+    """Copy the pinned demo's flag file into a directory Firebreak owns.
+
+    flagd-ui writes to the directory it serves, so pointing it at the
+    submodule would mean every fault injection edited vendored files. Pass
+    overwrite=False to keep an existing store, which is how a stack restart
+    avoids discarding a fault that is deliberately still applied.
+    """
+    if not source.is_file():
+        raise StackConfigError(f"vendored flag file not found at {source}")
+    destination = destination_dir / FLAG_FILE_NAME
+    if destination.exists() and not overwrite:
+        return destination
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    destination.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
     return destination

@@ -19,7 +19,7 @@ from firebreak.lab.flags import (
 )
 from firebreak.lab.load import LoadController, LoadError
 from firebreak.lab.smoke import EXCLUDED_FLAGS, build_report, smoke_one_flag
-from firebreak.lab.stack import render_prometheus_config
+from firebreak.lab.stack import render_flag_store, render_prometheus_config
 from firebreak.lab.webhook import AlertSink, build_server
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -28,6 +28,7 @@ VENDORED_PROMETHEUS_CONFIG = (
     REPO_ROOT / "vendor" / "otel-demo" / "src" / "prometheus" / "prometheus-config.yaml"
 )
 GENERATED_PROMETHEUS_CONFIG = REPO_ROOT / "ops" / "generated" / "prometheus-config.yaml"
+GENERATED_FLAG_DIR = REPO_ROOT / "ops" / "generated" / "flagd"
 SMOKE_REPORT = REPO_ROOT / "reports" / "lab" / "flag_smoke.json"
 INVENTORY_REPORT = REPO_ROOT / "reports" / "lab" / "flag_inventory.json"
 WEBHOOK_LOG = REPO_ROOT / "reports" / "lab" / "alerts.jsonl"
@@ -127,18 +128,15 @@ def get_flag(flag: str) -> None:
 
 @flags_app.command("set")
 def set_flag(flag: str, variant: str) -> None:
-    """Set one flag's variant and confirm flagd serves it."""
+    """Set one flag's variant and wait until flagd serves it."""
     with _client() as client:
         controller = FlagController(client)
         try:
-            state = controller.set_variant(flag, variant)
-            served = controller.evaluate(flag)
+            _state, waited = controller.apply_fault(flag, variant)
         except (FlagError, httpx.HTTPError) as error:
             _fail(f"could not set {flag}={variant}: {error}")
             return
-    if served != state.default_variant:
-        _fail(f"wrote {flag}={variant} but flagd serves {served}")
-    console.print(f"[green]{flag} = {variant}, confirmed by flagd[/green]")
+    console.print(f"[green]{flag} = {variant}, served by flagd after {waited:.2f}s[/green]")
 
 
 @flags_app.command("reset")
@@ -167,10 +165,10 @@ def set_load(
     users: int,
     spawn_rate: float = typer.Option(5.0, "--spawn-rate", help="Users added per second"),
 ) -> None:
-    """Ramp the load generator to a user count."""
+    """Ramp the load generator to a user count and wait for it to get there."""
     with _client() as client:
         try:
-            state = LoadController(client).set_users(users, spawn_rate)
+            state = LoadController(client).set_users(users, spawn_rate, wait=True)
         except (LoadError, httpx.HTTPError) as error:
             _fail(f"could not set load: {error}")
             return
@@ -202,10 +200,16 @@ def load_status() -> None:
 
 
 @lab_app.command("render-config")
-def render_config() -> None:
-    """Generate the Prometheus config the live stack mounts."""
-    destination = render_prometheus_config(VENDORED_PROMETHEUS_CONFIG, GENERATED_PROMETHEUS_CONFIG)
-    console.print(f"[green]wrote {destination.relative_to(REPO_ROOT)}[/green]")
+def render_config(
+    keep_flags: bool = typer.Option(
+        False, "--keep-flags", help="Leave an existing flag store alone"
+    ),
+) -> None:
+    """Generate the Prometheus config and flag store the live stack mounts."""
+    prometheus = render_prometheus_config(VENDORED_PROMETHEUS_CONFIG, GENERATED_PROMETHEUS_CONFIG)
+    flags = render_flag_store(VENDORED_FLAG_FILE, GENERATED_FLAG_DIR, overwrite=not keep_flags)
+    console.print(f"[green]wrote {prometheus.relative_to(REPO_ROOT)}[/green]")
+    console.print(f"[green]wrote {flags.relative_to(REPO_ROOT)}[/green]")
 
 
 @lab_app.command("webhook")

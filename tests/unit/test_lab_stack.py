@@ -1,5 +1,6 @@
 """Tests for firebreak.lab.stack."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,7 @@ from firebreak.lab.stack import (
     RULE_FILE_IN_CONTAINER,
     StackConfigError,
     build_prometheus_config,
+    render_flag_store,
     render_prometheus_config,
 )
 
@@ -79,3 +81,47 @@ def test_render_prometheus_config_on_real_vendored_file_has_expected_keys_and_he
     assert "alerting" in parsed
     assert "otlp" in parsed
     assert "storage" in parsed
+
+
+def test_render_flag_store_copies_the_pinned_file(tmp_path: Path):
+    source = REPO_ROOT / "vendor" / "otel-demo" / "src" / "flagd" / "demo.flagd.json"
+    destination = render_flag_store(source, tmp_path / "flagd")
+
+    assert destination.name == "demo.flagd.json"
+    copied = json.loads(destination.read_text(encoding="utf-8"))
+    assert copied["flags"]["paymentFailure"]["defaultVariant"] == "off"
+
+
+def test_render_flag_store_creates_the_directory(tmp_path: Path):
+    source = REPO_ROOT / "vendor" / "otel-demo" / "src" / "flagd" / "demo.flagd.json"
+    destination = render_flag_store(source, tmp_path / "deep" / "flagd")
+
+    assert destination.is_file()
+
+
+def test_render_flag_store_overwrites_a_modified_store(tmp_path: Path):
+    source = REPO_ROOT / "vendor" / "otel-demo" / "src" / "flagd" / "demo.flagd.json"
+    target_dir = tmp_path / "flagd"
+    first = render_flag_store(source, target_dir)
+    first.write_text('{"flags": {}}', encoding="utf-8")
+
+    render_flag_store(source, target_dir)
+
+    assert "paymentFailure" in json.loads(first.read_text(encoding="utf-8"))["flags"]
+
+
+def test_render_flag_store_keeps_an_existing_store_when_asked(tmp_path: Path):
+    """A stack restart must not silently clear a fault that is still applied."""
+    source = REPO_ROOT / "vendor" / "otel-demo" / "src" / "flagd" / "demo.flagd.json"
+    target_dir = tmp_path / "flagd"
+    existing = render_flag_store(source, target_dir)
+    existing.write_text('{"flags": {"kept": {}}}', encoding="utf-8")
+
+    render_flag_store(source, target_dir, overwrite=False)
+
+    assert json.loads(existing.read_text(encoding="utf-8"))["flags"] == {"kept": {}}
+
+
+def test_render_flag_store_rejects_a_missing_source(tmp_path: Path):
+    with pytest.raises(StackConfigError, match="vendored flag file not found"):
+        render_flag_store(tmp_path / "absent.json", tmp_path / "flagd")
