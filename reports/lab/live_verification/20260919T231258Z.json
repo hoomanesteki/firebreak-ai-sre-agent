@@ -1,0 +1,74 @@
+{
+  "demo_tag": "3.1.0",
+  "checks_run": 7,
+  "checks_passed": 7,
+  "failed_checks": [],
+  "vendor_submodule_clean": true,
+  "ready_to_record": true,
+  "checks": [
+    {
+      "name": "prometheus_rules_loaded",
+      "passed": true,
+      "detail": "4 rule(s) loaded",
+      "measured": {
+        "rules": [
+          "checkout_error_rate_high",
+          "dependency_edge_failing",
+          "service_error_rate_high",
+          "service_latency_p95_high"
+        ]
+      }
+    },
+    {
+      "name": "service_graph_edges",
+      "passed": true,
+      "detail": "37 dependency edge series",
+      "measured": {
+        "edge_series": 37
+      }
+    },
+    {
+      "name": "span_metrics_present",
+      "passed": true,
+      "detail": "106 span metric series",
+      "measured": {
+        "series": 106
+      }
+    },
+    {
+      "name": "sample_density",
+      "passed": true,
+      "detail": "6 of 20 possible points in a 300s window",
+      "measured": {
+        "points": 6,
+        "possible": 20
+      }
+    },
+    {
+      "name": "flagd_serving",
+      "passed": true,
+      "detail": "paymentFailure served as 'off'",
+      "measured": {
+        "flag": "paymentFailure",
+        "variant": "off"
+      }
+    },
+    {
+      "name": "load_generator_running",
+      "passed": true,
+      "detail": "5 user(s), state running",
+      "measured": {
+        "user_count": 5,
+        "state": "running"
+      }
+    },
+    {
+      "name": "alertmanager_ready",
+      "passed": true,
+      "detail": "cluster status ready",
+      "measured": {
+        "cluster_status": "ready"
+      }
+    }
+  ]
+}

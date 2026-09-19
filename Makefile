@@ -3,7 +3,7 @@
 SHELL := /bin/bash
 
 .PHONY: help setup verify lint format types test test-cov hygiene clean unhide \
-        live live-config live-down live-logs lab-flags lab-smoke lab-webhook
+        live live-config live-down live-logs lab-flags lab-verify lab-smoke lab-webhook
 
 help:  ## Show the available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -108,6 +108,9 @@ live-down:  ## Stop the live stack and remove its volumes
 
 live-logs:  ## Follow the live stack logs
 	$(COMPOSE_LIVE) logs -f --tail=100
+
+lab-verify:  ## Check the running stack is fit to record incidents from
+	$(FIREBREAK) lab verify
 
 lab-flags:  ## Write the pinned demo's flag inventory to a report
 	$(FIREBREAK) lab flags inventory

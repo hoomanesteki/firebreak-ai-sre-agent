@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -20,6 +23,8 @@ from firebreak.lab.flags import (
 from firebreak.lab.load import LoadController, LoadError
 from firebreak.lab.smoke import EXCLUDED_FLAGS, build_report, smoke_one_flag
 from firebreak.lab.stack import render_flag_store, render_prometheus_config
+from firebreak.lab.verify import build_report as build_verification_report
+from firebreak.lab.verify import run_checks
 from firebreak.lab.webhook import AlertSink, build_server
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -31,6 +36,10 @@ GENERATED_PROMETHEUS_CONFIG = REPO_ROOT / "ops" / "generated" / "prometheus-conf
 GENERATED_FLAG_DIR = REPO_ROOT / "ops" / "generated" / "flagd"
 SMOKE_REPORT = REPO_ROOT / "reports" / "lab" / "flag_smoke.json"
 INVENTORY_REPORT = REPO_ROOT / "reports" / "lab" / "flag_inventory.json"
+# Verification reports are evidence for a phase gate, so a later failing
+# run must not overwrite the record of a passing one. Each run writes its
+# own file named for the moment it ran.
+VERIFICATION_DIR = REPO_ROOT / "reports" / "lab" / "live_verification"
 WEBHOOK_LOG = REPO_ROOT / "reports" / "lab" / "alerts.jsonl"
 HTTP_TIMEOUT_SECONDS = 15.0
 
@@ -210,6 +219,41 @@ def render_config(
     flags = render_flag_store(VENDORED_FLAG_FILE, GENERATED_FLAG_DIR, overwrite=not keep_flags)
     console.print(f"[green]wrote {prometheus.relative_to(REPO_ROOT)}[/green]")
     console.print(f"[green]wrote {flags.relative_to(REPO_ROOT)}[/green]")
+
+
+@lab_app.command("verify")
+def verify(
+    flag: str = typer.Option("paymentFailure", "--flag", help="Flag to evaluate"),
+) -> None:
+    """Check that the running stack is fit to record incidents from."""
+    with _client() as client:
+        checks = run_checks(client, DEFAULT_ENDPOINTS, flag, time.time())
+
+    dirty = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=REPO_ROOT / "vendor" / "otel-demo",
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout.strip()
+    report = build_verification_report(checks, DEMO_TAG, vendor_clean=not dirty)
+
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    destination = VERIFICATION_DIR / f"{stamp}.json"
+    VERIFICATION_DIR.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+
+    table = Table(title=f"Live stack verification (demo {DEMO_TAG})")
+    table.add_column("Check")
+    table.add_column("Result")
+    table.add_column("Measured")
+    for check in checks:
+        mark = "[green]pass[/green]" if check.passed else "[red]fail[/red]"
+        table.add_row(check.name, mark, check.detail)
+    console.print(table)
+    console.print(f"wrote {destination.relative_to(REPO_ROOT)}")
+    if not report["ready_to_record"]:
+        _fail(f"not ready to record: {', '.join(report['failed_checks']) or 'vendor dirty'}")
 
 
 @lab_app.command("webhook")
