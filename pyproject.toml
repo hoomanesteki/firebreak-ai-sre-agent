@@ -76,7 +76,10 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["src/firebreak"]
+# scripts/ gates every commit, so it is measured too. SPEC.md Section 12
+# sets the floor for src/firebreak; leaving the gatekeepers unmeasured is
+# how an untested check quietly starts passing everything.
+source = ["src/firebreak", "scripts"]
 omit = ["src/firebreak/web/*", "src/firebreak/cli/*"]
 
 [tool.coverage.report]

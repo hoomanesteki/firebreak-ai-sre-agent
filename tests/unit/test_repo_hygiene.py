@@ -7,12 +7,16 @@ from pathlib import Path
 
 import pytest
 
+import check_repo_hygiene
 from check_repo_hygiene import (
     Config,
     HygieneError,
     check_banned_characters,
+    check_commit_authors,
+    check_commit_messages,
     check_flagged_words,
     check_readme_stats,
+    collect_findings,
     is_excluded,
     load_config,
     matches_any_glob,
@@ -189,3 +193,236 @@ def test_check_readme_stats_flags_missing_markers(tmp_path: Path):
 
 def test_config_is_a_dataclass_instance():
     assert isinstance(CONFIG, Config)
+
+
+# --- commit checks -------------------------------------------------------
+#
+# These gate authorship and AI attribution on every commit, so they are
+# tested against a fake git log rather than left to run untested in CI.
+
+
+def fake_log(monkeypatch, output: str) -> list[list[str]]:
+    calls: list[list[str]] = []
+
+    def fake_run_git(args, cwd=None):
+        calls.append(args)
+        return output
+
+    monkeypatch.setattr(check_repo_hygiene, "run_git", fake_run_git)
+    return calls
+
+
+def test_check_commit_authors_accepts_the_owner(monkeypatch):
+    fake_log(monkeypatch, "abc123 esteki.net@gmail.com esteki.net@gmail.com\n")
+
+    assert check_commit_authors(CONFIG, "main") == []
+
+
+def test_check_commit_authors_rejects_an_unknown_author(monkeypatch):
+    fake_log(monkeypatch, "abc123 someone@example.com esteki.net@gmail.com\n")
+
+    findings = check_commit_authors(CONFIG, "main")
+
+    assert [finding.rule for finding in findings] == ["commit-author"]
+    assert "author someone@example.com" in findings[0].message
+
+
+def test_check_commit_authors_rejects_an_unknown_committer(monkeypatch):
+    fake_log(monkeypatch, "abc123 esteki.net@gmail.com bot@example.com\n")
+
+    findings = check_commit_authors(CONFIG, "main")
+
+    assert "committer bot@example.com" in findings[0].message
+
+
+def test_check_commit_authors_is_case_insensitive(monkeypatch):
+    fake_log(monkeypatch, "abc123 Esteki.Net@Gmail.com ESTEKI.NET@GMAIL.COM\n")
+
+    assert check_commit_authors(CONFIG, "main") == []
+
+
+def test_check_commit_authors_reports_every_bad_commit(monkeypatch):
+    fake_log(
+        monkeypatch,
+        "aaa111 a@example.com a@example.com\nbbb222 esteki.net@gmail.com esteki.net@gmail.com\n",
+    )
+
+    findings = check_commit_authors(CONFIG, "main")
+
+    assert len(findings) == 2
+    assert all("aaa111" in finding.location for finding in findings)
+
+
+def test_check_commit_authors_ignores_malformed_lines(monkeypatch):
+    fake_log(monkeypatch, "not-a-real-line\n")
+
+    assert check_commit_authors(CONFIG, "main") == []
+
+
+def test_check_commit_authors_returns_nothing_when_git_gives_no_output(monkeypatch):
+    fake_log(monkeypatch, "")
+
+    assert check_commit_authors(CONFIG, "main") == []
+
+
+def test_check_commit_messages_rejects_an_ai_coauthor_trailer(monkeypatch):
+    log = "abc123\x00feat(agent): add node\n\nCo-Authored-By: Claude <x@y.z>\n\x00\n"
+    fake_log(monkeypatch, log)
+
+    findings = check_commit_messages(CONFIG, "main")
+
+    assert [finding.rule for finding in findings] == ["ai-attribution"]
+
+
+def test_check_commit_messages_rejects_the_anthropic_noreply_address(monkeypatch):
+    log = "abc123\x00chore: thing\n\nnoreply@anthropic.com\n\x00\n"
+    fake_log(monkeypatch, log)
+
+    assert check_commit_messages(CONFIG, "main")
+
+
+def test_check_commit_messages_rejects_a_generated_with_line(monkeypatch):
+    log = "abc123\x00docs: readme\n\nGenerated with a tool\n\x00\n"
+    fake_log(monkeypatch, log)
+
+    assert check_commit_messages(CONFIG, "main")
+
+
+def test_check_commit_messages_accepts_a_clean_message(monkeypatch):
+    log = "abc123\x00feat(gates): re-run cited queries\n\nWhy it matters.\n\x00\n"
+    fake_log(monkeypatch, log)
+
+    assert check_commit_messages(CONFIG, "main") == []
+
+
+def test_check_commit_messages_returns_nothing_when_git_gives_no_output(monkeypatch):
+    fake_log(monkeypatch, "")
+
+    assert check_commit_messages(CONFIG, "main") == []
+
+
+def test_collect_findings_skips_git_checks_when_asked(monkeypatch):
+    calls = fake_log(monkeypatch, "abc123 someone@example.com someone@example.com\n")
+
+    findings = collect_findings([], CONFIG, "main", skip_git=True)
+
+    assert findings == []
+    assert calls == []
+
+
+# --- entry point ---------------------------------------------------------
+#
+# main() is what CI runs. An exit code that is always zero would make the
+# whole check decorative, so the codes are asserted directly.
+
+
+def test_main_returns_zero_on_a_clean_file(tmp_path, capsys):
+    rel = write(tmp_path, "docs/clean.md", "Ranges use 1 to 5.\n")
+
+    assert check_repo_hygiene.main([rel, "--skip-git", "--root", str(tmp_path)]) == 0
+    assert "clean" in capsys.readouterr().out
+
+
+def test_main_returns_one_when_a_rule_fails(tmp_path, capsys):
+    rel = write(tmp_path, "docs/bad.md", "A sentence \u2014 with a dash.\n")
+
+    assert check_repo_hygiene.main([rel, "--skip-git", "--root", str(tmp_path)]) == 1
+    assert "banned-character" in capsys.readouterr().err
+
+
+def test_main_returns_two_when_the_config_cannot_be_loaded(monkeypatch, capsys):
+    def raise_missing(path=None):
+        raise HygieneError("missing hygiene config: nowhere.yaml")
+
+    monkeypatch.setattr(check_repo_hygiene, "load_config", raise_missing)
+
+    assert check_repo_hygiene.main(["--skip-git"]) == 2
+    assert "hygiene config error" in capsys.readouterr().err
+
+
+def test_main_falls_back_to_tracked_files_when_none_are_given(monkeypatch):
+    monkeypatch.setattr(check_repo_hygiene, "list_tracked_files", lambda cwd=None: [])
+    captured = {}
+
+    def fake_collect(files, config, base_ref, skip_git, root=None):
+        captured["files"] = files
+        return []
+
+    monkeypatch.setattr(check_repo_hygiene, "collect_findings", fake_collect)
+
+    assert check_repo_hygiene.main(["--skip-git"]) == 0
+    assert captured["files"] == []
+
+
+def test_run_git_returns_empty_string_on_failure(tmp_path):
+    assert check_repo_hygiene.run_git(["rev-parse", "--not-a-flag"], cwd=tmp_path) == ""
+
+
+def test_list_tracked_files_returns_paths_in_this_repository():
+    tracked = check_repo_hygiene.list_tracked_files()
+
+    assert "SPEC.md" in tracked
+    assert all(not path.startswith("/") for path in tracked)
+
+
+def test_check_banned_characters_skips_a_file_that_is_not_utf8(tmp_path):
+    path = tmp_path / "docs" / "binary.md"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b"\xff\xfe not valid utf-8")
+
+    assert check_banned_characters(["docs/binary.md"], CONFIG, root=tmp_path) == []
+
+
+def test_check_banned_characters_skips_a_path_that_is_not_a_file(tmp_path):
+    (tmp_path / "docs").mkdir()
+
+    assert check_banned_characters(["docs"], CONFIG, root=tmp_path) == []
+
+
+def test_matches_any_glob_handles_a_bare_recursive_prefix():
+    """site/templates/** has no extension part, so fnmatch alone misses it."""
+    assert matches_any_glob("site/templates/base.html", CONFIG.prose_globs)
+    assert matches_any_glob("site/templates/nested/page.html", CONFIG.prose_globs)
+
+
+def test_load_config_rejects_a_config_that_is_not_a_mapping(tmp_path):
+    path = tmp_path / "rules.yaml"
+    path.write_text("- a\n- b\n", encoding="utf-8")
+
+    with pytest.raises(HygieneError, match="must be a mapping"):
+        load_config(path)
+
+
+def test_render_stats_block_rejects_a_row_that_is_not_a_mapping():
+    with pytest.raises(HygieneError, match="each readme_rows entry must be a mapping"):
+        render_stats_block({"readme_rows": ["not-a-mapping"]})
+
+
+def test_collect_findings_runs_the_git_checks_when_not_skipped(monkeypatch):
+    fake_log(monkeypatch, "abc123 stranger@example.com stranger@example.com\n")
+
+    findings = collect_findings([], CONFIG, "main", skip_git=False)
+
+    assert any(finding.rule == "commit-author" for finding in findings)
+
+
+def test_check_flagged_words_skips_a_file_that_is_not_utf8(tmp_path):
+    path = tmp_path / "README.md"
+    path.write_bytes(b"\xff\xfe seamless")
+
+    assert check_flagged_words(["README.md"], CONFIG, root=tmp_path) == []
+
+
+def test_check_flagged_words_skips_a_path_that_is_not_a_file(tmp_path):
+    (tmp_path / "docs").mkdir()
+
+    assert check_flagged_words(["docs"], CONFIG, root=tmp_path) == []
+
+
+def test_check_banned_characters_skips_a_tracked_file_that_is_gone(tmp_path):
+    """git ls-files can name a file that a rebase or checkout removed."""
+    assert check_banned_characters(["docs/deleted.md"], CONFIG, root=tmp_path) == []
+
+
+def test_check_flagged_words_skips_a_prose_file_that_is_gone(tmp_path):
+    assert check_flagged_words(["README.md"], CONFIG, root=tmp_path) == []

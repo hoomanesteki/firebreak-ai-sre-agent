@@ -153,13 +153,12 @@ def check_banned_characters(
 
 
 def matches_any_glob(rel_path: str, globs: list[str]) -> bool:
-    """True when the path matches one of the prose globs."""
-    for pattern in globs:
-        if fnmatch.fnmatch(rel_path, pattern):
-            return True
-        if pattern.endswith("/**") and rel_path.startswith(pattern[:-2]):
-            return True
-    return False
+    """True when the path matches one of the prose globs.
+
+    fnmatch treats `*` as matching separators too, so `site/templates/**`
+    already covers nested files and no extra prefix rule is needed.
+    """
+    return any(fnmatch.fnmatch(rel_path, pattern) for pattern in globs)
 
 
 def check_flagged_words(files: list[str], config: Config, root: Path = REPO_ROOT) -> list[Finding]:
@@ -288,12 +287,22 @@ def check_readme_stats(
 
 
 def collect_findings(
-    files: list[str], config: Config, base_ref: str, skip_git: bool
+    files: list[str],
+    config: Config,
+    base_ref: str,
+    skip_git: bool,
+    root: Path | None = None,
 ) -> list[Finding]:
-    """Run every hygiene rule and gather the findings."""
-    findings = check_banned_characters(files, config)
-    findings += check_flagged_words(files, config)
-    findings += check_readme_stats()
+    """Run every hygiene rule and gather the findings.
+
+    The root is a parameter rather than a module constant read at import
+    time, so the checks can be pointed at a scratch directory. A gatekeeper
+    that is awkward to test is a gatekeeper that stops being tested.
+    """
+    base = root if root is not None else REPO_ROOT
+    findings = check_banned_characters(files, config, root=base)
+    findings += check_flagged_words(files, config, root=base)
+    findings += check_readme_stats(base / "README.md", base / "reports" / "site_stats.json")
     if not skip_git:
         findings += check_commit_messages(config, base_ref)
         findings += check_commit_authors(config, base_ref)
@@ -305,6 +314,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Firebreak repository hygiene checks")
     parser.add_argument("files", nargs="*", help="files to check; default is all tracked files")
     parser.add_argument("--base-ref", default="main", help="branch to compare commits against")
+    parser.add_argument(
+        "--root", default=None, help="repository root to check; default is this one"
+    )
     parser.add_argument(
         "--skip-git",
         action="store_true",
@@ -318,8 +330,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"hygiene config error: {error}", file=sys.stderr)
         return 2
 
-    files = args.files or list_tracked_files()
-    findings = collect_findings(files, config, args.base_ref, args.skip_git)
+    root = Path(args.root) if args.root else REPO_ROOT
+    files = args.files or list_tracked_files(cwd=root)
+    findings = collect_findings(files, config, args.base_ref, args.skip_git, root=root)
 
     if not findings:
         print(f"repo hygiene: clean ({len(files)} files checked)")

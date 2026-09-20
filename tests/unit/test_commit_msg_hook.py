@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import check_commit_msg
 import pytest
 from check_commit_msg import check_message, load_rules
 
@@ -96,3 +99,65 @@ def test_check_message_allows_merge_commits():
 @pytest.mark.parametrize("scope", ["gates", "evals", "triage", "ops"])
 def test_check_message_accepts_every_spec_scope(scope: str):
     assert problems(f"feat({scope}): add something useful") == []
+
+
+# --- config loading and entry point --------------------------------------
+#
+# main() is what git runs on every commit. If its exit code were always
+# zero the hook would be decorative, so the codes are asserted directly.
+
+
+def test_load_rules_rejects_a_config_that_is_not_a_mapping(tmp_path: Path):
+    path = tmp_path / "rules.yaml"
+    path.write_text("- just\n- a\n- list\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must be a mapping"):
+        load_rules(path)
+
+
+def test_load_rules_rejects_a_scalar_where_a_list_belongs(tmp_path: Path):
+    path = tmp_path / "rules.yaml"
+    path.write_text("commit_types: feat\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="commit_types must be a list"):
+        load_rules(path)
+
+
+def test_strip_comments_drops_the_verbose_diff_section():
+    message = (
+        "feat(agent): add node\n"
+        "# a comment\n"
+        "# ------------------------ >8 ------------------------\n"
+        "diff --git a/x b/x\n"
+        "Co-Authored-By: Claude <noreply@anthropic.com>\n"
+    )
+
+    assert problems(message) == []
+
+
+def test_main_returns_zero_for_a_valid_message(tmp_path: Path, capsys):
+    path = tmp_path / "COMMIT_EDITMSG"
+    path.write_text("feat(gates): re-run cited queries\n", encoding="utf-8")
+
+    assert check_commit_msg.main([str(path)]) == 0
+
+
+def test_main_returns_one_and_explains_for_an_invalid_message(tmp_path: Path, capsys):
+    path = tmp_path / "COMMIT_EDITMSG"
+    path.write_text("update stuff\n", encoding="utf-8")
+
+    assert check_commit_msg.main([str(path)]) == 1
+    captured = capsys.readouterr().err
+    assert "commit message rejected" in captured
+    assert "type(scope): summary" in captured
+
+
+def test_main_rejects_an_ai_trailer_from_a_real_file(tmp_path: Path, capsys):
+    path = tmp_path / "COMMIT_EDITMSG"
+    path.write_text(
+        "feat(agent): add the commander node\n\nCo-Authored-By: Claude <x@y.z>\n",
+        encoding="utf-8",
+    )
+
+    assert check_commit_msg.main([str(path)]) == 1
+    assert "AI attribution" in capsys.readouterr().err
