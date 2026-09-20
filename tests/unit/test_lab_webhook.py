@@ -138,3 +138,27 @@ def test_webhook_server_end_to_end_records_serves_health_and_rejects_bad_request
         server.shutdown()
         thread.join(timeout=5.0)
         server.server_close()
+
+
+def test_alert_sink_records_concurrent_deliveries_without_interleaving(tmp_path):
+    """The server threads each delivery and Alertmanager can send several at once.
+
+    Without a lock the appends can interleave and produce a line that is not
+    parseable JSON, which would silently corrupt a recording's alert log.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    path = tmp_path / "alerts.jsonl"
+    sink = AlertSink(path)
+    payloads = [
+        {"alerts": [{"labels": {"alertname": f"alert{i}"}, "status": "firing"}]} for i in range(60)
+    ]
+
+    with ThreadPoolExecutor(max_workers=12) as pool:
+        list(pool.map(sink.record, payloads))
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 60
+    assert sink.count == 60
+    names = {json.loads(line)["payload"]["alerts"][0]["labels"]["alertname"] for line in lines}
+    assert names == {f"alert{i}" for i in range(60)}

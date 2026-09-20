@@ -17,6 +17,7 @@ from firebreak.lab.flags import (
     UnknownFlagError,
     UnknownVariantError,
     parse_flag_config,
+    read_flag_file,
     read_vendored_defaults,
 )
 
@@ -379,3 +380,101 @@ def test_apply_fault_writes_then_waits_for_flagd():
     assert state.default_variant == "10%"
     assert store["config"]["flags"]["cartFailure"]["defaultVariant"] == "10%"
     assert waited > 0.0
+
+
+# --- integrity of reset and file reading ---------------------------------
+
+
+def test_reset_to_raises_when_the_write_did_not_take():
+    """A reset that silently does nothing poisons the next recording."""
+
+    def handler(request):
+        if request.url.path.endswith("/feature/api/read"):
+            config = _cart_failure_config()
+            config["flags"]["cartFailure"]["defaultVariant"] = "100%"
+            return httpx.Response(200, json=config)
+        if request.url.path.endswith("/feature/api/write"):
+            return httpx.Response(200, json={"status": "ok"})
+        raise AssertionError(f"unexpected request: {request.url}")
+
+    controller = FlagController(_client(handler))
+
+    with pytest.raises(FlagVerificationError, match="would inherit these"):
+        controller.reset_to({"cartFailure": "off"})
+
+
+def test_reset_to_returns_changed_names_when_the_write_took():
+    store = {"config": _cart_failure_config()}
+    store["config"]["flags"]["cartFailure"]["defaultVariant"] = "100%"
+
+    def handler(request):
+        if request.url.path.endswith("/feature/api/read"):
+            return httpx.Response(200, json=store["config"])
+        if request.url.path.endswith("/feature/api/write"):
+            store["config"] = json.loads(request.content)["data"]
+            return httpx.Response(200, json={"status": "ok"})
+        raise AssertionError(f"unexpected request: {request.url}")
+
+    controller = FlagController(_client(handler))
+
+    assert controller.reset_to({"cartFailure": "off"}) == ["cartFailure"]
+
+
+def test_read_flag_file_reports_invalid_json_as_a_flag_error(tmp_path: Path):
+    path = tmp_path / "demo.flagd.json"
+    path.write_text('{"flags": {', encoding="utf-8")
+
+    with pytest.raises(FlagError, match="not valid JSON"):
+        read_flag_file(path)
+
+
+def test_read_flag_file_reports_a_missing_file_as_a_flag_error(tmp_path: Path):
+    with pytest.raises(FlagError, match="cannot read"):
+        read_flag_file(tmp_path / "absent.json")
+
+
+def test_read_flag_file_rejects_a_json_document_that_is_not_an_object(tmp_path: Path):
+    path = tmp_path / "demo.flagd.json"
+    path.write_text("[1, 2, 3]", encoding="utf-8")
+
+    with pytest.raises(FlagError, match="does not contain a JSON object"):
+        read_flag_file(path)
+
+
+def test_await_variant_times_out_at_the_configured_deadline():
+    """A timeout that fires far too late would otherwise ship unnoticed."""
+    clock = _Clock()
+    controller = FlagController(_client(_ofrep_handler(["off"])))
+
+    with pytest.raises(FlagConvergenceError):
+        controller.await_variant(
+            "adFailure",
+            "on",
+            timeout_seconds=2.0,
+            poll_seconds=0.5,
+            sleep=clock.sleep,
+            monotonic=clock.monotonic,
+        )
+
+    assert clock.now == pytest.approx(2.0)
+
+
+def test_await_variant_keeps_waiting_while_flagd_is_unreachable():
+    """flagd refuses connections briefly while it reloads or restarts."""
+    calls = {"n": 0}
+
+    def handler(request):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise httpx.ConnectError("connection refused", request=request)
+        return httpx.Response(200, json={"variant": "on"})
+
+    clock = _Clock()
+    controller = FlagController(_client(handler))
+
+    waited = controller.await_variant(
+        "adFailure", "on", poll_seconds=0.5, sleep=clock.sleep, monotonic=clock.monotonic
+    )
+
+    assert waited == pytest.approx(1.0)
+    assert calls["n"] == 3

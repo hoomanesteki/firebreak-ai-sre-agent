@@ -94,8 +94,25 @@ def read_vendored_defaults(flag_file: Path) -> dict[str, str]:
     `reset` restores to, so a recording never inherits a flag another run left
     on.
     """
-    config = json.loads(flag_file.read_text(encoding="utf-8"))
-    return {name: state.default_variant for name, state in parse_flag_config(config).items()}
+    return {name: state.default_variant for name, state in read_flag_file(flag_file).items()}
+
+
+def read_flag_file(flag_file: Path) -> dict[str, FlagState]:
+    """Parse a flagd configuration file into typed flag states.
+
+    A truncated or half written file raises FlagError rather than a raw
+    JSON error, so callers that already handle FlagError report it cleanly
+    instead of showing a traceback.
+    """
+    try:
+        config = json.loads(flag_file.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise FlagError(f"{flag_file} is not valid JSON: {error}") from error
+    except OSError as error:
+        raise FlagError(f"cannot read {flag_file}: {error}") from error
+    if not isinstance(config, dict):
+        raise FlagError(f"{flag_file} does not contain a JSON object")
+    return parse_flag_config(config)
 
 
 class FlagController:
@@ -159,6 +176,11 @@ class FlagController:
 
         Returns the flags that were changed, so a recorder can log that the
         system started clean rather than assume it.
+
+        The write is read back, because a reset that silently did nothing is
+        worse than one that fails: the next recording would inherit whatever
+        fault the last one left on, and its label would say the fault was
+        something else.
         """
         config = self.read_config()
         flags = parse_flag_config(config)
@@ -169,8 +191,20 @@ class FlagController:
             if flags[name].default_variant != resting:
                 config["flags"][name]["defaultVariant"] = resting
                 changed.append(name)
-        if changed:
-            self._write_config(config)
+        if not changed:
+            return []
+
+        self._write_config(config)
+        after = self.list_flags()
+        still_wrong = {
+            name: after[name].default_variant
+            for name in changed
+            if name in after and after[name].default_variant != defaults[name]
+        }
+        if still_wrong:
+            raise FlagVerificationError(
+                f"reset did not take for {still_wrong}; the next recording would inherit these"
+            )
         return sorted(changed)
 
     def evaluate(self, flag: str) -> str:
@@ -212,7 +246,10 @@ class FlagController:
         while True:
             try:
                 served: str | None = self.evaluate(flag)
-            except FlagVerificationError:
+            except (FlagVerificationError, httpx.TransportError):
+                # flagd reloading, or briefly unreachable while the stack
+                # settles. Both are "not yet", not "never", so they keep
+                # counting against the timeout rather than aborting the wait.
                 served = None
             if served == variant:
                 return monotonic() - started

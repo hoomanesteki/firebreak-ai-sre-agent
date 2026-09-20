@@ -14,6 +14,7 @@ from firebreak.lab.smoke import (
     PrometheusQueryError,
     build_report,
     find_changed_signals,
+    has_changed,
     pick_strongest_variant,
     query_instant,
     relative_change,
@@ -102,7 +103,7 @@ def test_find_changed_signals_returns_only_signals_past_threshold_sorted():
     assert find_changed_signals(before, after, threshold=0.2) == ["alpha", "zeta"]
 
 
-def test_find_changed_signals_skips_signals_whose_change_cannot_be_computed():
+def test_find_changed_signals_skips_a_signal_that_vanished_or_stayed_at_zero():
     before = {"missing_after": 10.0, "zero_to_zero": 0.0}
     after = {"zero_to_zero": 0.0}
 
@@ -305,3 +306,86 @@ def test_build_report_counts_observed_effects_and_includes_demo_tag_and_queries(
     assert report["flags_with_observed_effect"] == 1
     assert len(report["results"]) == 2
     assert report["results"][0]["flag"] == "paymentFailure"
+
+
+# --- appearing and vanishing signals -------------------------------------------------
+
+
+def test_has_changed_counts_a_signal_that_appeared():
+    """Error rate queries match no series while a service is healthy.
+
+    Treating that as uncomputable made the smoke test blind to the error
+    injection family, which is the family it most needs to confirm.
+    """
+    assert has_changed(None, 0.5) is True
+
+
+def test_has_changed_ignores_a_signal_that_appeared_as_zero():
+    assert has_changed(None, 0.0) is False
+
+
+def test_has_changed_ignores_a_signal_that_vanished():
+    """Ambiguous: it can mean dropped telemetry rather than a fault effect."""
+    assert has_changed(10.0, None) is False
+
+
+def test_has_changed_ignores_a_signal_that_was_never_there():
+    assert has_changed(None, None) is False
+
+
+def test_has_changed_uses_the_threshold_for_two_real_readings():
+    assert has_changed(10.0, 11.0) is False
+    assert has_changed(10.0, 13.0) is True
+
+
+def test_find_changed_signals_reports_a_signal_only_present_after():
+    before = {"span_rate_per_second": 5.0}
+    after = {"span_rate_per_second": 5.0, "error_span_rate_per_second": 2.0}
+
+    assert find_changed_signals(before, after) == ["error_span_rate_per_second"]
+
+
+def test_smoke_one_flag_observes_an_effect_when_errors_appear():
+    """The end to end case the old logic missed: no error series, then some."""
+    store = {"config": _payment_failure_config()}
+    seen: dict[str, int] = {}
+    # Error rate matches no series while healthy, then reports a rate once the
+    # fault is on. The other two signals hold steady.
+    responses = {
+        "error": [None, "3.0"],
+        "other": ["12.0", "12.0"],
+    }
+
+    def handler(request):
+        path = request.url.path
+        if path == "/feature/api/read":
+            return httpx.Response(200, json=store["config"])
+        if path == "/feature/api/write":
+            store["config"] = json.loads(request.content)["data"]
+            return httpx.Response(200, json={"status": "ok"})
+        if path == "/api/v1/query":
+            query = request.url.params["query"]
+            seen[query] = seen.get(query, 0) + 1
+            kind = "error" if "STATUS_CODE_ERROR" in query else "other"
+            value = responses[kind][min(seen[query], 2) - 1]
+            if value is None:
+                return httpx.Response(200, json={"status": "success", "data": {"result": []}})
+            return httpx.Response(200, json=_success_body(value))
+        raise AssertionError(f"unexpected request: {request.url}")
+
+    client = _client(handler)
+    controller = FlagController(client)
+
+    result = smoke_one_flag(
+        controller,
+        client,
+        DEFAULT_ENDPOINTS,
+        _payment_failure_state(),
+        hold_seconds=0.0,
+        sleep=lambda seconds: None,
+    )
+
+    assert result.before["error_span_rate_per_second"] is None
+    assert result.after["error_span_rate_per_second"] == 3.0
+    assert result.changed_signals == ["error_span_rate_per_second"]
+    assert result.observed_effect is True

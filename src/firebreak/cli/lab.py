@@ -17,7 +17,7 @@ from firebreak.lab.endpoints import DEFAULT_ENDPOINTS, DEMO_TAG
 from firebreak.lab.flags import (
     FlagController,
     FlagError,
-    parse_flag_config,
+    read_flag_file,
     read_vendored_defaults,
 )
 from firebreak.lab.load import LoadController, LoadError
@@ -95,8 +95,11 @@ def flag_inventory() -> None:
             f"pinned flag file not found at {VENDORED_FLAG_FILE}; run git submodule update --init"
         )
         return
-    config = json.loads(VENDORED_FLAG_FILE.read_text(encoding="utf-8"))
-    flags = parse_flag_config(config)
+    try:
+        flags = read_flag_file(VENDORED_FLAG_FILE)
+    except FlagError as error:
+        _fail(str(error))
+        return
     report = {
         "demo_tag": DEMO_TAG,
         "source": str(VENDORED_FLAG_FILE.relative_to(REPO_ROOT)),
@@ -156,7 +159,11 @@ def reset_flags() -> None:
             f"pinned flag file not found at {VENDORED_FLAG_FILE}; run git submodule update --init"
         )
         return
-    defaults = read_vendored_defaults(VENDORED_FLAG_FILE)
+    try:
+        defaults = read_vendored_defaults(VENDORED_FLAG_FILE)
+    except FlagError as error:
+        _fail(str(error))
+        return
     with _client() as client:
         try:
             changed = FlagController(client).reset_to(defaults)

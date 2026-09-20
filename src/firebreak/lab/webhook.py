@@ -15,6 +15,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 MAX_BODY_BYTES = 1_000_000
@@ -27,6 +28,10 @@ class AlertSink:
         self._path = path
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._listener = listener
+        # The server handles each delivery on its own thread, and Alertmanager
+        # can deliver several at once, so both the append and the counter are
+        # serialised. Interleaved writes would produce unparseable JSON lines.
+        self._lock = Lock()
         self.count = 0
 
     def record(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -35,11 +40,13 @@ class AlertSink:
             "received_at": datetime.now(UTC).isoformat(),
             "payload": payload,
         }
-        with self._path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(line) + "\n")
-        self.count += 1
+        with self._lock:
+            with self._path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(line) + "\n")
+            self.count += 1
+            count = self.count
         if self._listener is not None:
-            self._listener(f"[{self.count}] {summarise(payload)}")
+            self._listener(f"[{count}] {summarise(payload)}")
         return line
 
 

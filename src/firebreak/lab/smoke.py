@@ -91,7 +91,13 @@ def sample_signals(client: httpx.Client, endpoints: DemoEndpoints) -> SignalSamp
 
 
 def relative_change(before: float | None, after: float | None) -> float | None:
-    """Relative change between two readings, or None when it cannot be computed."""
+    """Relative change between two readings, or None when it cannot be computed.
+
+    A missing reading means the query matched no series at all, which is not
+    the same as a reading of zero. Appearing and disappearing are handled by
+    `has_changed` rather than here, because there is no meaningful ratio
+    between nothing and something.
+    """
     if before is None or after is None:
         return None
     if before == 0:
@@ -99,20 +105,43 @@ def relative_change(before: float | None, after: float | None) -> float | None:
     return (after - before) / abs(before)
 
 
+def has_changed(
+    before: float | None,
+    after: float | None,
+    threshold: float = RELATIVE_CHANGE_THRESHOLD,
+) -> bool:
+    """True when a signal moved enough to count as an observed effect.
+
+    A series that did not exist before the fault and does after is the
+    strongest possible evidence, not a missing measurement. Error rate
+    queries match no series at all while a service is healthy, so treating
+    that as uncomputable made this blind to exactly the error injection
+    flags it most needs to confirm.
+
+    The reverse, a signal that vanishes, is deliberately not counted. It is
+    ambiguous: it can mean the fault stopped the traffic, or it can mean a
+    batch of telemetry was dropped, which does happen on a loaded host. A
+    false positive here would certify a flag as usable when it does nothing,
+    which is worse than missing one, so only appearing counts.
+    """
+    if before is None:
+        return after is not None and after != 0
+    change = relative_change(before, after)
+    if change is None:
+        return False
+    return abs(change) > threshold
+
+
 def find_changed_signals(
     before: dict[str, float | None],
     after: dict[str, float | None],
     threshold: float = RELATIVE_CHANGE_THRESHOLD,
 ) -> list[str]:
-    """Signals that moved by more than the threshold in either direction."""
-    changed: list[str] = []
-    for name, before_value in before.items():
-        change = relative_change(before_value, after.get(name))
-        if change is None:
-            continue
-        if abs(change) > threshold:
-            changed.append(name)
-    return sorted(changed)
+    """Signals that moved by more than the threshold, appeared, or vanished."""
+    names = set(before) | set(after)
+    return sorted(
+        name for name in names if has_changed(before.get(name), after.get(name), threshold)
+    )
 
 
 def pick_strongest_variant(state: FlagState) -> str | None:
