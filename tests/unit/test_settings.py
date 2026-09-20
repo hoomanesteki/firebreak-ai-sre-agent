@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
-from firebreak.settings import DataMode, LlmMode, Settings, load_settings
+from firebreak.settings import REPO_ROOT, DataMode, LlmMode, Settings, load_settings
 
 
 def build(**overrides: object) -> Settings:
@@ -102,3 +104,32 @@ def test_paths_point_inside_the_repository():
     assert settings.bundles_dir.name == "bundles"
     assert settings.reports_dir.name == "reports"
     assert settings.config_dir.name == "config"
+
+
+def test_env_file_is_anchored_to_the_repository():
+    """Running the CLI from another directory must not change configuration.
+
+    A relative env_file resolves against the working directory, so a command
+    run from anywhere but the repository root silently fell back to defaults
+    and said nothing about it.
+    """
+    configured = Settings.model_config["env_file"]
+
+    assert isinstance(configured, Path)
+    assert configured.is_absolute()
+    assert configured == REPO_ROOT / ".env"
+
+
+def test_settings_read_the_repository_env_file_from_another_directory(tmp_path, monkeypatch):
+    env_file = REPO_ROOT / ".env"
+    original = env_file.read_text(encoding="utf-8") if env_file.exists() else None
+    env_file.write_text("FIREBREAK_LOG_LEVEL=WARNING\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("FIREBREAK_LOG_LEVEL", raising=False)
+    try:
+        assert load_settings().log_level == "WARNING"
+    finally:
+        if original is None:
+            env_file.unlink()
+        else:
+            env_file.write_text(original, encoding="utf-8")

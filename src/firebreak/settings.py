@@ -37,7 +37,11 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="FIREBREAK_",
-        env_file=".env",
+        # Anchored to the repository rather than the working directory. A
+        # relative path means running the CLI from anywhere else silently
+        # falls back to defaults, which is the worst kind of configuration
+        # bug: it changes behaviour and says nothing.
+        env_file=REPO_ROOT / ".env",
         env_file_encoding="utf-8",
         extra="ignore",
         frozen=True,
