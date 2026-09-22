@@ -25,6 +25,13 @@ repos:
         pass_filenames: true
         require_serial: true
 
+      - id: leakage
+        name: ground truth leakage
+        entry: uv run python scripts/check_leakage.py
+        language: system
+        pass_filenames: false
+        require_serial: true
+
       - id: commit-msg-check
         name: commit message check
         entry: uv run python scripts/hooks/check_commit_msg.py

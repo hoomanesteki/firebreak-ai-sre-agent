@@ -1,0 +1,24 @@
+id: distractor-image-slow-load-5sec-20u
+family: distractor
+fault:
+  kind: flag
+  flag: imageSlowLoad
+  variant: 5sec
+target_service: image-provider
+fault_class: latency
+load:
+  users: 20
+  spawn_rate: 5.0
+timing:
+  warmup_seconds: 300
+  fault_seconds: 600
+  cooldown_seconds: 180
+distractors:
+- kind: deploy_event
+  service: frontend
+  offset_seconds: -90
+  flag: null
+  variant: null
+expected_alert: null
+split: train
+notes: null

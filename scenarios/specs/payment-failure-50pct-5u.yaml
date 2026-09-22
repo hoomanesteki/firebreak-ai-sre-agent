@@ -1,0 +1,19 @@
+id: payment-failure-50pct-5u
+family: error-injection
+fault:
+  kind: flag
+  flag: paymentFailure
+  variant: 50%
+target_service: payment
+fault_class: error_injection
+load:
+  users: 5
+  spawn_rate: 5.0
+timing:
+  warmup_seconds: 300
+  fault_seconds: 600
+  cooldown_seconds: 180
+distractors: []
+expected_alert: null
+split: test_id
+notes: null

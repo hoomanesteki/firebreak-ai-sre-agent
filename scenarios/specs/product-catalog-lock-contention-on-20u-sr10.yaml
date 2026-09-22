@@ -1,0 +1,19 @@
+id: product-catalog-lock-contention-on-20u-sr10
+family: contention
+fault:
+  kind: flag
+  flag: productCatalogLockContention
+  variant: 'on'
+target_service: product-catalog
+fault_class: lock_contention
+load:
+  users: 20
+  spawn_rate: 10.0
+timing:
+  warmup_seconds: 300
+  fault_seconds: 600
+  cooldown_seconds: 180
+distractors: []
+expected_alert: null
+split: test_ood
+notes: null

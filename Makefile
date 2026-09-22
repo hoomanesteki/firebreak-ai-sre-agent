@@ -2,8 +2,8 @@
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
 
-.PHONY: help setup verify lint format types test test-cov hygiene clean unhide \
-        live live-config live-down live-logs lab-flags lab-verify lab-smoke lab-webhook
+.PHONY: help setup verify lint format types test test-cov hygiene leakage clean unhide \
+        live live-config live-down live-logs lab-flags lab-library lab-bundles lab-package lab-verify lab-smoke lab-webhook
 
 help:  ## Show the available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -34,7 +34,7 @@ unhide:
 		chflags nohidden .venv/lib/python*/site-packages/*.pth 2>/dev/null || true; \
 	fi
 
-verify: unhide lint types test hygiene  ## Run every check the review gate expects
+verify: unhide lint types test hygiene leakage  ## Run every check the review gate expects
 
 lint:  ## Lint and check formatting
 	uv run ruff check .
@@ -56,6 +56,9 @@ test-cov:  ## Run tests and write an HTML coverage report
 
 hygiene:  ## Run the repository hygiene checks
 	uv run python scripts/check_repo_hygiene.py
+
+leakage:  ## Prove the agent has no route to ground truth
+	uv run python scripts/check_leakage.py
 
 clean:  ## Remove build and test artefacts
 	rm -rf .pytest_cache .mypy_cache .ruff_cache htmlcov .coverage
@@ -108,6 +111,15 @@ live-down:  ## Stop the live stack and remove its volumes
 
 live-logs:  ## Follow the live stack logs
 	$(COMPOSE_LIVE) logs -f --tail=100
+
+lab-library:  ## Validate the scenario library and write its summary
+	$(FIREBREAK) lab library
+
+lab-package:  ## Archive the recorded library with checksums for release
+	$(FIREBREAK) lab package
+
+lab-bundles:  ## Check every recorded bundle still matches its manifest
+	$(FIREBREAK) lab verify-bundles
 
 lab-verify:  ## Check the running stack is fit to record incidents from
 	$(FIREBREAK) lab verify

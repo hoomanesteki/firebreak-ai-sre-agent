@@ -1,0 +1,24 @@
+id: double-fault-payment-failure-cart-failure-20u
+family: double-fault
+fault:
+  kind: flag
+  flag: paymentFailure
+  variant: 50%
+target_service: payment
+fault_class: multiple
+load:
+  users: 20
+  spawn_rate: 5.0
+timing:
+  warmup_seconds: 300
+  fault_seconds: 600
+  cooldown_seconds: 180
+distractors:
+- kind: harmless_flag
+  service: cart
+  offset_seconds: 0
+  flag: cartFailure
+  variant: 10%
+expected_alert: null
+split: test_id
+notes: null

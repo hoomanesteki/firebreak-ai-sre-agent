@@ -44,6 +44,9 @@ jobs:
       - name: Test
         run: uv run pytest --cov --cov-report=term-missing
 
+      - name: Ground truth leakage
+        run: uv run python scripts/check_leakage.py
+
       - name: Repository hygiene
         run: |
           git fetch origin main --depth=50 || true

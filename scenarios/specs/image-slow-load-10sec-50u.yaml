@@ -1,0 +1,19 @@
+id: image-slow-load-10sec-50u
+family: latency
+fault:
+  kind: flag
+  flag: imageSlowLoad
+  variant: 10sec
+target_service: image-provider
+fault_class: latency
+load:
+  users: 50
+  spawn_rate: 5.0
+timing:
+  warmup_seconds: 300
+  fault_seconds: 600
+  cooldown_seconds: 180
+distractors: []
+expected_alert: null
+split: train
+notes: null

@@ -13,6 +13,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from firebreak.evals.splits import SplitError, require_sound_splits
+from firebreak.lab.bundle import BundleError, iter_bundles, verify_bundle
 from firebreak.lab.endpoints import DEFAULT_ENDPOINTS, DEMO_TAG
 from firebreak.lab.flags import (
     FlagController,
@@ -21,6 +23,8 @@ from firebreak.lab.flags import (
     read_vendored_defaults,
 )
 from firebreak.lab.load import LoadController, LoadError
+from firebreak.lab.package import PackageError, package_library, unpack_library
+from firebreak.lab.scenario import ScenarioError, check_against_inventory, load_library
 from firebreak.lab.smoke import EXCLUDED_FLAGS, build_report, smoke_one_flag
 from firebreak.lab.stack import render_flag_store, render_prometheus_config
 from firebreak.lab.verify import build_report as build_verification_report
@@ -40,6 +44,9 @@ INVENTORY_REPORT = REPO_ROOT / "reports" / "lab" / "flag_inventory.json"
 # run must not overwrite the record of a passing one. Each run writes its
 # own file named for the moment it ran.
 VERIFICATION_DIR = REPO_ROOT / "reports" / "lab" / "live_verification"
+SPECS_DIR = REPO_ROOT / "scenarios" / "specs"
+BUNDLES_DIR = REPO_ROOT / "bundles"
+LIBRARY_REPORT = REPO_ROOT / "reports" / "lab" / "library.json"
 WEBHOOK_LOG = REPO_ROOT / "reports" / "lab" / "alerts.jsonl"
 HTTP_TIMEOUT_SECONDS = 15.0
 
@@ -314,3 +321,134 @@ def smoke(
         f"[green]{observed} of {len(results)} flag(s) moved a signal; "
         f"wrote {SMOKE_REPORT.relative_to(REPO_ROOT)}[/green]"
     )
+
+
+@lab_app.command("library")
+def library() -> None:
+    """Validate the scenario library and write a summary report.
+
+    Three things can be wrong with a library and all three are expensive to
+    find later: a flag that does not exist at the pinned tag, a split
+    assignment that leaks a held out family into training, and a spec that
+    does not load at all. All three are checked here, before any recording
+    burns an hour of wall clock.
+    """
+    try:
+        specs = load_library(SPECS_DIR)
+    except ScenarioError as error:
+        _fail(str(error))
+        return
+
+    if not INVENTORY_REPORT.is_file():
+        _fail(f"no flag inventory at {INVENTORY_REPORT}; run: make lab-flags")
+        return
+    inventory = json.loads(INVENTORY_REPORT.read_text(encoding="utf-8"))
+
+    problems = check_against_inventory(specs, inventory)
+    if problems:
+        for problem in problems:
+            console.print(f"[red]{problem}[/red]")
+        _fail(f"{len(problems)} scenario(s) name a flag or variant the demo does not have")
+        return
+
+    try:
+        summary = require_sound_splits(specs)
+    except SplitError as error:
+        _fail(f"split assignment is unsound: {error}")
+        return
+
+    report = {
+        "demo_tag": DEMO_TAG,
+        "scenarios": summary.scenarios,
+        "counts_by_split": summary.counts,
+        "families_by_split": {k: list(v) for k, v in summary.families_by_split.items()},
+        "out_of_distribution_families": list(summary.ood_families),
+        "tunable_scenarios": summary.tunable_scenarios,
+        "held_out_scenarios": summary.held_out_scenarios,
+        "estimated_recording_hours": round(
+            sum(s.timing.total_seconds for s in specs.values()) / 3600, 1
+        ),
+    }
+    LIBRARY_REPORT.parent.mkdir(parents=True, exist_ok=True)
+    LIBRARY_REPORT.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+
+    table = Table(title=f"Scenario library ({summary.scenarios} scenarios)")
+    table.add_column("Split")
+    table.add_column("Scenarios", justify="right")
+    table.add_column("Families")
+    for split, count in summary.counts.items():
+        table.add_row(split, str(count), ", ".join(summary.families_by_split.get(split, ())))
+    console.print(table)
+    console.print(f"held out as out of distribution: {', '.join(summary.ood_families) or 'none'}")
+    console.print(
+        f"recording the whole library takes about "
+        f"{report['estimated_recording_hours']} hours of wall clock"
+    )
+    console.print(f"wrote {LIBRARY_REPORT.relative_to(REPO_ROOT)}")
+
+
+@lab_app.command("verify-bundles")
+def verify_bundles() -> None:
+    """Check every recorded bundle still matches its manifest.
+
+    A bundle that changed after recording makes every number measured
+    against it unverifiable, so this is a gate rather than a diagnostic.
+    """
+    bundles = list(iter_bundles(BUNDLES_DIR))
+    if not bundles:
+        console.print(f"no bundles under {BUNDLES_DIR.relative_to(REPO_ROOT)} yet")
+        return
+
+    failures: list[str] = []
+    for bundle_dir in bundles:
+        try:
+            verify_bundle(bundle_dir)
+        except BundleError as error:
+            failures.append(f"{bundle_dir.relative_to(REPO_ROOT)}: {error}")
+
+    if failures:
+        for failure in failures:
+            console.print(f"[red]{failure}[/red]")
+        _fail(f"{len(failures)} of {len(bundles)} bundle(s) failed verification")
+        return
+    console.print(f"[green]{len(bundles)} bundle(s) verified[/green]")
+
+
+@lab_app.command("package")
+def package(
+    destination: str = typer.Option(
+        "dist/firebreak-bundles.tar.gz", "--out", help="Archive to write"
+    ),
+) -> None:
+    """Archive the recorded library with a checksum for the archive itself.
+
+    Every bundle is verified before it goes in. Publishing a library that
+    already fails its own checksums would hand everyone who downloads it a
+    broken artefact, discovered one bundle at a time.
+    """
+    try:
+        result = package_library(BUNDLES_DIR, REPO_ROOT / destination)
+    except (PackageError, BundleError) as error:
+        _fail(str(error))
+        return
+    console.print(
+        f"[green]packaged {result.bundles} bundle(s), {result.bytes / 1024 / 1024:.1f} MB[/green]"
+    )
+    console.print(f"archive  {result.archive.relative_to(REPO_ROOT)}")
+    console.print(f"checksum {result.checksum_file.relative_to(REPO_ROOT)}")
+
+
+@lab_app.command("unpack")
+def unpack(archive: str) -> None:
+    """Verify a downloaded library archive and unpack it.
+
+    Both ends are checked: the archive checksum proves the download is the
+    file that was published, and each bundle's manifest proves its contents
+    are what was recorded.
+    """
+    try:
+        count = unpack_library(Path(archive), BUNDLES_DIR)
+    except (PackageError, BundleError) as error:
+        _fail(str(error))
+        return
+    console.print(f"[green]unpacked and verified {count} bundle(s)[/green]")

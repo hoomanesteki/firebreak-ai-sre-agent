@@ -1,0 +1,19 @@
+id: email-memory-leak-100x-50u
+family: resource
+fault:
+  kind: flag
+  flag: emailMemoryLeak
+  variant: 100x
+target_service: email
+fault_class: memory_leak
+load:
+  users: 50
+  spawn_rate: 5.0
+timing:
+  warmup_seconds: 300
+  fault_seconds: 600
+  cooldown_seconds: 180
+distractors: []
+expected_alert: null
+split: test_ood
+notes: null

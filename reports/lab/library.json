@@ -1,0 +1,53 @@
+{
+  "demo_tag": "3.1.0",
+  "scenarios": 120,
+  "counts_by_split": {
+    "test_id": 31,
+    "test_ood": 30,
+    "train": 44,
+    "validation": 15
+  },
+  "families_by_split": {
+    "test_id": [
+      "distractor",
+      "double-fault",
+      "error-injection",
+      "health",
+      "latency",
+      "messaging",
+      "no-fault",
+      "unreachable"
+    ],
+    "test_ood": [
+      "contention",
+      "resource"
+    ],
+    "train": [
+      "distractor",
+      "double-fault",
+      "error-injection",
+      "health",
+      "latency",
+      "messaging",
+      "no-fault",
+      "unreachable"
+    ],
+    "validation": [
+      "distractor",
+      "double-fault",
+      "error-injection",
+      "health",
+      "latency",
+      "messaging",
+      "no-fault",
+      "unreachable"
+    ]
+  },
+  "out_of_distribution_families": [
+    "contention",
+    "resource"
+  ],
+  "tunable_scenarios": 59,
+  "held_out_scenarios": 61,
+  "estimated_recording_hours": 36.0
+}

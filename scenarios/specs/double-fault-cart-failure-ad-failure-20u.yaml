@@ -1,0 +1,24 @@
+id: double-fault-cart-failure-ad-failure-20u
+family: double-fault
+fault:
+  kind: flag
+  flag: cartFailure
+  variant: 50%
+target_service: cart
+fault_class: multiple
+load:
+  users: 20
+  spawn_rate: 5.0
+timing:
+  warmup_seconds: 300
+  fault_seconds: 600
+  cooldown_seconds: 180
+distractors:
+- kind: harmless_flag
+  service: ad
+  offset_seconds: 0
+  flag: adFailure
+  variant: 'on'
+expected_alert: null
+split: train
+notes: null
