@@ -1,0 +1,50 @@
+# Which parts of the codebase are allowed to touch ground truth.
+#
+# SPEC.md Section 8.4. The agent under test must never see the answer. That
+# is not a thing to be careful about, it is a thing to make mechanically
+# impossible, because the failure is silent: a leak does not crash, it just
+# produces an accuracy figure that means nothing.
+#
+# Enforced by scripts/check_leakage.py, which walks the import graph rather
+# than grepping, so an alias or a nested import cannot hide.
+
+# Modules that hold ground truth, or a path to it.
+ground_truth_modules:
+  - firebreak_eval_labels
+  # Scenario specifications carry target_service and fault_class, so they
+  # are ground truth even though they live outside labels/.
+  - firebreak.lab.scenario
+
+# Package prefixes that may import the modules above. Everything else may
+# not. Kept as short as it can be: every entry here is a module that could
+# leak if somebody is careless in it.
+allowed_importers:
+  - firebreak.evals
+  - firebreak.lab
+  - firebreak.cli
+
+# Package prefixes that run as, or on behalf of, the agent under test.
+# A ground truth import from any of these is a blocker, not a warning.
+agent_packages:
+  - firebreak.agent
+  - firebreak.tools
+  - firebreak.graph
+  - firebreak.triage
+  - firebreak.backends
+  - firebreak.web
+
+# Directories holding ground truth on disk. No module outside
+# allowed_importers may mention these paths in a string literal either,
+# since a path is just as good as an import for opening a file.
+ground_truth_paths:
+  - labels
+  - scenarios/specs
+
+# Fields that must never appear in anything the agent can read. Checked
+# against bundle manifests and change records.
+forbidden_fields:
+  - target_service
+  - fault_class
+  - fault_flag
+  - fault_variant
+  - canary
