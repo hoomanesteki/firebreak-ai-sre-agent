@@ -10,6 +10,15 @@ That last rule is leakage control 3 in SPEC.md Section 8.4. Ground truth for
 a bundle lives under `labels/`, never inside the bundle directory, and a
 reader that only opens manifest entries cannot wander into it even if
 somebody later drops a label file in the wrong place.
+
+A bundle is identified by an opaque id, not by its scenario. A directory
+called `payment-failure-50pct-20u` states the answer in its name, and the
+manifest is read by the bundle backend, which in Phase 3 mixes a backend
+fingerprint into every evidence id the agent handles. Descriptive names
+would carry the culprit straight through that path. Real incidents are
+identified by a ticket number rather than by their cause, and so are these.
+The mapping back to a scenario lives in `labels/`, with the rest of the
+answer.
 """
 
 from __future__ import annotations
@@ -23,8 +32,10 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-BUNDLE_FORMAT_VERSION = 1
+BUNDLE_FORMAT_VERSION = 2
 MANIFEST_NAME = "manifest.json"
+BUNDLE_ID_PREFIX = "inc"
+BUNDLE_ID_HEX = 12
 CHECKSUM_CHUNK_BYTES = 1 << 20
 
 # The complete set of files a bundle may contain. A bundle with anything
@@ -83,15 +94,16 @@ class BundleManifest(BaseModel):
     """What a bundle contains and what it was recorded from.
 
     Deliberately carries no ground truth: not the target service, not the
-    fault class, not the flag that was flipped. It names the scenario, which
-    is enough to find the label when the eval code wants it and useless to
-    anything that cannot read `labels/`.
+    fault class, not the flag that was flipped, and not the scenario name,
+    which for a library like this one describes the fault. It carries an
+    opaque bundle id, which the eval resolves through `labels/` and which
+    tells anything else nothing at all.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     format_version: int = BUNDLE_FORMAT_VERSION
-    scenario_id: str
+    bundle_id: str = Field(pattern=rf"^{BUNDLE_ID_PREFIX}_[0-9a-f]{{{BUNDLE_ID_HEX}}}$")
     run_id: str
     demo_tag: str
     recorder_version: str
@@ -114,6 +126,17 @@ class BundleManifest(BaseModel):
 
     def row_counts(self) -> dict[str, int]:
         return {r.name: r.rows for r in self.files if r.rows is not None}
+
+
+def derive_bundle_id(scenario_id: str, run_id: str) -> str:
+    """An opaque, stable identifier for one recording.
+
+    Derived rather than random so it can be recomputed from the label
+    without storing a second mapping, and so re-recording the same scenario
+    and run reproduces the same id.
+    """
+    digest = hashlib.sha256(f"{scenario_id}:{run_id}".encode()).hexdigest()
+    return f"{BUNDLE_ID_PREFIX}_{digest[:BUNDLE_ID_HEX]}"
 
 
 def sha256_of(path: Path) -> str:
@@ -252,7 +275,7 @@ def iter_bundles(bundles_root: Path) -> Iterator[Path]:
     """
     if not bundles_root.is_dir():
         return
-    for manifest_path in sorted(bundles_root.glob("*/*/" + MANIFEST_NAME)):
+    for manifest_path in sorted(bundles_root.glob("*/" + MANIFEST_NAME)):
         yield manifest_path.parent
 
 

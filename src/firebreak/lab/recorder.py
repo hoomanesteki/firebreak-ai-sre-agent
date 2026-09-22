@@ -29,7 +29,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from firebreak.lab.bundle import BundleManifest, TimeWindow
+from firebreak.lab.bundle import BundleManifest, TimeWindow, derive_bundle_id
 from firebreak.lab.bundle_writer import BundleWriter
 from firebreak.lab.export import TelemetryExporter
 from firebreak.lab.flags import OFF_VARIANT, FlagController
@@ -234,7 +234,11 @@ class Recorder:
         return self._alerts.wait_for_alert(self._clock)
 
     def _bundle_dir(self, scenario_id: str, run_id: str) -> Path:
-        return self._bundles_root / scenario_id / run_id
+        """Bundles are stored under an opaque id, never under their scenario.
+
+        A directory named for the fault states the answer in its own path.
+        """
+        return self._bundles_root / derive_bundle_id(scenario_id, run_id)
 
     def _fault_flag_names(self, spec: ScenarioSpec) -> set[str]:
         """Every flag this scenario touched, so the change log can be cleaned."""
@@ -254,7 +258,7 @@ class Recorder:
 
         writer = BundleWriter(
             bundle_dir=bundle_dir,
-            scenario_id=spec.id,
+            bundle_id=derive_bundle_id(spec.id, run_id),
             run_id=run_id,
             demo_tag=self._demo_tag,
             recorder_version=RECORDER_VERSION,
@@ -326,6 +330,7 @@ class Recorder:
         label = IncidentLabel(
             scenario_id=spec.id,
             run_id=run_id,
+            bundle_id=derive_bundle_id(spec.id, run_id),
             split=spec.split.value,
             target_service=spec.target_service,
             fault_class=spec.fault_class.value,

@@ -42,9 +42,17 @@ ground_truth_paths:
 
 # Fields that must never appear in anything the agent can read. Checked
 # against bundle manifests and change records.
+#
+# Field names alone are not enough. A bundle stored under a directory
+# named payment-failure-50pct-20u states the answer in its own path, and
+# no forbidden field appears anywhere. Bundle directories and manifest
+# ids are therefore required to match bundle_id_pattern instead.
+bundle_id_pattern: "^inc_[0-9a-f]{12}$"
+
 forbidden_fields:
   - target_service
   - fault_class
   - fault_flag
   - fault_variant
   - canary
+  - scenario_id

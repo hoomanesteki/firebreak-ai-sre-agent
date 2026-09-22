@@ -170,13 +170,13 @@ class BundleWriter:
     def __init__(
         self,
         bundle_dir: Path,
-        scenario_id: str,
+        bundle_id: str,
         run_id: str,
         demo_tag: str,
         recorder_version: str,
     ) -> None:
         self.bundle_dir = bundle_dir
-        self.scenario_id = scenario_id
+        self.bundle_id = bundle_id
         self.run_id = run_id
         self.demo_tag = demo_tag
         self.recorder_version = recorder_version
@@ -232,7 +232,7 @@ class BundleWriter:
         missing = [name for name in REQUIRED_FILES if name not in self._rows_written]
         if missing:
             raise BundleWriteError(
-                f"cannot finalise {self.scenario_id}/{self.run_id}: "
+                f"cannot finalise {self.bundle_id}/{self.run_id}: "
                 f"never wrote required file(s) {', '.join(missing)}"
             )
 
@@ -241,7 +241,7 @@ class BundleWriter:
             for name in REQUIRED_FILES
         )
         manifest = BundleManifest(
-            scenario_id=self.scenario_id,
+            bundle_id=self.bundle_id,
             run_id=self.run_id,
             demo_tag=self.demo_tag,
             recorder_version=self.recorder_version,

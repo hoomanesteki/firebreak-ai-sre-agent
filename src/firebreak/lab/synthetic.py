@@ -22,7 +22,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from firebreak.lab.bundle import BundleManifest, TimeWindow
+from firebreak.lab.bundle import BundleManifest, TimeWindow, derive_bundle_id
 from firebreak.lab.bundle_writer import BundleWriter
 from firebreak.lab.endpoints import DEMO_TAG
 from firebreak.lab.scenario import DistractorKind, FaultKind, ScenarioSpec
@@ -615,7 +615,7 @@ def build_synthetic_bundle(
 
     writer = BundleWriter(
         bundle_dir=bundle_dir,
-        scenario_id=spec.id,
+        bundle_id=derive_bundle_id(spec.id, run_id),
         run_id=run_id,
         demo_tag=DEMO_TAG,
         recorder_version=SYNTHETIC_RECORDER_VERSION,

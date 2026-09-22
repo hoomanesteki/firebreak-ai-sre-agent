@@ -64,6 +64,10 @@ class IncidentLabel(BaseModel):
 
     scenario_id: str
     run_id: str
+    # The opaque id the bundle is stored under. The bundle itself knows
+    # only this, so the mapping back to a named scenario lives here with
+    # the rest of the answer.
+    bundle_id: str
     split: str
     target_service: str | None
     fault_class: str

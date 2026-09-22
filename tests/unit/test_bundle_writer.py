@@ -30,7 +30,7 @@ def _window() -> TimeWindow:
 def _writer(bundle_dir: Path) -> BundleWriter:
     return BundleWriter(
         bundle_dir=bundle_dir,
-        scenario_id="cart-latency",
+        bundle_id="inc_0123456789ab",
         run_id="20260101T000000Z",
         demo_tag="abc123",
         recorder_version="1.0.0",

@@ -30,6 +30,7 @@ def _label_kwargs(**overrides):
     fields = {
         "scenario_id": "cart-latency",
         "run_id": "20260101T000000Z",
+        "bundle_id": "inc_0123456789ab",
         "split": "train",
         "target_service": "cart",
         "fault_class": "latency",
@@ -42,6 +43,7 @@ def _full_label() -> IncidentLabel:
     return IncidentLabel(
         scenario_id="cart-latency",
         run_id="20260101T000000Z",
+        bundle_id="inc_0123456789ab",
         split="train",
         target_service="cart",
         fault_class="latency",
@@ -223,31 +225,23 @@ def test_find_canaries_finds_several_when_several_are_present():
 
 
 def test_incident_label_fields_do_not_leak_ground_truth_into_bundle_manifest():
-    """The manifest must not be able to leak the label's ground truth.
+    """The structural reason a manifest cannot carry the answer.
 
-    Shared field names are the mechanism by which a manifest could
-    accidentally start carrying an answer, so this asserts the safety
-    property directly rather than trusting the docstrings: none of the
-    fields a grader scores (target_service, fault_class, fault_flag,
-    fault_variant, canary) is also a BundleManifest field name.
-
-    It also documents a gap between that guarantee and the stated claim
-    that "other than scenario_id and run_id" nothing overlaps: in the
-    current code, alert_fired, alert_fired_at, and notes are ALSO shared
-    field names between the two models. Neither carries scored ground
-    truth, but the actual overlap is wider than scenario_id/run_id alone.
+    The overlap is asserted exactly rather than loosely, so widening it
+    fails here. Note scenario_id is deliberately absent from the manifest:
+    for a library like this one, the scenario name describes the fault.
     """
     label_fields = set(IncidentLabel.model_fields)
     manifest_fields = set(BundleManifest.model_fields)
-    shared = label_fields & manifest_fields
 
-    ground_truth_fields = {
-        "target_service",
-        "fault_class",
-        "fault_flag",
-        "fault_variant",
-        "canary",
+    assert label_fields & manifest_fields == {
+        "bundle_id",
+        "run_id",
+        "alert_fired",
+        "alert_fired_at",
+        "notes",
     }
-    assert ground_truth_fields <= label_fields
-    assert shared.isdisjoint(ground_truth_fields)
-    assert shared == {"scenario_id", "run_id", "alert_fired", "alert_fired_at", "notes"}
+    for answer in ("target_service", "fault_class", "fault_flag", "fault_variant", "canary"):
+        assert answer in label_fields
+        assert answer not in manifest_fields
+    assert "scenario_id" not in manifest_fields

@@ -62,7 +62,7 @@ def build_index(bundles_root: Path) -> dict[str, object]:
         manifest = read_manifest(bundle_dir)
         entries.append(
             {
-                "scenario_id": manifest.scenario_id,
+                "bundle_id": manifest.bundle_id,
                 "run_id": manifest.run_id,
                 "demo_tag": manifest.demo_tag,
                 "recorded_at": manifest.recorded_at.isoformat(),
@@ -74,7 +74,7 @@ def build_index(bundles_root: Path) -> dict[str, object]:
     return {
         "built_at": datetime.now(UTC).isoformat(),
         "bundles": len(entries),
-        "entries": sorted(entries, key=lambda e: (str(e["scenario_id"]), str(e["run_id"]))),
+        "entries": sorted(entries, key=lambda e: (str(e["bundle_id"]), str(e["run_id"]))),
     }
 
 

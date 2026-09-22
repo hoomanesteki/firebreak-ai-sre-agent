@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from firebreak.lab.bundle import (
     BundleReader,
     FileRecord,
     TimeWindow,
+    derive_bundle_id,
     describe_file,
     iter_bundles,
     new_run_id,
@@ -41,7 +43,7 @@ def _window() -> TimeWindow:
 
 def _manifest(files: tuple[FileRecord, ...]) -> BundleManifest:
     return BundleManifest(
-        scenario_id="cart-latency",
+        bundle_id="inc_0123456789ab",
         run_id="20260101T000000Z",
         demo_tag="abc123",
         recorder_version="0.0.1",
@@ -334,15 +336,15 @@ def test_iter_bundles_yields_nothing_for_root_that_does_not_exist(tmp_path: Path
 
 
 def test_iter_bundles_yields_only_manifest_directories_in_sorted_order(tmp_path: Path):
-    _build_bundle(tmp_path / "zeta-scenario" / "run-1")
-    _build_bundle(tmp_path / "alpha-scenario" / "run-2")
-    (tmp_path / "alpha-scenario" / "incomplete-run").mkdir(parents=True)
+    _build_bundle(tmp_path / "inc_ffffffffffff")
+    _build_bundle(tmp_path / "inc_000000000000")
+    (tmp_path / "inc_999999999999").mkdir(parents=True)
 
     bundles = list(iter_bundles(tmp_path))
 
     assert bundles == [
-        tmp_path / "alpha-scenario" / "run-2",
-        tmp_path / "zeta-scenario" / "run-1",
+        tmp_path / "inc_000000000000",
+        tmp_path / "inc_ffffffffffff",
     ]
 
 
@@ -366,3 +368,59 @@ def test_new_run_id_sorts_chronologically_for_increasing_datetimes():
     later = new_run_id(datetime(2026, 1, 1, 0, 0, 1, tzinfo=UTC))
 
     assert earlier < later
+
+
+# --- opaque bundle identity ----------------------------------------------
+#
+# A bundle stored under a name like payment-failure-50pct-20u states the
+# answer in its own path, and no forbidden field appears anywhere. Phase 3
+# mixes a backend fingerprint into every evidence id the agent handles, so a
+# descriptive path would carry the culprit straight through it.
+
+
+def test_derive_bundle_id_matches_the_opaque_format():
+    bundle_id = derive_bundle_id("payment-failure-50pct-20u", "20260101T000000Z")
+
+    assert re.fullmatch(r"inc_[0-9a-f]{12}", bundle_id)
+
+
+def test_derive_bundle_id_is_stable_for_the_same_inputs():
+    first = derive_bundle_id("payment-failure-50pct-20u", "run-1")
+    second = derive_bundle_id("payment-failure-50pct-20u", "run-1")
+
+    assert first == second
+
+
+def test_derive_bundle_id_differs_per_run():
+    assert derive_bundle_id("s", "run-1") != derive_bundle_id("s", "run-2")
+
+
+def test_derive_bundle_id_differs_per_scenario():
+    assert derive_bundle_id("payment-failure", "r") != derive_bundle_id("cart-failure", "r")
+
+
+def test_derive_bundle_id_reveals_nothing_about_the_scenario():
+    """The whole point: the id must not contain the name it came from."""
+    bundle_id = derive_bundle_id("payment-failure-50pct-20u", "run-1")
+
+    for fragment in ("payment", "failure", "50pct", "20u"):
+        assert fragment not in bundle_id
+
+
+def test_manifest_has_no_scenario_id_field():
+    assert "scenario_id" not in BundleManifest.model_fields
+    assert "bundle_id" in BundleManifest.model_fields
+
+
+def test_manifest_rejects_a_descriptive_bundle_id():
+    with pytest.raises(ValueError, match="bundle_id"):
+        BundleManifest(
+            bundle_id="payment-failure-50pct-20u",
+            run_id="20260101T000000Z",
+            demo_tag="abc123",
+            recorder_version="0.0.1",
+            recorded_at=datetime(2026, 1, 1, tzinfo=UTC),
+            window=_window(),
+            files=(),
+            alert_fired=False,
+        )

@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from firebreak.lab.bundle import derive_bundle_id
 from firebreak.lab.package import (
     CHECKSUM_SUFFIX,
     INDEX_NAME,
@@ -46,9 +47,10 @@ def _spec(scenario_id: str = "payment-failure-100pct-20u") -> ScenarioSpec:
 
 
 def _library(root: Path, runs: tuple[str, ...] = ("run1", "run2")) -> ScenarioSpec:
+    """Bundles live under their opaque id, never under their scenario name."""
     spec = _spec()
     for run in runs:
-        build_synthetic_bundle(root / spec.id / run, spec, run, seed=1)
+        build_synthetic_bundle(root / derive_bundle_id(spec.id, run), spec, run, seed=1)
     return spec
 
 
@@ -57,14 +59,14 @@ def _library(root: Path, runs: tuple[str, ...] = ("run1", "run2")) -> ScenarioSp
 
 def test_build_index_describes_every_bundle(tmp_path: Path):
     root = tmp_path / "bundles"
-    spec = _library(root)
+    _library(root)
 
     index = build_index(root)
 
     assert index["bundles"] == 2
     entries = index["entries"]
     assert [e["run_id"] for e in entries] == ["run1", "run2"]
-    assert all(e["scenario_id"] == spec.id for e in entries)
+    assert all(e["bundle_id"].startswith("inc_") for e in entries)
 
 
 def test_build_index_carries_no_ground_truth(tmp_path: Path):
@@ -74,7 +76,7 @@ def test_build_index_carries_no_ground_truth(tmp_path: Path):
     index = build_index(root)
     entry = index["entries"][0]
 
-    for field in ("target_service", "fault_class", "fault_flag", "canary"):
+    for field in ("target_service", "fault_class", "fault_flag", "canary", "scenario_id"):
         assert field not in entry
 
 
@@ -107,7 +109,8 @@ def test_package_library_refuses_a_bundle_that_fails_verification(tmp_path: Path
     """Publishing a broken library makes everyone who downloads it find out."""
     root = tmp_path / "bundles"
     spec = _library(root, runs=("run1",))
-    (root / spec.id / "run1" / "alert.json").write_text("tampered", encoding="utf-8")
+    bundle = root / derive_bundle_id(spec.id, "run1")
+    (bundle / "alert.json").write_text("tampered", encoding="utf-8")
 
     with pytest.raises(PackageError, match="failed verification"):
         package_library(root, tmp_path / "lib.tar.gz")

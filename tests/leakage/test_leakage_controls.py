@@ -15,6 +15,7 @@ import pytest
 import check_leakage
 from check_leakage import (
     LeakageConfigError,
+    check_bundle_names,
     check_bundles,
     check_flag_names_in_changes,
     check_imports,
@@ -38,8 +39,8 @@ def write_module(root: Path, dotted: str, body: str) -> Path:
     return path
 
 
-def write_bundle(root: Path, scenario: str, run: str, files: dict[str, str]) -> Path:
-    bundle = root / scenario / run
+def write_bundle(root: Path, bundle_id: str, files: dict[str, str]) -> Path:
+    bundle = root / bundle_id
     bundle.mkdir(parents=True, exist_ok=True)
     for name, text in files.items():
         (bundle / name).write_text(text, encoding="utf-8")
@@ -236,9 +237,12 @@ def test_check_path_literals_ignores_a_similar_looking_string(tmp_path: Path):
 def test_check_bundles_blocks_a_manifest_carrying_the_answer(tmp_path: Path):
     write_bundle(
         tmp_path,
-        "payment-failure",
-        "run1",
-        {"manifest.json": json.dumps({"scenario_id": "s", "target_service": "payment"})},
+        "inc_0123456789ab",
+        {
+            "manifest.json": json.dumps(
+                {"bundle_id": "inc_0123456789ab", "target_service": "payment"}
+            )
+        },
     )
 
     violations = check_bundles(RULES, tmp_path)
@@ -250,10 +254,9 @@ def test_check_bundles_blocks_a_manifest_carrying_the_answer(tmp_path: Path):
 def test_check_bundles_blocks_a_canary_reaching_a_bundle(tmp_path: Path):
     write_bundle(
         tmp_path,
-        "payment-failure",
-        "run1",
+        "inc_0123456789ab",
         {
-            "manifest.json": json.dumps({"scenario_id": "s"}),
+            "manifest.json": json.dumps({"bundle_id": "inc_0123456789ab"}),
             "alert.json": json.dumps({"canary": "fbcanary-0"}),
         },
     )
@@ -266,10 +269,9 @@ def test_check_bundles_blocks_a_canary_reaching_a_bundle(tmp_path: Path):
 def test_check_bundles_passes_a_clean_bundle(tmp_path: Path):
     write_bundle(
         tmp_path,
-        "payment-failure",
-        "run1",
+        "inc_0123456789ab",
         {
-            "manifest.json": json.dumps({"scenario_id": "s", "run_id": "run1"}),
+            "manifest.json": json.dumps({"bundle_id": "inc_0123456789ab", "run_id": "run1"}),
             "alert.json": json.dumps({"status": "firing"}),
         },
     )
@@ -291,8 +293,7 @@ def test_check_flag_names_in_changes_blocks_a_flag_flip_in_the_change_log(tmp_pa
     """
     write_bundle(
         tmp_path,
-        "payment-failure",
-        "run1",
+        "inc_0123456789ab",
         {
             "manifest.json": "{}",
             "changes.json": json.dumps([{"kind": "flag", "detail": "paymentFailure set to 100%"}]),
@@ -308,8 +309,7 @@ def test_check_flag_names_in_changes_blocks_a_flag_flip_in_the_change_log(tmp_pa
 def test_check_flag_names_in_changes_is_case_insensitive(tmp_path: Path):
     write_bundle(
         tmp_path,
-        "s",
-        "r",
+        "inc_0123456789ab",
         {"manifest.json": "{}", "changes.json": json.dumps([{"detail": "PAYMENTFAILURE"}])},
     )
 
@@ -319,8 +319,7 @@ def test_check_flag_names_in_changes_is_case_insensitive(tmp_path: Path):
 def test_check_flag_names_in_changes_passes_an_unrelated_deploy(tmp_path: Path):
     write_bundle(
         tmp_path,
-        "s",
-        "r",
+        "inc_0123456789ab",
         {
             "manifest.json": "{}",
             "changes.json": json.dumps([{"kind": "deploy", "service": "recommendation"}]),
@@ -331,7 +330,7 @@ def test_check_flag_names_in_changes_passes_an_unrelated_deploy(tmp_path: Path):
 
 
 def test_check_flag_names_in_changes_does_nothing_without_an_inventory(tmp_path: Path):
-    write_bundle(tmp_path, "s", "r", {"manifest.json": "{}", "changes.json": "[]"})
+    write_bundle(tmp_path, "inc_0123456789ab", {"manifest.json": "{}", "changes.json": "[]"})
 
     assert check_flag_names_in_changes(tmp_path, set()) == []
 
@@ -384,3 +383,69 @@ def test_main_returns_two_when_the_config_cannot_be_loaded(monkeypatch, capsys):
 
     assert check_leakage.main([]) == 2
     assert "leakage config error" in capsys.readouterr().err
+
+
+# --- descriptive bundle names --------------------------------------------
+
+
+def test_check_bundle_names_blocks_a_directory_named_for_its_fault(tmp_path: Path):
+    """The leak a field name check cannot see.
+
+    A bundle at bundles/payment-failure-50pct-20u/ states the answer in its
+    own path while every forbidden field is absent.
+    """
+    write_bundle(tmp_path, "payment-failure-50pct-20u", {"manifest.json": "{}"})
+
+    violations = check_bundle_names(RULES, tmp_path)
+
+    assert [v.rule for v in violations] == ["descriptive-bundle-name"]
+    assert violations[0].blocker is True
+    assert "states the answer in its path" in violations[0].message
+
+
+def test_check_bundle_names_accepts_an_opaque_id(tmp_path: Path):
+    write_bundle(tmp_path, "inc_0123456789ab", {"manifest.json": "{}"})
+
+    assert check_bundle_names(RULES, tmp_path) == []
+
+
+def test_check_bundle_names_rejects_an_id_of_the_wrong_length(tmp_path: Path):
+    write_bundle(tmp_path, "inc_0123", {"manifest.json": "{}"})
+
+    assert check_bundle_names(RULES, tmp_path)
+
+
+def test_check_bundle_names_returns_nothing_without_bundles(tmp_path: Path):
+    assert check_bundle_names(RULES, tmp_path / "absent") == []
+
+
+def test_a_real_synthetic_bundle_is_stored_under_an_opaque_id(tmp_path: Path):
+    """End to end: the builder must not reintroduce a descriptive path."""
+    from firebreak.lab.bundle import derive_bundle_id
+    from firebreak.lab.scenario import (
+        Fault,
+        FaultClass,
+        FaultKind,
+        Load,
+        ScenarioSpec,
+        Split,
+    )
+    from firebreak.lab.synthetic import build_synthetic_bundle
+
+    spec = ScenarioSpec(
+        id="payment-failure-100pct-20u",
+        family="error-injection",
+        fault=Fault(kind=FaultKind.FLAG, flag="paymentFailure", variant="100%"),
+        target_service="payment",
+        fault_class=FaultClass.ERROR_INJECTION,
+        load=Load(users=20),
+        split=Split.TRAIN,
+    )
+    bundles = tmp_path / "bundles"
+    bundle_id = derive_bundle_id(spec.id, "run1")
+    build_synthetic_bundle(bundles / bundle_id, spec, "run1", seed=3)
+
+    assert check_bundle_names(RULES, bundles) == []
+    manifest_text = (bundles / bundle_id / "manifest.json").read_text(encoding="utf-8")
+    assert spec.id not in manifest_text
+    assert "payment" not in manifest_text

@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -56,6 +57,7 @@ class Rules:
     agent_packages: tuple[str, ...]
     ground_truth_paths: tuple[str, ...]
     forbidden_fields: tuple[str, ...]
+    bundle_id_pattern: str
 
 
 def load_rules(path: Path = CONFIG_PATH) -> Rules:
@@ -71,6 +73,7 @@ def load_rules(path: Path = CONFIG_PATH) -> Rules:
         "agent_packages",
         "ground_truth_paths",
         "forbidden_fields",
+        "bundle_id_pattern",
     )
     missing = [key for key in required if key not in raw]
     if missing:
@@ -81,6 +84,7 @@ def load_rules(path: Path = CONFIG_PATH) -> Rules:
         agent_packages=tuple(str(v) for v in raw["agent_packages"]),
         ground_truth_paths=tuple(str(v) for v in raw["ground_truth_paths"]),
         forbidden_fields=tuple(str(v) for v in raw["forbidden_fields"]),
+        bundle_id_pattern=str(raw["bundle_id_pattern"]),
     )
 
 
@@ -211,7 +215,7 @@ def check_bundles(rules: Rules, bundles_root: Path) -> list[Violation]:
     if not bundles_root.is_dir():
         return violations
 
-    for manifest_path in sorted(bundles_root.glob("*/*/manifest.json")):
+    for manifest_path in sorted(bundles_root.glob("*/manifest.json")):
         bundle_dir = manifest_path.parent
         label = f"{bundle_dir.parent.name}/{bundle_dir.name}"
         for json_path in sorted(bundle_dir.glob("*.json")):
@@ -234,6 +238,32 @@ def check_bundles(rules: Rules, bundles_root: Path) -> list[Violation]:
     return violations
 
 
+def check_bundle_names(rules: Rules, bundles_root: Path) -> list[Violation]:
+    """Fail when a bundle is stored under a name that describes its fault.
+
+    A directory called payment-failure-50pct-20u names the culprit without
+    any forbidden field appearing anywhere, and Phase 3 mixes a backend
+    fingerprint into every evidence id the agent handles. Opaque ids are the
+    only version of this that stays safe as more code reads bundles.
+    """
+    violations: list[Violation] = []
+    if not bundles_root.is_dir():
+        return violations
+    pattern = re.compile(rules.bundle_id_pattern)
+    for manifest_path in sorted(bundles_root.glob("*/" + "manifest.json")):
+        name = manifest_path.parent.name
+        if not pattern.match(name):
+            violations.append(
+                Violation(
+                    "descriptive-bundle-name",
+                    name,
+                    f"bundle directory {name!r} does not match {rules.bundle_id_pattern}; "
+                    "a bundle named for its scenario states the answer in its path",
+                )
+            )
+    return violations
+
+
 def check_flag_names_in_changes(bundles_root: Path, flag_names: set[str]) -> list[Violation]:
     """Fail when a change record names a feature flag.
 
@@ -243,7 +273,7 @@ def check_flag_names_in_changes(bundles_root: Path, flag_names: set[str]) -> lis
     violations: list[Violation] = []
     if not bundles_root.is_dir() or not flag_names:
         return violations
-    for changes_path in sorted(bundles_root.glob("*/*/changes.json")):
+    for changes_path in sorted(bundles_root.glob("*/changes.json")):
         bundle_dir = changes_path.parent
         label = f"{bundle_dir.parent.name}/{bundle_dir.name}"
         text = changes_path.read_text(encoding="utf-8").lower()
@@ -280,6 +310,7 @@ def collect_violations(rules: Rules, root: Path = REPO_ROOT) -> list[Violation]:
     violations = check_imports(rules, source_root)
     violations += check_path_literals(rules, source_root)
     violations += check_bundles(rules, bundles_root)
+    violations += check_bundle_names(rules, bundles_root)
     violations += check_flag_names_in_changes(bundles_root, known_flag_names(inventory))
     return violations
 
