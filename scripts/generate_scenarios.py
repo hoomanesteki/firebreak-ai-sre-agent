@@ -678,10 +678,12 @@ def write_library_card(specs: list[ScenarioSpec], path: Path = LIBRARY_CARD_PATH
 
 
 def main() -> int:
-    flags = load_inventory()
+    flags = load_inventory(FLAG_INVENTORY_PATH)
     specs = generate_library(flags)
-    write_specs(specs)
-    write_library_card(specs)
+    # Paths are looked up here rather than taken as default arguments, so
+    # the entry point can be pointed at a scratch directory and tested.
+    write_specs(specs, SPECS_DIR)
+    write_library_card(specs, LIBRARY_CARD_PATH)
 
     split_totals: dict[str, int] = defaultdict(int)
     family_totals: dict[str, int] = defaultdict(int)
