@@ -3,7 +3,7 @@
 SHELL := /bin/bash
 
 .PHONY: help setup verify lint format types test test-cov hygiene leakage clean unhide \
-        live live-config live-down live-logs lab-flags lab-library lab-bundles lab-verify lab-smoke lab-webhook
+        live live-config live-down live-logs lab-flags lab-library lab-bundles lab-package lab-verify lab-smoke lab-webhook
 
 help:  ## Show the available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -114,6 +114,9 @@ live-logs:  ## Follow the live stack logs
 
 lab-library:  ## Validate the scenario library and write its summary
 	$(FIREBREAK) lab library
+
+lab-package:  ## Archive the recorded library with checksums for release
+	$(FIREBREAK) lab package
 
 lab-bundles:  ## Check every recorded bundle still matches its manifest
 	$(FIREBREAK) lab verify-bundles

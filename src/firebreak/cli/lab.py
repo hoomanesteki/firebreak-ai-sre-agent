@@ -23,6 +23,7 @@ from firebreak.lab.flags import (
     read_vendored_defaults,
 )
 from firebreak.lab.load import LoadController, LoadError
+from firebreak.lab.package import PackageError, package_library, unpack_library
 from firebreak.lab.scenario import ScenarioError, check_against_inventory, load_library
 from firebreak.lab.smoke import EXCLUDED_FLAGS, build_report, smoke_one_flag
 from firebreak.lab.stack import render_flag_store, render_prometheus_config
@@ -411,3 +412,43 @@ def verify_bundles() -> None:
         _fail(f"{len(failures)} of {len(bundles)} bundle(s) failed verification")
         return
     console.print(f"[green]{len(bundles)} bundle(s) verified[/green]")
+
+
+@lab_app.command("package")
+def package(
+    destination: str = typer.Option(
+        "dist/firebreak-bundles.tar.gz", "--out", help="Archive to write"
+    ),
+) -> None:
+    """Archive the recorded library with a checksum for the archive itself.
+
+    Every bundle is verified before it goes in. Publishing a library that
+    already fails its own checksums would hand everyone who downloads it a
+    broken artefact, discovered one bundle at a time.
+    """
+    try:
+        result = package_library(BUNDLES_DIR, REPO_ROOT / destination)
+    except (PackageError, BundleError) as error:
+        _fail(str(error))
+        return
+    console.print(
+        f"[green]packaged {result.bundles} bundle(s), {result.bytes / 1024 / 1024:.1f} MB[/green]"
+    )
+    console.print(f"archive  {result.archive.relative_to(REPO_ROOT)}")
+    console.print(f"checksum {result.checksum_file.relative_to(REPO_ROOT)}")
+
+
+@lab_app.command("unpack")
+def unpack(archive: str) -> None:
+    """Verify a downloaded library archive and unpack it.
+
+    Both ends are checked: the archive checksum proves the download is the
+    file that was published, and each bundle's manifest proves its contents
+    are what was recorded.
+    """
+    try:
+        count = unpack_library(Path(archive), BUNDLES_DIR)
+    except (PackageError, BundleError) as error:
+        _fail(str(error))
+        return
+    console.print(f"[green]unpacked and verified {count} bundle(s)[/green]")
