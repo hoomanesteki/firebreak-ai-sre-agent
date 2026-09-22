@@ -1,0 +1,25 @@
+id: no-fault-flood-homepage-sr1-50u
+family: no-fault
+fault:
+  kind: none
+  flag: null
+  variant: null
+target_service: null
+fault_class: none
+load:
+  users: 50
+  spawn_rate: 1.0
+timing:
+  warmup_seconds: 300
+  fault_seconds: 600
+  cooldown_seconds: 180
+distractors:
+- kind: harmless_flag
+  service: frontend
+  offset_seconds: 0
+  flag: loadGeneratorFloodHomepage
+  variant: 'on'
+expected_alert: null
+split: train
+notes: 'Demand spike only: loadGeneratorFloodHomepage=on floods the frontend with
+  load generator traffic. No service fault is injected; the correct answer is no fault.'

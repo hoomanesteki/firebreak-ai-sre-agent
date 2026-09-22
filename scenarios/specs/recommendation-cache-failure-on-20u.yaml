@@ -1,0 +1,19 @@
+id: recommendation-cache-failure-on-20u
+family: resource
+fault:
+  kind: flag
+  flag: recommendationCacheFailure
+  variant: 'on'
+target_service: recommendation
+fault_class: cache_failure
+load:
+  users: 20
+  spawn_rate: 5.0
+timing:
+  warmup_seconds: 300
+  fault_seconds: 600
+  cooldown_seconds: 180
+distractors: []
+expected_alert: null
+split: test_ood
+notes: null

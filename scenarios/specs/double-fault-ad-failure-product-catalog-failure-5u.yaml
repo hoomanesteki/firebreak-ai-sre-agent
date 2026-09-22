@@ -1,0 +1,24 @@
+id: double-fault-ad-failure-product-catalog-failure-5u
+family: double-fault
+fault:
+  kind: flag
+  flag: adFailure
+  variant: 'on'
+target_service: ad
+fault_class: multiple
+load:
+  users: 5
+  spawn_rate: 5.0
+timing:
+  warmup_seconds: 300
+  fault_seconds: 600
+  cooldown_seconds: 180
+distractors:
+- kind: harmless_flag
+  service: product-catalog
+  offset_seconds: 0
+  flag: productCatalogFailure
+  variant: 'on'
+expected_alert: null
+split: train
+notes: null

@@ -1,0 +1,19 @@
+id: intl-shipping-slowdown-5sec-20u
+family: latency
+fault:
+  kind: flag
+  flag: intlShippingSlowdown
+  variant: 5sec
+target_service: shipping
+fault_class: latency
+load:
+  users: 20
+  spawn_rate: 5.0
+timing:
+  warmup_seconds: 300
+  fault_seconds: 600
+  cooldown_seconds: 180
+distractors: []
+expected_alert: null
+split: test_id
+notes: null

@@ -1,0 +1,19 @@
+id: cart-failure-50pct-50u
+family: error-injection
+fault:
+  kind: flag
+  flag: cartFailure
+  variant: 50%
+target_service: cart
+fault_class: error_injection
+load:
+  users: 50
+  spawn_rate: 5.0
+timing:
+  warmup_seconds: 300
+  fault_seconds: 600
+  cooldown_seconds: 180
+distractors: []
+expected_alert: null
+split: train
+notes: null

@@ -1,0 +1,19 @@
+id: failed-readiness-probe-on-20u-sr10
+family: health
+fault:
+  kind: flag
+  flag: failedReadinessProbe
+  variant: 'on'
+target_service: cart
+fault_class: health_check_failure
+load:
+  users: 20
+  spawn_rate: 10.0
+timing:
+  warmup_seconds: 300
+  fault_seconds: 600
+  cooldown_seconds: 180
+distractors: []
+expected_alert: null
+split: train
+notes: null

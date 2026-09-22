@@ -1,0 +1,24 @@
+id: distractor-payment-failure-75pct-50u
+family: distractor
+fault:
+  kind: flag
+  flag: paymentFailure
+  variant: 75%
+target_service: payment
+fault_class: error_injection
+load:
+  users: 50
+  spawn_rate: 5.0
+timing:
+  warmup_seconds: 300
+  fault_seconds: 600
+  cooldown_seconds: 180
+distractors:
+- kind: deploy_event
+  service: recommendation
+  offset_seconds: -120
+  flag: null
+  variant: null
+expected_alert: null
+split: test_id
+notes: null
