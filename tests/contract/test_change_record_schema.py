@@ -136,3 +136,34 @@ def test_changes_outside_the_window_are_excluded(synthetic_bundle):
 
     with BundleBackend.open(bundle_dir) as backend:
         assert backend.changes(empty) == []
+
+
+def test_change_record_rejects_an_unknown_field():
+    """Strict on purpose.
+
+    If extra fields were allowed, a producer could quietly add one naming
+    the fault flag and the schema would say nothing. The sanitiser would
+    still strip it, but a control that depends on a second control noticing
+    is not a control.
+    """
+    with pytest.raises(ValueError, match="flag"):
+        ChangeRecord(
+            at=datetime(2026, 1, 1, tzinfo=UTC),
+            kind="flag_change",
+            service="payment",
+            detail="something changed",
+            flag="paymentFailure",
+        )
+
+
+def test_change_record_requires_every_canonical_field():
+    for missing in sorted(CANONICAL_FIELDS):
+        fields = {
+            "at": datetime(2026, 1, 1, tzinfo=UTC),
+            "kind": "deploy",
+            "service": "cart",
+            "detail": "deployed cart",
+        }
+        del fields[missing]
+        with pytest.raises(ValueError, match=missing):
+            ChangeRecord(**fields)
