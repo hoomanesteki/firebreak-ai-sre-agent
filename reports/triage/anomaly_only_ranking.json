@@ -1,0 +1,59 @@
+{
+  "what": "Culprit rank from metric anomaly scoring alone, with no dependency graph",
+  "why": "Motivates the topology ranking in SPEC.md Section 6.4. If anomaly scoring alone found the culprit reliably, the graph would be unnecessary complexity.",
+  "data_source": "synthetic fixtures (src/firebreak/lab/synthetic.py), NOT recorded incidents",
+  "caveat": "Synthetic data. This is a design signal, never a reported result.",
+  "trials_per_case": 20,
+  "cases": {
+    "error-injection": {
+      "trials": 20,
+      "top1": 4,
+      "top3": 20,
+      "rank_distribution": {
+        "1": 4,
+        "2": 7,
+        "3": 9
+      }
+    },
+    "unreachable": {
+      "trials": 20,
+      "top1": 4,
+      "top3": 20,
+      "rank_distribution": {
+        "1": 4,
+        "2": 7,
+        "3": 9
+      }
+    },
+    "latency": {
+      "trials": 20,
+      "top1": 12,
+      "top3": 20,
+      "rank_distribution": {
+        "1": 12,
+        "2": 8
+      }
+    },
+    "memory-leak": {
+      "trials": 20,
+      "top1": 20,
+      "top3": 20,
+      "rank_distribution": {
+        "1": 20
+      }
+    },
+    "cpu-saturation": {
+      "trials": 20,
+      "top1": 20,
+      "top3": 20,
+      "rank_distribution": {
+        "1": 20
+      }
+    }
+  },
+  "overall": {
+    "trials": 100,
+    "top1": 60,
+    "top3": 100
+  }
+}
