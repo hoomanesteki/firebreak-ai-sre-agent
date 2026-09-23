@@ -43,10 +43,12 @@ from firebreak.lab.bundle import (
 )
 from firebreak.tools.evidence import BackendFingerprint, BackendMode, TimeRange
 
-# Timestamps are cast to text in SQL rather than fetched as datetimes.
-# DuckDB needs pytz to hand back a timezone aware datetime, and the
-# records here carry timestamps as strings anyway, so casting avoids a
-# dependency and keeps the text form identical between runs.
+# Timestamps are cast to text in SQL rather than fetched as datetimes,
+# because DuckDB needs pytz to hand back a timezone aware datetime and
+# the records here carry strings anyway. The cast is done with strftime
+# to a fixed ISO 8601 form rather than a bare CAST, which renders in the
+# session timezone and with an offset shape that datetime.fromisoformat
+# accepts but pydantic does not.
 #
 # A pattern is a literal substring, never a regular expression. SPEC.md
 # Section 6.3 is explicit, and the reason is that log bodies are attacker
@@ -55,12 +57,29 @@ from firebreak.tools.evidence import BackendFingerprint, BackendMode, TimeRange
 _PATTERN_MAX_LENGTH = 200
 
 
+def _iso(column: str) -> str:
+    """Render a timestamp column as ISO 8601 in UTC, with a real offset.
+
+    strftime rather than a bare CAST: a cast renders in the session
+    timezone and writes the offset as -07 rather than -07:00, which
+    datetime.fromisoformat accepts and pydantic rejects.
+    """
+    return f"strftime({column} AT TIME ZONE 'UTC', '%Y-%m-%dT%H:%M:%S.%gZ')"
+
+
 class BundleBackend:
     """Answers queries from one frozen bundle."""
 
     def __init__(self, reader: BundleReader) -> None:
         self._reader = reader
         self._connection = duckdb.connect(database=":memory:")
+        # Without this, casting a timestamp to text renders it in the
+        # machine's local timezone: a bundle anchored at 2025-01-01 UTC
+        # comes back as 2024-12-31 17:13-07 in Edmonton and something
+        # else again in London. Every evidence id is a hash that includes
+        # those strings, so the same bundle would produce different
+        # evidence on different machines and a re-run could never match.
+        self._connection.execute("SET TimeZone = 'UTC'")
 
     @classmethod
     def open(cls, bundle_dir: Any, verify: bool = True) -> BundleBackend:
@@ -124,7 +143,7 @@ class BundleBackend:
         check_window(window)
         capped = check_limit(limit)
         sql = (
-            f"SELECT CAST(timestamp AS VARCHAR) AS timestamp, metric_name, "
+            f"SELECT {_iso('timestamp')} AS timestamp, metric_name, "
             f"service_name, value, labels_json "
             f"FROM {self._table(METRICS_FILE)} "
             "WHERE metric_name = ? AND timestamp >= ? AND timestamp <= ?"
@@ -165,7 +184,7 @@ class BundleBackend:
             )
 
         sql = (
-            "SELECT CAST(timestamp AS VARCHAR) AS timestamp, service_name, "
+            f"SELECT {_iso('timestamp')} AS timestamp, service_name, "
             "severity, body, trace_id "
             f"FROM {self._table(LOGS_FILE)} "
             "WHERE timestamp >= ? AND timestamp <= ?"
@@ -210,7 +229,7 @@ class BundleBackend:
         capped = check_limit(limit)
         sql = (
             "SELECT trace_id, span_id, parent_span_id, service_name, span_name, "
-            "span_kind, CAST(start_time AS VARCHAR) AS start_time, "
+            f"span_kind, {_iso('start_time')} AS start_time, "
             "duration_ms, status_code "
             f"FROM {self._table(TRACES_FILE)} "
             "WHERE start_time >= ? AND start_time <= ?"
@@ -240,7 +259,7 @@ class BundleBackend:
         """
         sql = (
             "SELECT trace_id, span_id, parent_span_id, service_name, span_name, "
-            "span_kind, CAST(start_time AS VARCHAR) AS start_time, "
+            f"span_kind, {_iso('start_time')} AS start_time, "
             "duration_ms, status_code "
             f"FROM {self._table(TRACES_FILE)} "
             "WHERE trace_id = ? ORDER BY start_time, span_id"

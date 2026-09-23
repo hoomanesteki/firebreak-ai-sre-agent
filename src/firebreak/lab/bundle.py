@@ -169,6 +169,45 @@ class ChangeRecord(BaseModel):
         }
 
 
+class EdgeRecord(BaseModel):
+    """One service to service dependency edge, as a bundle records it.
+
+    Declared here for the same reason as ChangeRecord: two producers write
+    these, and they disagreed. The synthetic builder wrote call_count and
+    error_count, the exporter wrote requests_per_second and
+    failures_per_second, and a tool reading one shape against the other
+    reported every edge as carrying no traffic.
+
+    Rates rather than counts, because a count depends on how long the
+    window was and a rate does not, which is what makes two bundles of
+    different durations comparable at all.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    client: str
+    server: str
+    requests_per_second: float = Field(ge=0.0)
+    failures_per_second: float = Field(ge=0.0)
+
+    @property
+    def error_ratio(self) -> float:
+        """Share of calls on this edge that failed."""
+        if self.requests_per_second <= 0.0:
+            return 0.0
+        return self.failures_per_second / self.requests_per_second
+
+    def as_row(self) -> dict[str, Any]:
+        """The JSON shape written into a bundle's topology."""
+        return {
+            "client": self.client,
+            "server": self.server,
+            "requests_per_second": round(self.requests_per_second, 6),
+            "failures_per_second": round(self.failures_per_second, 6),
+            "error_ratio": round(self.error_ratio, 6),
+        }
+
+
 def sha256_of(path: Path) -> str:
     """Checksum a file without reading it all into memory."""
     digest = hashlib.sha256()

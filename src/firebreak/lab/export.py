@@ -20,6 +20,7 @@ from typing import Any, Protocol
 
 import httpx
 
+from firebreak.lab.bundle import EdgeRecord
 from firebreak.lab.endpoints import DEFAULT_ENDPOINTS, DemoEndpoints
 from firebreak.signals import MetricName
 
@@ -168,13 +169,12 @@ class PrometheusExporter:
         for (client, server), requests in sorted(totals.items()):
             failed = failures.get((client, server), 0.0)
             edges.append(
-                {
-                    "client": client,
-                    "server": server,
-                    "requests_per_second": round(requests, 6),
-                    "failures_per_second": round(failed, 6),
-                    "error_ratio": round(failed / requests, 6) if requests else 0.0,
-                }
+                EdgeRecord(
+                    client=client,
+                    server=server,
+                    requests_per_second=requests,
+                    failures_per_second=failed,
+                ).as_row()
             )
         services = sorted({str(e["client"]) for e in edges} | {str(e["server"]) for e in edges})
         return {

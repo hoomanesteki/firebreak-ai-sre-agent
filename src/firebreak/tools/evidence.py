@@ -27,7 +27,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, Self
 
@@ -135,6 +135,18 @@ class Fact(BaseModel):
         if self.value == 0.0:
             return abs(value) <= tolerance
         return abs(value - self.value) / abs(self.value) <= tolerance
+
+
+# Some questions have no time range at all. A trace is a unit and a
+# dependency graph is a shape, so neither is asked "between when and when".
+# An evidence record still needs a window to hash, so those use this
+# sentinel rather than each inventing one: two modules picking different
+# placeholders would give the same question two different ids, and the exit
+# gate looks a citation up by id.
+NO_WINDOW = TimeRange(
+    start=datetime(1970, 1, 1, tzinfo=UTC),
+    end=datetime(1970, 1, 1, tzinfo=UTC),
+)
 
 
 def canonical_query(query: str, parameters: dict[str, Any]) -> str:

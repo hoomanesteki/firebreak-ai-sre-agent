@@ -22,7 +22,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from firebreak.lab.bundle import BundleManifest, TimeWindow, derive_bundle_id
+from firebreak.lab.bundle import BundleManifest, EdgeRecord, TimeWindow, derive_bundle_id
 from firebreak.lab.bundle_writer import BundleWriter
 from firebreak.lab.endpoints import DEMO_TAG
 from firebreak.lab.scenario import DistractorKind, FaultClass, FaultKind, ScenarioSpec
@@ -512,16 +512,27 @@ def _build_topology(
     services: list[str],
     edges: list[tuple[str, str]],
     edge_stats: dict[tuple[str, str], dict[str, int]],
+    window: TimeWindow,
 ) -> dict[str, Any]:
+    """The dependency graph, with per edge rates rather than raw counts.
+
+    Built through EdgeRecord so this and the real exporter cannot drift.
+    They did: this wrote call_count and error_count while the exporter wrote
+    requests_per_second, and a topology tool reading one against the other
+    reported every edge as carrying no traffic.
+    """
+    seconds = max((window.end - window.start).total_seconds(), 1.0)
     return {
+        "window_start": window.start.isoformat(),
+        "window_end": window.end.isoformat(),
         "services": sorted(services),
         "edges": [
-            {
-                "client": client,
-                "server": server,
-                "call_count": edge_stats.get((client, server), {}).get("calls", 0),
-                "error_count": edge_stats.get((client, server), {}).get("errors", 0),
-            }
+            EdgeRecord(
+                client=client,
+                server=server,
+                requests_per_second=edge_stats.get((client, server), {}).get("calls", 0) / seconds,
+                failures_per_second=edge_stats.get((client, server), {}).get("errors", 0) / seconds,
+            ).as_row()
             for client, server in edges
         ],
     }
@@ -718,7 +729,7 @@ def build_synthetic_bundle(
         resource_signal=resource_signal,
         raises_errors=resource_target is None,
     )
-    topology = _build_topology(services, edges, edge_stats)
+    topology = _build_topology(services, edges, edge_stats, window)
     alert_payload = _build_alert(spec, path_to_target, alert_fired, alert_fired_at, window)
     raw_changes = _build_changes(rng, spec, services, onset_anchor, window)
     fault_flags = {spec.fault.flag} if spec.fault.flag else set[str]()
