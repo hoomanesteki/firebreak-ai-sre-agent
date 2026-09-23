@@ -1,4 +1,4 @@
-"""Both change log producers must write the same shape.
+"""Both bundle producers must speak the same vocabulary.
 
 A recording is written by `lab/recorder.py`, and the fixtures every other
 test runs against are written by `lab/synthetic.py`. They disagreed once:
@@ -11,7 +11,11 @@ unrelated deploy next to the incident and see whether the agent blames it,
 would have shown an empty change log and been scored as though the agent
 had correctly ignored a distractor that was never there.
 
-So the agreement is asserted rather than assumed.
+The metric names drifted the same way, on the signal that matters most.
+
+So the agreement is asserted rather than assumed, in both directions:
+every name a producer writes is declared, and every declared name is
+actually present in a bundle.
 """
 
 from __future__ import annotations
@@ -35,6 +39,7 @@ from firebreak.lab.scenario import (
     Split,
 )
 from firebreak.lab.synthetic import build_synthetic_bundle
+from firebreak.signals import MetricName, is_known_metric
 from firebreak.tools.evidence import TimeRange
 
 CANONICAL_FIELDS = {"at", "kind", "service", "detail"}
@@ -167,3 +172,51 @@ def test_change_record_requires_every_canonical_field():
         del fields[missing]
         with pytest.raises(ValueError, match=missing):
             ChangeRecord(**fields)
+
+
+# --- the metric vocabulary -----------------------------------------------
+#
+# The same class of drift as the change record, on the signal that matters
+# most. The exporter called a measurement span_calls_total and the synthetic
+# builder called the same thing traces_span_metrics_calls_total, so a metric
+# tool would have found nothing in half the bundles, and found it silently.
+
+
+def test_every_metric_name_the_exporter_produces_is_declared():
+    from firebreak.lab.export import METRIC_QUERIES
+
+    for name in METRIC_QUERIES:
+        assert is_known_metric(str(name)), name
+
+
+def test_every_metric_name_in_a_synthetic_bundle_is_declared(synthetic_bundle):
+    bundle_dir, manifest, _ = synthetic_bundle
+
+    with BundleBackend.open(bundle_dir) as backend:
+        window = TimeRange(start=manifest.window.start, end=manifest.window.end)
+        found = {
+            point.metric_name
+            for name in MetricName
+            for point in backend.query_metrics(name, window, limit=1)
+        }
+
+    assert found
+    for name in found:
+        assert is_known_metric(name), name
+
+
+def test_a_synthetic_bundle_carries_every_declared_metric(synthetic_bundle):
+    """A missing signal makes a whole fault family untestable.
+
+    The resource families show no error rate at all, so a fixture without
+    container metrics would give them no symptom to find.
+    """
+    bundle_dir, manifest, _ = synthetic_bundle
+
+    with BundleBackend.open(bundle_dir) as backend:
+        window = TimeRange(start=manifest.window.start, end=manifest.window.end)
+        missing = [
+            str(name) for name in MetricName if not backend.query_metrics(name, window, limit=1)
+        ]
+
+    assert missing == []

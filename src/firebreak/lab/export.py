@@ -21,6 +21,7 @@ from typing import Any, Protocol
 import httpx
 
 from firebreak.lab.endpoints import DEFAULT_ENDPOINTS, DemoEndpoints
+from firebreak.signals import MetricName
 
 # Resolution of an exported metrics series. SPEC.md Section 6.2 records
 # bundles at a 15 second step, which is also the export interval the live
@@ -31,26 +32,31 @@ MAX_POINTS_PER_QUERY = 11_000
 # What a recording captures, per service, for every scenario family. Named
 # templates rather than free-form PromQL, for the same reason the tool layer
 # uses them: a query that can be anything cannot be reviewed.
+#
+# Keyed by the canonical metric names in firebreak.signals, because this
+# and the synthetic builder once wrote different names for the same
+# measurement and every metric tool would have found nothing in half the
+# bundles, silently.
 METRIC_QUERIES: dict[str, str] = {
-    "span_calls_total": (
+    MetricName.SPAN_CALLS_TOTAL: (
         "sum by (service_name, status_code) (rate(traces_span_metrics_calls_total[2m]))"
     ),
-    "span_duration_p95_ms": (
+    MetricName.SPAN_DURATION_P95_MS: (
         "histogram_quantile(0.95, sum by (service_name, le) "
         "(rate(traces_span_metrics_duration_milliseconds_bucket[2m])))"
     ),
-    "span_duration_p50_ms": (
+    MetricName.SPAN_DURATION_P50_MS: (
         "histogram_quantile(0.50, sum by (service_name, le) "
         "(rate(traces_span_metrics_duration_milliseconds_bucket[2m])))"
     ),
-    "service_graph_requests_total": (
+    MetricName.SERVICE_GRAPH_REQUESTS: (
         "sum by (client, server) (rate(traces_service_graph_request_total[2m]))"
     ),
-    "service_graph_failed_total": (
+    MetricName.SERVICE_GRAPH_FAILED: (
         "sum by (client, server) (rate(traces_service_graph_request_failed_total[2m]))"
     ),
-    "container_memory_usage_bytes": "sum by (service_name) (container_memory_usage)",
-    "container_cpu_utilisation": "sum by (service_name) (container_cpu_utilization)",
+    MetricName.CONTAINER_MEMORY_BYTES: "sum by (service_name) (container_memory_usage)",
+    MetricName.CONTAINER_CPU_UTILISATION: "sum by (service_name) (container_cpu_utilization)",
 }
 
 
