@@ -35,6 +35,16 @@ SYNTHETIC_RECORDER_VERSION = "synthetic-fixture-0"
 WINDOW_ANCHOR = datetime(2025, 1, 1, tzinfo=UTC)
 
 METRIC_STEP_SECONDS = 15
+# Which container resource each resource fault class moves. A class that
+# moved both would be indistinguishable from the others, and the fault class
+# grader scores exactly that distinction.
+RESOURCE_SIGNAL_BY_CLASS: dict[FaultClass, str] = {
+    FaultClass.MEMORY_LEAK: "memory",
+    FaultClass.CPU_SATURATION: "cpu",
+    FaultClass.GC_PRESSURE: "cpu",
+    FaultClass.CACHE_FAILURE: "latency",
+}
+
 # Container resources a healthy service reports, and how a leaking or
 # saturated one departs from them.
 BASELINE_MEMORY_BYTES = 120_000_000.0
@@ -359,9 +369,18 @@ def _generate_logs(
     return logs
 
 
-def _latency_percentiles(degraded: bool) -> tuple[float, float]:
-    """The p50 and p95 a service reports, healthy or degraded."""
-    return DEGRADED_LATENCY_MS if degraded else BASELINE_LATENCY_MS
+def _latency_percentiles(rng: random.Random, degraded: bool) -> tuple[float, float]:
+    """The p50 and p95 a service reports, healthy or degraded.
+
+    Jittered per sample. Without it every degraded service reports the
+    identical series and scores identically, which makes a ranking a set of
+    ties and Phase 4's candidate ordering impossible to test against.
+    """
+    p50, p95 = DEGRADED_LATENCY_MS if degraded else BASELINE_LATENCY_MS
+    return (
+        round(p50 * rng.uniform(0.82, 1.18), 3),
+        round(p95 * rng.uniform(0.80, 1.20), 3),
+    )
 
 
 def _metric_row(
@@ -386,6 +405,7 @@ def _generate_metrics(
     load_spike: bool,
     edges: list[tuple[str, str]] | None = None,
     resource_target: str | None = None,
+    resource_signal: str | None = None,
     raises_errors: bool = True,
 ) -> list[dict[str, Any]]:
     """Every 15 seconds: call volume split by status, and a duration histogram, per service.
@@ -441,7 +461,7 @@ def _generate_metrics(
             # exporter produces. Writing raw histogram buckets here while
             # the exporter wrote percentiles is what made every latency
             # tool return nothing for half the bundles.
-            p50, p95 = _latency_percentiles(degraded)
+            p50, p95 = _latency_percentiles(rng, degraded)
             rows.append(_metric_row(tick, MetricName.SPAN_DURATION_P50_MS, service, {}, p50))
             rows.append(_metric_row(tick, MetricName.SPAN_DURATION_P95_MS, service, {}, p95))
         # Service graph edges. The knowledge graph's CALLS relationships
@@ -461,12 +481,16 @@ def _generate_metrics(
         # nowhere else: a memory leak shows no error rate at all until the
         # process dies.
         for service in services:
-            leaking = service == resource_target and in_fault
+            affected = service == resource_target and in_fault
+            # Which resource moves is what tells the resource classes apart.
+            # A memory leak that also saturated the CPU would make
+            # memory_leak and cpu_saturation indistinguishable, and the
+            # fault class grader scores exactly that distinction.
+            leaking = affected and resource_signal == "memory"
+            saturating = affected and resource_signal == "cpu"
             elapsed = (tick - fault_start).total_seconds() if leaking else 0.0
-            memory = BASELINE_MEMORY_BYTES + (
-                elapsed * MEMORY_LEAK_BYTES_PER_SECOND if leaking else 0.0
-            )
-            cpu = BASELINE_CPU + (SATURATED_CPU - BASELINE_CPU if leaking else 0.0)
+            memory = BASELINE_MEMORY_BYTES + elapsed * MEMORY_LEAK_BYTES_PER_SECOND
+            cpu = SATURATED_CPU if saturating else BASELINE_CPU
             rows.append(
                 _metric_row(tick, MetricName.CONTAINER_MEMORY_BYTES, service, {}, round(memory, 1))
             )
@@ -667,16 +691,19 @@ def build_synthetic_bundle(
     # Resource faults leave their mark on container metrics rather than on
     # error rates, so the resource families need a target named here or
     # their whole signal is absent from the fixture.
-    resource_target = (
-        spec.target_service
-        if spec.fault_class
-        in (
-            FaultClass.MEMORY_LEAK,
-            FaultClass.CPU_SATURATION,
-            FaultClass.GC_PRESSURE,
-            FaultClass.CACHE_FAILURE,
-        )
-        else None
+    # Resource faults leave their mark on container metrics rather than on
+    # error rates, and which metric moves is what tells the classes apart.
+    resource_signal = RESOURCE_SIGNAL_BY_CLASS.get(spec.fault_class)
+    resource_target = spec.target_service if resource_signal else None
+
+    # A resource fault does not drag its whole call path down the way an
+    # error injection does. SPEC.md Section 6.2 calls this family slow
+    # onset and says it needs metric trends rather than errors, so the
+    # latency symptom stays on the affected service and the container
+    # trend is what identifies it. Spreading it up the path would bury
+    # the culprit under its own callers.
+    metric_symptomatic = (
+        {spec.target_service} if resource_target and spec.target_service else symptomatic
     )
     metrics = _generate_metrics(
         rng,
@@ -684,10 +711,11 @@ def build_synthetic_bundle(
         window,
         fault_start,
         fault_end,
-        symptomatic,
+        metric_symptomatic,
         load_spike,
         edges=edges,
         resource_target=resource_target,
+        resource_signal=resource_signal,
         raises_errors=resource_target is None,
     )
     topology = _build_topology(services, edges, edge_stats)
