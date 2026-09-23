@@ -29,7 +29,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from firebreak.lab.bundle import BundleManifest, TimeWindow, derive_bundle_id
+from firebreak.lab.bundle import BundleManifest, ChangeRecord, TimeWindow, derive_bundle_id
 from firebreak.lab.bundle_writer import BundleWriter
 from firebreak.lab.export import TelemetryExporter
 from firebreak.lab.flags import OFF_VARIANT, FlagController
@@ -300,6 +300,10 @@ class Recorder:
         real change log may or may not show a flag flip, and v1 tests the
         harder case. The writer strips them again as a second line of
         defence.
+
+        Built through ChangeRecord so this producer and the synthetic
+        builder cannot drift apart. They did once, and the replay backend
+        silently returned no changes rather than failing.
         """
         records: list[dict[str, Any]] = []
         for distractor in spec.distractors:
@@ -309,12 +313,12 @@ class Recorder:
                 seconds=spec.timing.warmup_seconds + distractor.offset_seconds
             )
             records.append(
-                {
-                    "kind": "deploy",
-                    "service": distractor.service,
-                    "at": at.isoformat(),
-                    "detail": f"routine deployment of {distractor.service}",
-                }
+                ChangeRecord(
+                    at=at,
+                    kind="deploy",
+                    service=distractor.service,
+                    detail=f"routine deployment of {distractor.service}",
+                ).as_row()
             )
         return records
 

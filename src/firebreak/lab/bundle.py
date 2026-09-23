@@ -139,6 +139,36 @@ def derive_bundle_id(scenario_id: str, run_id: str) -> str:
     return f"{BUNDLE_ID_PREFIX}_{digest[:BUNDLE_ID_HEX]}"
 
 
+class ChangeRecord(BaseModel):
+    """One deploy or configuration event the agent is allowed to see.
+
+    Declared here, in the format module, because two different producers
+    write these: the recorder for a real recording, and the synthetic
+    builder for tests. They disagreed on field names for a while, and the
+    backend silently returned no changes at all rather than failing, so a
+    distractor scenario would have shown an agent an empty change log.
+
+    Fault flag flips never appear here. SPEC.md Section 6.2 removes them at
+    recording time, which is what makes the distractor families hard.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    at: datetime
+    kind: str
+    service: str
+    detail: str
+
+    def as_row(self) -> dict[str, Any]:
+        """The JSON shape written into a bundle."""
+        return {
+            "at": self.at.isoformat(),
+            "kind": self.kind,
+            "service": self.service,
+            "detail": self.detail,
+        }
+
+
 def sha256_of(path: Path) -> str:
     """Checksum a file without reading it all into memory."""
     digest = hashlib.sha256()

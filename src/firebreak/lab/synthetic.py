@@ -492,6 +492,12 @@ def _build_changes(
 ) -> list[dict[str, Any]]:
     """The raw change feed, before sanitising: distractors, the fault flag, and filler.
 
+    Records use the canonical shape declared by `ChangeRecord` in
+    `firebreak.lab.bundle`. This producer and the real recorder once
+    disagreed on field names, and the replay backend silently returned no
+    changes at all, so a distractor scenario would have shown an agent an
+    empty change log rather than an error.
+
     The fault flag record is generated on purpose. A real recorder's change
     feed would capture it, which is exactly the event `sanitise_changes`
     exists to remove before a bundle is written, so leaving it out here
@@ -505,31 +511,29 @@ def _build_changes(
         if distractor.kind is DistractorKind.DEPLOY_EVENT:
             records.append(
                 {
-                    "type": "deploy",
+                    "kind": "deploy",
                     "service": distractor.service,
-                    "timestamp": applied_at.isoformat(),
-                    "summary": f"deployed a new build of {distractor.service}",
+                    "at": applied_at.isoformat(),
+                    "detail": f"deployed a new build of {distractor.service}",
                 }
             )
         else:
             records.append(
                 {
-                    "type": "flag_change",
+                    "kind": "flag_change",
                     "service": distractor.service,
-                    "flag": distractor.flag,
-                    "variant": distractor.variant,
-                    "timestamp": applied_at.isoformat(),
+                    "at": applied_at.isoformat(),
+                    "detail": f"{distractor.flag} set to {distractor.variant}",
                 }
             )
 
     if spec.fault.kind is FaultKind.FLAG:
         records.append(
             {
-                "type": "flag_change",
+                "kind": "flag_change",
                 "service": spec.target_service,
-                "flag": spec.fault.flag,
-                "variant": spec.fault.variant,
-                "timestamp": onset_anchor.isoformat(),
+                "at": onset_anchor.isoformat(),
+                "detail": f"{spec.fault.flag} set to {spec.fault.variant}",
             }
         )
 
@@ -537,18 +541,18 @@ def _build_changes(
     if benign_pool:
         records.append(
             {
-                "type": "restart",
+                "kind": "restart",
                 "service": rng.choice(benign_pool),
-                "timestamp": (window.start + timedelta(seconds=rng.uniform(0.0, 60.0))).isoformat(),
-                "summary": "scheduled container restart",
+                "at": (window.start + timedelta(seconds=rng.uniform(0.0, 60.0))).isoformat(),
+                "detail": "scheduled container restart",
             }
         )
         records.append(
             {
-                "type": "config_change",
+                "kind": "config_change",
                 "service": rng.choice(benign_pool),
-                "timestamp": (window.start + timedelta(seconds=rng.uniform(0.0, 90.0))).isoformat(),
-                "summary": "updated rate limit configuration",
+                "at": (window.start + timedelta(seconds=rng.uniform(0.0, 90.0))).isoformat(),
+                "detail": "updated rate limit configuration",
             }
         )
 
