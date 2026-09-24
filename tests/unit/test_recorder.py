@@ -25,6 +25,7 @@ from firebreak.lab.scenario import (
     Split,
     Timing,
 )
+from firebreak.signals import MetricName
 
 
 class Events:
@@ -84,7 +85,7 @@ class StubExporter:
         return [
             {
                 "timestamp": start,
-                "metric_name": "span_calls_total",
+                "metric_name": MetricName.SPAN_CALLS_TOTAL,
                 "service_name": "cart",
                 "labels_json": "{}",
                 "value": 1.0,
@@ -343,11 +344,15 @@ def test_recorder_record_deploy_event_distractor_appears_in_changes_without_faul
     assert "cartfailure" not in json.dumps(changes).lower()
 
 
-# --- _fault_flag_names -------------------------------------------------
+# --- the flag set a change log is cleaned against ------------------------
+#
+# Lives on the specification, not on the recorder. Two producers computed it
+# separately and one forgot the distractor flags, which let the flood flag
+# survive into a no fault bundle's change log and hand the agent the answer
+# in the one family whose answer is that nothing broke.
 
 
-def test_recorder_fault_flag_names_returns_primary_and_second_fault_flags(tmp_path: Path):
-    recorder, _ = _build_recorder(tmp_path)
+def test_fault_flag_names_includes_second_fault_flags():
     spec = _spec(
         distractors=(
             Distractor(
@@ -360,16 +365,31 @@ def test_recorder_fault_flag_names_returns_primary_and_second_fault_flags(tmp_pa
         )
     )
 
-    assert recorder._fault_flag_names(spec) == {"cartFailure", "adFailure"}
+    assert spec.fault_flag_names == {"cartFailure", "adFailure"}
 
 
-def test_recorder_fault_flag_names_returns_only_primary_flag_when_no_second_faults(
-    tmp_path: Path,
-):
-    recorder, _ = _build_recorder(tmp_path)
-    spec = _spec()
+def test_fault_flag_names_is_just_the_primary_flag_without_second_faults():
+    assert _spec().fault_flag_names == {"cartFailure"}
 
-    assert recorder._fault_flag_names(spec) == {"cartFailure"}
+
+def test_fault_flag_names_includes_a_distractor_flag_when_there_is_no_primary_fault():
+    """The no fault case: the only flag flipped is the distractor."""
+    spec = _spec(
+        fault_class=FaultClass.NONE,
+        target_service=None,
+        fault=Fault(kind=FaultKind.NONE),
+        distractors=(
+            Distractor(
+                kind=DistractorKind.HARMLESS_FLAG,
+                service="frontend",
+                offset_seconds=0,
+                flag="loadGeneratorFloodHomepage",
+                variant="on",
+            ),
+        ),
+    )
+
+    assert spec.fault_flag_names == {"loadGeneratorFloodHomepage"}
 
 
 # --- alert payload -------------------------------------------------------

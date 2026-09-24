@@ -22,10 +22,11 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from firebreak.lab.bundle import BundleManifest, TimeWindow, derive_bundle_id
+from firebreak.lab.bundle import BundleManifest, EdgeRecord, TimeWindow, derive_bundle_id
 from firebreak.lab.bundle_writer import BundleWriter
 from firebreak.lab.endpoints import DEMO_TAG
-from firebreak.lab.scenario import DistractorKind, FaultKind, ScenarioSpec
+from firebreak.lab.scenario import DistractorKind, FaultClass, FaultKind, ScenarioSpec
+from firebreak.signals import MetricName, StatusCode
 
 SYNTHETIC_RECORDER_VERSION = "synthetic-fixture-0"
 
@@ -34,13 +35,30 @@ SYNTHETIC_RECORDER_VERSION = "synthetic-fixture-0"
 WINDOW_ANCHOR = datetime(2025, 1, 1, tzinfo=UTC)
 
 METRIC_STEP_SECONDS = 15
-LATENCY_BUCKETS_MS: tuple[float, ...] = (50.0, 100.0, 250.0, 500.0, 1000.0, 2500.0)
+# Which container resource each resource fault class moves. A class that
+# moved both would be indistinguishable from the others, and the fault class
+# grader scores exactly that distinction.
+RESOURCE_SIGNAL_BY_CLASS: dict[FaultClass, str] = {
+    FaultClass.MEMORY_LEAK: "memory",
+    FaultClass.CPU_SATURATION: "cpu",
+    FaultClass.GC_PRESSURE: "cpu",
+    FaultClass.CACHE_FAILURE: "latency",
+}
+
+# Container resources a healthy service reports, and how a leaking or
+# saturated one departs from them.
+BASELINE_MEMORY_BYTES = 120_000_000.0
+MEMORY_LEAK_BYTES_PER_SECOND = 180_000.0
+BASELINE_CPU = 0.18
+SATURATED_CPU = 0.94
+
+# Latency a healthy service and a degraded one report, in milliseconds.
+BASELINE_LATENCY_MS: tuple[float, float] = (45.0, 180.0)
+DEGRADED_LATENCY_MS: tuple[float, float] = (260.0, 1450.0)
 # Cumulative fraction of samples at or under each bucket bound, plus +Inf.
 # Real Prometheus histogram buckets are cumulative; a degraded profile moves
 # mass out of the low buckets and into the tail rather than changing the
 # total, which is what a real latency regression looks like.
-BASELINE_LATENCY_PROFILE: tuple[float, ...] = (0.5, 0.8, 0.95, 0.99, 0.995, 0.999, 1.0)
-DEGRADED_LATENCY_PROFILE: tuple[float, ...] = (0.05, 0.15, 0.35, 0.55, 0.75, 0.92, 1.0)
 
 TARGET_TRACE_COUNT = 70
 BACKGROUND_TRACE_COUNT = 90
@@ -351,6 +369,20 @@ def _generate_logs(
     return logs
 
 
+def _latency_percentiles(rng: random.Random, degraded: bool) -> tuple[float, float]:
+    """The p50 and p95 a service reports, healthy or degraded.
+
+    Jittered per sample. Without it every degraded service reports the
+    identical series and scores identically, which makes a ranking a set of
+    ties and Phase 4's candidate ordering impossible to test against.
+    """
+    p50, p95 = DEGRADED_LATENCY_MS if degraded else BASELINE_LATENCY_MS
+    return (
+        round(p50 * rng.uniform(0.82, 1.18), 3),
+        round(p95 * rng.uniform(0.80, 1.20), 3),
+    )
+
+
 def _metric_row(
     timestamp: datetime, metric_name: str, service: str, labels: dict[str, str], value: float
 ) -> dict[str, Any]:
@@ -371,6 +403,10 @@ def _generate_metrics(
     fault_end: datetime,
     symptomatic: set[str],
     load_spike: bool,
+    edges: list[tuple[str, str]] | None = None,
+    resource_target: str | None = None,
+    resource_signal: str | None = None,
+    raises_errors: bool = True,
 ) -> list[dict[str, Any]]:
     """Every 15 seconds: call volume split by status, and a duration histogram, per service.
 
@@ -385,46 +421,89 @@ def _generate_metrics(
     rows: list[dict[str, Any]] = []
     tick = window.start
     while tick <= window.end:
+        in_fault = fault_start <= tick < fault_end
         for service in services:
-            degraded = fault_start <= tick < fault_end and service in symptomatic
+            degraded = in_fault and service in symptomatic
             baseline_calls = rng.uniform(8.0, 14.0)
-            if load_spike and fault_start <= tick < fault_end:
+            if load_spike and in_fault:
                 baseline_calls *= LOAD_SPIKE_MULTIPLIER
-            error_share = rng.uniform(0.25, 0.45) if degraded else rng.uniform(0.0, 0.02)
+            # A resource fault does not raise the error rate. A leaking
+            # process serves correct responses right up until it dies,
+            # which is exactly why SPEC.md Section 6.2 calls this family
+            # slow onset and says it needs metric trends rather than
+            # errors. A fixture that leaked errors too would make the
+            # hardest family the easiest one.
+            error_share = (
+                rng.uniform(0.25, 0.45) if degraded and raises_errors else rng.uniform(0.0, 0.02)
+            )
             error_calls = baseline_calls * error_share
             ok_calls = max(baseline_calls - error_calls, 0.0)
             rows.append(
                 _metric_row(
                     tick,
-                    "traces_span_metrics_calls_total",
+                    MetricName.SPAN_CALLS_TOTAL,
                     service,
-                    {"status_code": "STATUS_CODE_OK"},
+                    {"status_code": StatusCode.OK.value},
                     ok_calls,
                 )
             )
             rows.append(
                 _metric_row(
                     tick,
-                    "traces_span_metrics_calls_total",
+                    MetricName.SPAN_CALLS_TOTAL,
                     service,
-                    {"status_code": "STATUS_CODE_ERROR"},
+                    {"status_code": StatusCode.ERROR.value},
                     error_calls,
                 )
             )
 
-            profile = DEGRADED_LATENCY_PROFILE if degraded else BASELINE_LATENCY_PROFILE
-            total_samples = max(baseline_calls, 1.0)
-            for bound, fraction in zip((*LATENCY_BUCKETS_MS, None), profile, strict=True):
-                label = str(bound) if bound is not None else "+Inf"
-                rows.append(
-                    _metric_row(
-                        tick,
-                        "traces_span_metrics_duration_milliseconds_bucket",
-                        service,
-                        {"le": label},
-                        round(total_samples * fraction, 3),
-                    )
+            # Latency is emitted as the same derived percentiles the real
+            # exporter produces. Writing raw histogram buckets here while
+            # the exporter wrote percentiles is what made every latency
+            # tool return nothing for half the bundles.
+            p50, p95 = _latency_percentiles(rng, degraded)
+            rows.append(_metric_row(tick, MetricName.SPAN_DURATION_P50_MS, service, {}, p50))
+            rows.append(_metric_row(tick, MetricName.SPAN_DURATION_P95_MS, service, {}, p95))
+        # Service graph edges. The knowledge graph's CALLS relationships
+        # come from these, so a bundle without them cannot exercise the
+        # dependency ranking that most of triage rests on.
+        for client, server in edges or []:
+            failing = server in symptomatic
+            requests = rng.uniform(4.0, 12.0) * (1.6 if load_spike else 1.0)
+            failed = requests * (rng.uniform(0.6, 0.95) if failing and in_fault else 0.0)
+            labels = {"client": client, "server": server}
+            rows.append(
+                _metric_row(tick, MetricName.SERVICE_GRAPH_REQUESTS, client, labels, requests)
+            )
+            rows.append(_metric_row(tick, MetricName.SERVICE_GRAPH_FAILED, client, labels, failed))
+
+        # Container resources. The resource family's symptom is here and
+        # nowhere else: a memory leak shows no error rate at all until the
+        # process dies.
+        for service in services:
+            affected = service == resource_target and in_fault
+            # Which resource moves is what tells the resource classes apart.
+            # A memory leak that also saturated the CPU would make
+            # memory_leak and cpu_saturation indistinguishable, and the
+            # fault class grader scores exactly that distinction.
+            leaking = affected and resource_signal == "memory"
+            saturating = affected and resource_signal == "cpu"
+            elapsed = (tick - fault_start).total_seconds() if leaking else 0.0
+            memory = BASELINE_MEMORY_BYTES + elapsed * MEMORY_LEAK_BYTES_PER_SECOND
+            cpu = SATURATED_CPU if saturating else BASELINE_CPU
+            rows.append(
+                _metric_row(tick, MetricName.CONTAINER_MEMORY_BYTES, service, {}, round(memory, 1))
+            )
+            rows.append(
+                _metric_row(
+                    tick,
+                    MetricName.CONTAINER_CPU_UTILISATION,
+                    service,
+                    {},
+                    round(min(cpu + rng.uniform(-0.02, 0.02), 1.0), 4),
                 )
+            )
+
         tick += timedelta(seconds=METRIC_STEP_SECONDS)
     return rows
 
@@ -433,16 +512,27 @@ def _build_topology(
     services: list[str],
     edges: list[tuple[str, str]],
     edge_stats: dict[tuple[str, str], dict[str, int]],
+    window: TimeWindow,
 ) -> dict[str, Any]:
+    """The dependency graph, with per edge rates rather than raw counts.
+
+    Built through EdgeRecord so this and the real exporter cannot drift.
+    They did: this wrote call_count and error_count while the exporter wrote
+    requests_per_second, and a topology tool reading one against the other
+    reported every edge as carrying no traffic.
+    """
+    seconds = max((window.end - window.start).total_seconds(), 1.0)
     return {
+        "window_start": window.start.isoformat(),
+        "window_end": window.end.isoformat(),
         "services": sorted(services),
         "edges": [
-            {
-                "client": client,
-                "server": server,
-                "call_count": edge_stats.get((client, server), {}).get("calls", 0),
-                "error_count": edge_stats.get((client, server), {}).get("errors", 0),
-            }
+            EdgeRecord(
+                client=client,
+                server=server,
+                requests_per_second=edge_stats.get((client, server), {}).get("calls", 0) / seconds,
+                failures_per_second=edge_stats.get((client, server), {}).get("errors", 0) / seconds,
+            ).as_row()
             for client, server in edges
         ],
     }
@@ -492,6 +582,12 @@ def _build_changes(
 ) -> list[dict[str, Any]]:
     """The raw change feed, before sanitising: distractors, the fault flag, and filler.
 
+    Records use the canonical shape declared by `ChangeRecord` in
+    `firebreak.lab.bundle`. This producer and the real recorder once
+    disagreed on field names, and the replay backend silently returned no
+    changes at all, so a distractor scenario would have shown an agent an
+    empty change log rather than an error.
+
     The fault flag record is generated on purpose. A real recorder's change
     feed would capture it, which is exactly the event `sanitise_changes`
     exists to remove before a bundle is written, so leaving it out here
@@ -505,31 +601,29 @@ def _build_changes(
         if distractor.kind is DistractorKind.DEPLOY_EVENT:
             records.append(
                 {
-                    "type": "deploy",
+                    "kind": "deploy",
                     "service": distractor.service,
-                    "timestamp": applied_at.isoformat(),
-                    "summary": f"deployed a new build of {distractor.service}",
+                    "at": applied_at.isoformat(),
+                    "detail": f"deployed a new build of {distractor.service}",
                 }
             )
         else:
             records.append(
                 {
-                    "type": "flag_change",
+                    "kind": "flag_change",
                     "service": distractor.service,
-                    "flag": distractor.flag,
-                    "variant": distractor.variant,
-                    "timestamp": applied_at.isoformat(),
+                    "at": applied_at.isoformat(),
+                    "detail": f"{distractor.flag} set to {distractor.variant}",
                 }
             )
 
     if spec.fault.kind is FaultKind.FLAG:
         records.append(
             {
-                "type": "flag_change",
+                "kind": "flag_change",
                 "service": spec.target_service,
-                "flag": spec.fault.flag,
-                "variant": spec.fault.variant,
-                "timestamp": onset_anchor.isoformat(),
+                "at": onset_anchor.isoformat(),
+                "detail": f"{spec.fault.flag} set to {spec.fault.variant}",
             }
         )
 
@@ -537,18 +631,18 @@ def _build_changes(
     if benign_pool:
         records.append(
             {
-                "type": "restart",
+                "kind": "restart",
                 "service": rng.choice(benign_pool),
-                "timestamp": (window.start + timedelta(seconds=rng.uniform(0.0, 60.0))).isoformat(),
-                "summary": "scheduled container restart",
+                "at": (window.start + timedelta(seconds=rng.uniform(0.0, 60.0))).isoformat(),
+                "detail": "scheduled container restart",
             }
         )
         records.append(
             {
-                "type": "config_change",
+                "kind": "config_change",
                 "service": rng.choice(benign_pool),
-                "timestamp": (window.start + timedelta(seconds=rng.uniform(0.0, 90.0))).isoformat(),
-                "summary": "updated rate limit configuration",
+                "at": (window.start + timedelta(seconds=rng.uniform(0.0, 90.0))).isoformat(),
+                "detail": "updated rate limit configuration",
             }
         )
 
@@ -605,13 +699,43 @@ def build_synthetic_bundle(
         rng, edges, window, fault_start, fault_end, path_to_target, symptomatic, target
     )
     logs = _generate_logs(rng, services, window, fault_start, fault_end, symptomatic, traces)
-    metrics = _generate_metrics(
-        rng, services, window, fault_start, fault_end, symptomatic, load_spike
+    # Resource faults leave their mark on container metrics rather than on
+    # error rates, so the resource families need a target named here or
+    # their whole signal is absent from the fixture.
+    # Resource faults leave their mark on container metrics rather than on
+    # error rates, and which metric moves is what tells the classes apart.
+    resource_signal = RESOURCE_SIGNAL_BY_CLASS.get(spec.fault_class)
+    resource_target = spec.target_service if resource_signal else None
+
+    # A resource fault does not drag its whole call path down the way an
+    # error injection does. SPEC.md Section 6.2 calls this family slow
+    # onset and says it needs metric trends rather than errors, so the
+    # latency symptom stays on the affected service and the container
+    # trend is what identifies it. Spreading it up the path would bury
+    # the culprit under its own callers.
+    metric_symptomatic = (
+        {spec.target_service} if resource_target and spec.target_service else symptomatic
     )
-    topology = _build_topology(services, edges, edge_stats)
+    metrics = _generate_metrics(
+        rng,
+        services,
+        window,
+        fault_start,
+        fault_end,
+        metric_symptomatic,
+        load_spike,
+        edges=edges,
+        resource_target=resource_target,
+        resource_signal=resource_signal,
+        raises_errors=resource_target is None,
+    )
+    topology = _build_topology(services, edges, edge_stats, window)
     alert_payload = _build_alert(spec, path_to_target, alert_fired, alert_fired_at, window)
     raw_changes = _build_changes(rng, spec, services, onset_anchor, window)
-    fault_flags = {spec.fault.flag} if spec.fault.flag else set[str]()
+    # Includes distractor flags, not just the primary fault. Computing
+    # this here separately is how the flood flag survived into a no fault
+    # bundle's change log.
+    fault_flags = spec.fault_flag_names
 
     writer = BundleWriter(
         bundle_dir=bundle_dir,
