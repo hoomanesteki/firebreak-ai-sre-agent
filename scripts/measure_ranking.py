@@ -242,7 +242,9 @@ def _abstention(trials: list[Trial]) -> dict[str, Any]:
         return {"usable": False, "reason": "needs both faulted and no-fault trials"}
 
     candidates = sorted({round(v, 3) for v in faulted + quiet})
-    curve = []
+    # Typed, so that comparing thresholds later is a comparison of floats
+    # rather than of objects mypy cannot order.
+    curve: list[dict[str, float]] = []
     for threshold in candidates:
         # At or above the threshold is "something is wrong".
         detected = sum(1 for v in faulted if v >= threshold)
@@ -269,6 +271,7 @@ def _abstention(trials: list[Trial]) -> dict[str, Any]:
     # meaningful distance between 8 and 64 is a ratio and not a difference.
     best_j = max(point["youden_j"] for point in curve)
     tied = [point for point in curve if point["youden_j"] == best_j]
+    chosen: dict[str, Any]
     if faulted[0] > quiet[-1]:
         chosen_threshold = (
             round(math.sqrt(quiet[-1] * faulted[0]), 3) if quiet[-1] > 0 else faulted[0]
@@ -286,7 +289,8 @@ def _abstention(trials: list[Trial]) -> dict[str, Any]:
         # Overlapping classes, so there is a genuine trade-off and no gap to
         # sit in the middle of. Take the highest of the tied-best thresholds,
         # which is the one that raises the fewest false alarms.
-        chosen = {**max(tied, key=lambda point: point["threshold"]), "rule": "best Youden J"}
+        best = max(tied, key=lambda point: point["threshold"])
+        chosen = {**best, "rule": "best Youden J"}
 
     return {
         "usable": True,

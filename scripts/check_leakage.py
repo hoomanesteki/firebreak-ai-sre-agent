@@ -301,6 +301,122 @@ def known_flag_names(inventory_path: Path) -> set[str]:
     return set(flags) if isinstance(flags, dict) else set()
 
 
+def check_knowledge_files(
+    knowledge_root: Path, flag_names: set[str], scenario_ids: set[str], fault_classes: set[str]
+) -> list[Violation]:
+    """Fail when a hand written knowledge file hints at a recorded scenario.
+
+    Leakage control 6 in SPEC.md Section 8.4 says the knowledge files are
+    written before scenarios are recorded and reviewed for hints about
+    specific scenarios. The review is a judgement and stays a judgement; this
+    is the mechanical half of it.
+
+    Three things are forbidden. A scenario id, which names an incident
+    directly. A fault class from the scenario vocabulary, which names the
+    answer's category. And a feature flag name, because the demo's own flag
+    table maps each flag to the fault it injects, so a runbook saying "check
+    the payment failure flag" next to a payment symptom has copied the answer
+    key into the agent's reading material.
+
+    Flags are the subtle one and the reason this check exists rather than
+    being left to review. A runbook that mentions flags generically is
+    correct and useful; one that names a specific flag alongside a specific
+    symptom is a hint, and the difference is one word that a reviewer reading
+    twenty files will not reliably catch.
+    """
+    violations: list[Violation] = []
+    if not knowledge_root.is_dir():
+        return violations
+
+    for path in sorted(knowledge_root.rglob("*")):
+        if not path.is_file() or path.suffix not in {".yaml", ".yml", ".md"}:
+            continue
+        text = path.read_text(encoding="utf-8")
+        lowered = text.lower()
+        label = str(path.relative_to(knowledge_root.parent))
+
+        named_flags = sorted(flag for flag in flag_names if flag.lower() in lowered)
+        if named_flags:
+            violations.append(
+                Violation(
+                    "flag-in-knowledge",
+                    label,
+                    f"names feature flags, which map to injected faults: {', '.join(named_flags)}",
+                )
+            )
+
+        named_scenarios = sorted(sid for sid in scenario_ids if sid.lower() in lowered)
+        if named_scenarios:
+            violations.append(
+                Violation(
+                    "scenario-in-knowledge",
+                    label,
+                    f"names recorded scenarios: {', '.join(named_scenarios)}",
+                )
+            )
+
+        # Matched as the underscored token only, never as the equivalent
+        # English phrase. A runbook writing "a memory leak" is giving generic
+        # operational advice; one writing `memory_leak` has copied a value out
+        # of the scenario vocabulary.
+        named_classes = sorted(
+            cls for cls in fault_classes if re.search(rf"\b{re.escape(cls)}\b", lowered)
+        )
+        if named_classes:
+            violations.append(
+                Violation(
+                    "fault-class-in-knowledge",
+                    label,
+                    f"names fault classes from the scenario vocabulary: {', '.join(named_classes)}",
+                )
+            )
+    return violations
+
+
+def scenario_identifiers(specs_root: Path) -> set[str]:
+    """Scenario ids, taken from filenames so this never reads a spec.
+
+    Deliberately does not import `firebreak.lab.scenario`: that module is
+    itself declared ground truth, and a checker that imported it would be the
+    first thing its own import rule forbids.
+    """
+    if not specs_root.is_dir():
+        return set()
+    return {path.stem for path in specs_root.glob("*.yaml")}
+
+
+def fault_class_vocabulary() -> set[str]:
+    """The fault class names worth checking for, written out rather than imported.
+
+    Importing `firebreak.lab.scenario` to get this list would violate the very
+    rule this file exists to enforce, so it is duplicated and a contract test
+    asserts the two agree.
+
+    **`latency` is deliberately excluded, and `none` and `multiple` with it.**
+    The check exists to catch a knowledge file that has copied a value out of
+    the answer vocabulary, and `latency` is not that: it is ordinary technical
+    English that names a symptom every operator uses in every sentence about
+    slowness. Including it flagged twelve runbooks for writing the word
+    "latency", which is not a hint about anything. `none` and `multiple` are
+    excluded for the same reason, only more so.
+
+    Every remaining entry is an underscored compound, which is what makes the
+    word boundary match safe: a runbook writes "a memory leak" and the
+    vocabulary writes `memory_leak`, so only the second matches.
+    """
+    return {
+        "error_injection",
+        "unreachable_dependency",
+        "cpu_saturation",
+        "gc_pressure",
+        "memory_leak",
+        "queue_lag",
+        "lock_contention",
+        "health_check_failure",
+        "cache_failure",
+    }
+
+
 def collect_violations(rules: Rules, root: Path = REPO_ROOT) -> list[Violation]:
     """Run every leakage check."""
     source_root = root / "src"
@@ -312,6 +428,12 @@ def collect_violations(rules: Rules, root: Path = REPO_ROOT) -> list[Violation]:
     violations += check_bundles(rules, bundles_root)
     violations += check_bundle_names(rules, bundles_root)
     violations += check_flag_names_in_changes(bundles_root, known_flag_names(inventory))
+    violations += check_knowledge_files(
+        root / "knowledge",
+        known_flag_names(inventory),
+        scenario_identifiers(root / "scenarios" / "specs"),
+        fault_class_vocabulary(),
+    )
     return violations
 
 

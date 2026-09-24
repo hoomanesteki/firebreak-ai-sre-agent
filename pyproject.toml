@@ -70,6 +70,13 @@ show_error_codes = true
 module = ["tests.*"]
 ignore_errors = true
 
+[[tool.mypy.overrides]]
+# drain3 ships no type information. It is a dev dependency read only by
+# scripts/compare_log_templates.py, which decided ADR-0006 and does not ship,
+# so the untyped surface never reaches the product.
+module = ["drain3.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
