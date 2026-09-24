@@ -1,0 +1,102 @@
+# The only actions Firebreak may ever propose.
+#
+# An allowlist, not a starting point. SPEC.md Section 7 puts remediation
+# behind an approval gate, and an open ended action space would make that
+# gate the only thing standing between a language model and a production
+# change. Three kinds, each either trivially reversible or not an action at
+# all, and `src/firebreak/graph/knowledge.py` refuses any other kind.
+#
+# Two rules are enforced in code rather than trusted to whoever edits this:
+#
+# 1. At least one `page_owning_team` entry must exist. Without a fallback, an
+#    incident with no safe automated action would produce no proposal at all,
+#    and "nothing to suggest" would be indistinguishable from "nothing
+#    wrong".
+# 2. Anything with `reversible: false` must have `requires_approval: true`.
+#    It is the one rule here whose violation cannot be undone.
+#
+# **Preconditions are the substance of this file.** An action is safe or
+# unsafe depending entirely on what was established before proposing it, and
+# the most important precondition appears in nearly every entry: a change
+# near an incident is a coincidence until the same service also shows an
+# anomaly. Correlating a flag flip with an incident and calling it the cause
+# is the single most common way root cause analysis goes wrong.
+
+remediations:
+  - id: page-owning-team
+    kind: page_owning_team
+    title: Page the team that owns the suspected service
+    description: >-
+      Hand the investigation to the people who can change the code. Always
+      available, and the right answer whenever the evidence names a service
+      but not a mechanism, or names a mechanism nobody here can safely act
+      on. Proposing this is not a failure to reach a conclusion: a named
+      service with cited evidence is most of the work.
+    preconditions:
+      - A candidate service has been named and the ownership is known.
+    blast_radius: >-
+      One team's pager. No change to the running system.
+    reversible: true
+    requires_approval: false
+    runbooks:
+      - escalating-to-a-service-owner
+
+  - id: disable-feature-flag
+    kind: disable_feature_flag
+    title: Turn a recently changed feature flag back off
+    description: >-
+      Return a flag to its previous value. The cheapest action available in
+      this system, because a flag change takes effect in about a second and
+      is undone the same way.
+      It is also the easiest to get wrong. The flag service holds many flags,
+      several of which are on at any time, and finding one that changed near
+      an incident says nothing on its own about whether it caused the
+      incident. Propose this only when the affected service is also the one
+      the evidence points at.
+    preconditions:
+      - A flag change is recorded in the incident window.
+      - The service the flag affects is the candidate root cause, not merely
+        a service that also looks unwell.
+      - The anomaly began after the flag change rather than before it.
+      - Turning the flag off is expected to restore previous behaviour rather
+        than change it to something new.
+    blast_radius: >-
+      Every request evaluating that flag, which for a percentage flag means a
+      share of live traffic changing behaviour within seconds. Confined to the
+      one service the flag affects.
+    reversible: true
+    requires_approval: true
+    runbooks:
+      - assessing-a-recent-change
+      - feature-flags-as-a-change-surface
+
+  - id: restart-service
+    kind: restart_service
+    title: Restart a single service
+    description: >-
+      Recycle one container. Genuinely useful for a process that has degraded
+      rather than broken: a leaking heap, an exhausted connection pool, a
+      thread stuck on a lock.
+      It is also the action most likely to be proposed for the wrong reason,
+      because it often makes the symptom go away. A restart on a service whose
+      datastore is the real problem clears the evidence, resets the metrics,
+      and leaves the fault in place to return in twenty minutes with nothing
+      left to diagnose it from.
+    preconditions:
+      - The candidate service shows a resource trend, a saturation signal, or
+        a stall rather than a plain error rate.
+      - The datastores and queues it depends on have been checked and are
+        healthy, so this is not masking a dependency failure.
+      - Losing the current process state is acceptable, including any
+        in process cache it holds.
+      - Somebody has captured what is needed to diagnose it afterwards,
+        because a restart destroys the evidence.
+    blast_radius: >-
+      Requests in flight to that service fail, and callers see errors or
+      timeouts until it is serving again. Anything holding state in the
+      process loses it. Callers of a core tier service will notice.
+    reversible: false
+    requires_approval: true
+    runbooks:
+      - restarting-a-service-safely
+      - service-using-too-much-memory
