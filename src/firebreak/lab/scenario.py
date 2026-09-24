@@ -184,6 +184,20 @@ class ScenarioSpec(BaseModel):
         """Distractors that change a flag rather than only logging an event."""
         return tuple(d for d in self.distractors if d.kind is DistractorKind.HARMLESS_FLAG)
 
+    @property
+    def fault_flag_names(self) -> set[str]:
+        """Every flag this scenario flips, so a change log can be cleaned of them.
+
+        Defined here rather than in each producer because two producers
+        computed it separately and one forgot the distractor flags. The cost
+        was a no fault bundle whose change log said
+        "loadGeneratorFloodHomepage set to on", which hands the agent the
+        answer in the one family whose answer is that nothing broke.
+        """
+        names = {self.fault.flag} if self.fault.flag else set()
+        names |= {d.flag for d in self.second_faults if d.flag}
+        return {name for name in names if name}
+
 
 class ScenarioError(Exception):
     """A specification could not be loaded or does not match the demo."""

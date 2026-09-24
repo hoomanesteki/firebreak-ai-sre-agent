@@ -732,7 +732,10 @@ def build_synthetic_bundle(
     topology = _build_topology(services, edges, edge_stats, window)
     alert_payload = _build_alert(spec, path_to_target, alert_fired, alert_fired_at, window)
     raw_changes = _build_changes(rng, spec, services, onset_anchor, window)
-    fault_flags = {spec.fault.flag} if spec.fault.flag else set[str]()
+    # Includes distractor flags, not just the primary fault. Computing
+    # this here separately is how the flood flag survived into a no fault
+    # bundle's change log.
+    fault_flags = spec.fault_flag_names
 
     writer = BundleWriter(
         bundle_dir=bundle_dir,

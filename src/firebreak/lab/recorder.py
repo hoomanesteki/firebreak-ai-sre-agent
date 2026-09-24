@@ -240,12 +240,6 @@ class Recorder:
         """
         return self._bundles_root / derive_bundle_id(scenario_id, run_id)
 
-    def _fault_flag_names(self, spec: ScenarioSpec) -> set[str]:
-        """Every flag this scenario touched, so the change log can be cleaned."""
-        names = {spec.fault.flag} if spec.fault.flag else set()
-        names |= {d.flag for d in spec.second_faults if d.flag}
-        return {name for name in names if name}
-
     def _export_bundle(
         self,
         spec: ScenarioSpec,
@@ -268,9 +262,7 @@ class Recorder:
         writer.write_logs(self._exporter.export_logs(window.start, window.end))
         writer.write_topology(self._exporter.export_topology(window.start, window.end))
         writer.write_alert(self._alert_payload(spec, alert_fired_at))
-        writer.write_changes(
-            self._change_records(spec, window), fault_flags=self._fault_flag_names(spec)
-        )
+        writer.write_changes(self._change_records(spec, window), fault_flags=spec.fault_flag_names)
         return writer.finalise(
             window=window,
             alert_fired=alert_fired_at is not None,
