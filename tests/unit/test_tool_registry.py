@@ -259,3 +259,21 @@ def test_a_subset_shares_the_same_specs_as_the_parent():
     subset = full.subset(("search_logs",))
 
     assert subset.spec("search_logs") is full.spec("search_logs")
+
+
+def test_get_evidence_rejects_a_row_count_above_the_cap_for_a_real_id(context: ToolContext, bundle):
+    """The cap has to be asserted against an id that exists.
+
+    An earlier version of this test used a fabricated id, so it raised for
+    the missing id rather than for the cap and passed with the cap removed.
+    """
+    _, manifest = bundle
+    registry = build_registry()
+    found = registry.call("search_logs", context, {"window": _incident(manifest), "limit": 5})
+
+    with pytest.raises(ToolError, match="max_rows"):
+        registry.call(
+            "get_evidence",
+            context,
+            {"evidence_id": found.evidence_id, "max_rows": MAX_EXPANDED_ROWS + 1},
+        )

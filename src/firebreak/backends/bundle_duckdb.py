@@ -73,12 +73,14 @@ class BundleBackend:
     def __init__(self, reader: BundleReader) -> None:
         self._reader = reader
         self._connection = duckdb.connect(database=":memory:")
-        # Without this, casting a timestamp to text renders it in the
-        # machine's local timezone: a bundle anchored at 2025-01-01 UTC
-        # comes back as 2024-12-31 17:13-07 in Edmonton and something
-        # else again in London. Every evidence id is a hash that includes
-        # those strings, so the same bundle would produce different
-        # evidence on different machines and a re-run could never match.
+        # Belt and braces. What actually forces UTC is the explicit
+        # AT TIME ZONE conversion in _iso, and removing this line changes
+        # no output today, which a mutation run confirmed. It stays
+        # because the failure it guards against is severe and silent: a
+        # future query that formats a timestamp without that conversion
+        # would render it in the machine's local zone, and since every
+        # evidence id hashes those strings, the same bundle would produce
+        # different ids on different machines.
         self._connection.execute("SET TimeZone = 'UTC'")
 
     @classmethod

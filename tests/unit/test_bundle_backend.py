@@ -26,6 +26,7 @@ from firebreak.lab.bundle import (
 )
 from firebreak.lab.scenario import Fault, FaultClass, FaultKind, Load, ScenarioSpec, Split, Timing
 from firebreak.lab.synthetic import build_synthetic_bundle
+from firebreak.signals import MetricName
 from firebreak.tools.evidence import BackendMode, TimeRange
 
 RUN_ID = "run-1"
@@ -394,3 +395,69 @@ def test_open_with_verify_false_skips_verification(bundle):
 
     with BundleBackend.open(bundle_dir, verify=False) as opened:
         assert opened.fingerprint().mode is BackendMode.BUNDLE
+
+
+# --- timestamp determinism -----------------------------------------------
+#
+# Without the session timezone pinned, casting a timestamp renders it in the
+# machine's local zone: a bundle anchored at 2025-01-01 UTC came back as
+# 2024-12-31 17:13-07. Every evidence id is a hash over those strings, so the
+# same bundle produced different ids on different machines and a verifier
+# re-running a citation recorded elsewhere could never match it.
+
+
+def test_timestamps_are_rendered_in_utc_not_the_local_zone(backend, bundle):
+    _, manifest, _ = bundle
+    window = _full_window(manifest)
+
+    points = backend.query_metrics(MetricName.SPAN_CALLS_TOTAL, window, limit=1)
+
+    assert points
+    assert points[0].timestamp.endswith("Z"), points[0].timestamp
+    assert points[0].timestamp.startswith(manifest.window.start.strftime("%Y-%m-%d"))
+
+
+def test_every_timestamp_the_backend_returns_parses_as_a_datetime(backend, bundle):
+    """pydantic is stricter than fromisoformat, and the gate uses pydantic."""
+    _, manifest, _ = bundle
+    window = _full_window(manifest)
+
+    values = [
+        backend.query_metrics(MetricName.SPAN_CALLS_TOTAL, window, limit=1)[0].timestamp,
+        backend.search_logs(window, limit=1)[0].timestamp,
+        backend.find_spans(window, limit=1)[0].start_time,
+    ]
+
+    for value in values:
+        TimeRange(start=value, end=value)
+
+
+def test_timestamps_do_not_depend_on_the_process_timezone(bundle):
+    """The regression guard for the determinism defect.
+
+    Renders the same bundle under two different process timezones and
+    requires byte identical output.
+    """
+    import os
+    import time
+
+    bundle_dir, manifest, _ = bundle
+    window = _full_window(manifest)
+    rendered = []
+    original = os.environ.get("TZ")
+    try:
+        for zone in ("America/Edmonton", "Asia/Tokyo"):
+            os.environ["TZ"] = zone
+            time.tzset()
+            with BundleBackend.open(bundle_dir) as opened:
+                rendered.append(
+                    opened.query_metrics(MetricName.SPAN_CALLS_TOTAL, window, limit=3)[0].timestamp
+                )
+    finally:
+        if original is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = original
+        time.tzset()
+
+    assert rendered[0] == rendered[1], rendered

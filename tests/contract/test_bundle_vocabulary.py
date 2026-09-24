@@ -27,7 +27,7 @@ from pathlib import Path
 import pytest
 
 from firebreak.backends.bundle_duckdb import BundleBackend
-from firebreak.lab.bundle import BundleReader, ChangeRecord, derive_bundle_id
+from firebreak.lab.bundle import BundleReader, ChangeRecord, EdgeRecord, derive_bundle_id
 from firebreak.lab.scenario import (
     Distractor,
     DistractorKind,
@@ -220,3 +220,49 @@ def test_a_synthetic_bundle_carries_every_declared_metric(synthetic_bundle):
         ]
 
     assert missing == []
+
+
+# --- the edge schema is strict -------------------------------------------
+
+
+def test_edge_record_rejects_an_unknown_field():
+    """Strict for the same reason the change record is.
+
+    A producer that could add a field would eventually add one naming the
+    fault, and the schema would say nothing.
+    """
+    with pytest.raises(ValueError, match="flag"):
+        EdgeRecord(
+            client="checkout",
+            server="payment",
+            requests_per_second=1.0,
+            failures_per_second=0.0,
+            flag="paymentFailure",
+        )
+
+
+def test_edge_record_rejects_a_negative_rate():
+    """A rate below zero is a computation error, not a measurement."""
+    with pytest.raises(ValueError):
+        EdgeRecord(
+            client="checkout",
+            server="payment",
+            requests_per_second=-1.0,
+            failures_per_second=0.0,
+        )
+
+
+def test_edge_record_error_ratio_is_zero_when_no_requests_were_made():
+    edge = EdgeRecord(
+        client="checkout", server="payment", requests_per_second=0.0, failures_per_second=0.0
+    )
+
+    assert edge.error_ratio == 0.0
+
+
+def test_edge_record_error_ratio_is_the_failing_share():
+    edge = EdgeRecord(
+        client="checkout", server="payment", requests_per_second=4.0, failures_per_second=1.0
+    )
+
+    assert edge.error_ratio == 0.25
