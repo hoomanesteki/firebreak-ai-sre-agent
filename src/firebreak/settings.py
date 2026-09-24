@@ -58,6 +58,16 @@ class Settings(BaseSettings):
     llm_base_url: str | None = None
     llm_api_key: str | None = None
 
+    # Neo4j. The password is a local development credential and not a
+    # secret: `ops/compose.core.yml` sets the same value, and the graph
+    # holds no ground truth and no customer data. It is listed here rather
+    # than hard coded so a deployment can point at its own database without
+    # editing code.
+    neo4j_uri: str = "bolt://localhost:7687"
+    neo4j_user: str = "neo4j"
+    neo4j_password: str = "firebreak-local"
+    neo4j_database: str = "neo4j"
+
     log_level: str = "INFO"
 
     @field_validator("log_level")

@@ -3,7 +3,8 @@
 SHELL := /bin/bash
 
 .PHONY: help setup verify lint format types test test-cov hygiene leakage clean unhide \
-        live live-config live-down live-logs lab-flags lab-library lab-bundles lab-package lab-verify lab-smoke lab-webhook
+        live live-config live-down live-logs lab-flags lab-library lab-bundles lab-package lab-verify lab-smoke lab-webhook \
+        graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates
 
 help:  ## Show the available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -85,6 +86,7 @@ clean:  ## Remove build and test artefacts
 DEMO_TAG := 3.1.0
 COMPOSE_ENV := OTEL_COLLECTOR_CONFIG_EXTRAS=../../ops/otelcol-config-extras.yml \
                DEMO_VERSION=$(DEMO_TAG)
+COMPOSE_CORE := docker compose -f ops/compose.core.yml
 COMPOSE_LIVE := $(COMPOSE_ENV) docker compose --project-directory vendor/otel-demo \
 	-f vendor/otel-demo/compose.yaml \
 	-f vendor/otel-demo/compose.full.yaml \
@@ -132,3 +134,46 @@ lab-smoke:  ## Turn each feature flag on in turn and record the effect
 
 lab-webhook:  ## Receive Alertmanager deliveries on port 8000
 	$(FIREBREAK) lab webhook
+
+# --- Knowledge graph -------------------------------------------------
+#
+# Neo4j is separate from the live demo on purpose. Bundle replay never
+# touches it, so the ordinary test run needs no container, and tearing the
+# demo down does not take the graph with it.
+
+graph-up:  ## Start Neo4j and wait until it answers queries
+	@docker info >/dev/null 2>&1 || (echo "Docker is not running"; exit 1)
+	$(COMPOSE_CORE) up -d
+	@echo "waiting for Neo4j to accept queries..."
+	@for i in $$(seq 1 40); do \
+		status=$$(docker inspect -f '{{.State.Health.Status}}' firebreak-neo4j 2>/dev/null); \
+		if [ "$$status" = "healthy" ]; then echo "Neo4j ready on bolt://localhost:7687"; exit 0; fi; \
+		sleep 3; \
+	done; \
+	echo "Neo4j did not become healthy; check: make graph-logs"; exit 1
+
+graph-down:  ## Stop Neo4j and remove its volume
+	$(COMPOSE_CORE) down -v
+
+graph-logs:  ## Follow the Neo4j logs
+	$(COMPOSE_CORE) logs -f --tail=100
+
+knowledge:  ## Validate the hand written knowledge files
+	$(FIREBREAK) graph knowledge
+
+graph-load:  ## Apply the schema and load the knowledge files into Neo4j
+	$(FIREBREAK) graph load
+
+graph-check:  ## Prove a second load changes nothing
+	$(FIREBREAK) graph check
+
+# --- Measurement -----------------------------------------------------
+
+measure-ranking:  ## Re-measure candidate ranking and rewrite its reports
+	PYTHONPATH=src uv run python scripts/measure_ranking.py
+
+compare-log-templates:  ## Re-decide ADR-0006 by comparing the masker against Drain
+	PYTHONPATH=src uv run python scripts/compare_log_templates.py
+
+baseline-b0:  ## Run deterministic triage over every bundle and score it
+	PYTHONPATH=src uv run python scripts/run_baseline_b0.py
