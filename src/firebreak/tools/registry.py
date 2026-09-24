@@ -31,6 +31,7 @@ from firebreak.tools.base import (
 from firebreak.tools.changes import CHANGE_TOOLS
 from firebreak.tools.logs import LOG_TOOLS
 from firebreak.tools.metrics import METRIC_TOOLS
+from firebreak.tools.runbooks import RUNBOOK_TOOLS
 from firebreak.tools.topology import TOPOLOGY_TOOLS
 from firebreak.tools.traces import TRACE_TOOLS
 
@@ -99,6 +100,7 @@ ALL_TOOLS: tuple[ToolSpec, ...] = (
     *TRACE_TOOLS,
     *TOPOLOGY_TOOLS,
     *CHANGE_TOOLS,
+    *RUNBOOK_TOOLS,
     *EVIDENCE_TOOLS,
 )
 
@@ -125,6 +127,13 @@ SPECIALIST_TOOLS: dict[str, tuple[str, ...]] = {
         "get_evidence",
     ),
 }
+
+# runbook_search is deliberately in no specialist's list. A specialist
+# analyses one signal and reports what it found; reading the owning team's
+# written procedure is a step taken once a candidate is agreed, which makes
+# it the commander's call. Giving it to every specialist would also mean four
+# of them retrieving the same document and paying for it four times.
+COMMANDER_TOOLS: tuple[str, ...] = ("runbook_search", "get_evidence")
 
 
 def build_registry(specs: tuple[ToolSpec, ...] = ALL_TOOLS) -> ToolRegistry:

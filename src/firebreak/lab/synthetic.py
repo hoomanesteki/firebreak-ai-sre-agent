@@ -67,6 +67,51 @@ LOAD_SPIKE_MULTIPLIER = 1.6
 # Weighted toward INFO, which is what a healthy service mostly logs.
 LOG_SEVERITIES = ("DEBUG", "INFO", "INFO", "INFO", "WARN")
 
+# Log bodies carry variable parts: request ids, durations, status codes,
+# host addresses. This is not decoration.
+#
+# An earlier version of this builder emitted fixed strings, one per service
+# and severity, and the result was that `mask_log_line` changed nothing on
+# any of 293 lines in a bundle. The masker, the template counting in
+# `top_error_signatures`, and the whole question ADR-0006 exists to settle
+# were all being exercised against data where the answer was the same
+# whatever they did. A fixture that cannot distinguish a working
+# implementation from a broken one is not testing anything.
+#
+# `{}` placeholders are filled per line, so two lines from the same template
+# differ in their variable parts and agree once masked, which is exactly the
+# property the template extraction has to demonstrate.
+#
+# Deliberately says nothing about which fault is present. A body naming the
+# injected flag would be ground truth written into the evidence
+# (SPEC.md Section 8.4).
+HEALTHY_LOG_TEMPLATES: tuple[str, ...] = (
+    "{service} handled GET {route} 200 in {ms}ms request_id={hex32}",
+    "{service} handled POST {route} 201 in {ms}ms request_id={hex32}",
+    "{service} cache lookup for key {uuid} hit after {ms}ms",
+    "{service} connection pool at {n} of {n2} connections",
+    "{service} completed background sweep of {n} records in {ms}ms",
+)
+
+DEGRADED_ERROR_TEMPLATES: tuple[str, ...] = (
+    "{service} handled GET {route} 503 in {ms}ms request_id={hex32}",
+    "{service} upstream call to {peer} failed after {ms}ms request_id={hex32}",
+    "{service} connection to {ip}:{port} refused after {n} attempts",
+    "{service} deadline exceeded processing {uuid} after {ms}ms",
+)
+
+DEGRADED_WARN_TEMPLATES: tuple[str, ...] = (
+    # Distinct wording from the healthy GET template on purpose. An earlier
+    # version repeated it verbatim, which made two labels for one template
+    # and scored both clusterers as merging something they were right to
+    # merge.
+    "{service} handled GET {route} 200 in {ms}ms over the {n}ms budget",
+    "{service} retry {n} of {n2} for upstream {peer} after {ms}ms",
+    "{service} queue depth {n} above soft limit {n2}",
+)
+
+LOG_ROUTES: tuple[str, ...] = ("/", "/cart", "/checkout", "/api/products", "/api/orders")
+
 # A simplified slice of the OpenTelemetry Demo's real service dependency
 # graph (docs/target-system.md lists the services; the edges below are the
 # well known call directions between them). Not every real edge is here,
@@ -311,6 +356,43 @@ def _generate_traces(
     return traces, edge_stats
 
 
+def _fill_log_template(
+    rng: random.Random,
+    template: str,
+    service: str,
+    peers: list[str],
+    peer: str | None = None,
+    route: str | None = None,
+) -> str:
+    """Fill one log template's variable parts.
+
+    Every placeholder is a shape the masker is meant to collapse, so two
+    lines from one template agree after masking and differ before it. That
+    difference is the whole signal `top_error_signatures` counts.
+
+    `peer` and `route` can be pinned rather than chosen at random. The
+    fixtures leave them random; `scripts/compare_log_templates.py` pins them
+    because it has to know which entity a generated line refers to in order
+    to label it, and a second filler written for that purpose would be one
+    more vocabulary free to drift away from this one.
+    """
+    return template.format(
+        service=service,
+        peer=peer if peer is not None else rng.choice(peers),
+        route=route if route is not None else rng.choice(LOG_ROUTES),
+        ms=rng.randint(3, 4800),
+        n=rng.randint(1, 64),
+        n2=rng.randint(65, 256),
+        port=rng.choice((5432, 6379, 8080, 9092)),
+        ip=f"10.{rng.randint(0, 255)}.{rng.randint(0, 255)}.{rng.randint(1, 254)}",
+        hex32=_hex_id(rng, 32),
+        uuid=(
+            f"{_hex_id(rng, 8)}-{_hex_id(rng, 4)}-{_hex_id(rng, 4)}-"
+            f"{_hex_id(rng, 4)}-{_hex_id(rng, 12)}"
+        ),
+    )
+
+
 def _generate_logs(
     rng: random.Random,
     services: list[str],
@@ -329,6 +411,11 @@ def _generate_logs(
     fault_seconds = (fault_end - fault_start).total_seconds()
     logs: list[dict[str, Any]] = []
 
+    peers = {
+        service: [other for other in services if other != service] or [service]
+        for service in services
+    }
+
     for service in services:
         candidates = trace_ids_by_service.get(service, [])
         for _ in range(rng.randint(15, 30)):
@@ -339,7 +426,9 @@ def _generate_logs(
                     "timestamp": timestamp,
                     "service_name": service,
                     "severity": rng.choice(LOG_SEVERITIES),
-                    "body": f"{service} handled request",
+                    "body": _fill_log_template(
+                        rng, rng.choice(HEALTHY_LOG_TEMPLATES), service, peers[service]
+                    ),
                     "trace_id": trace_id,
                     "attributes_json": json.dumps({"service.name": service}, sort_keys=True),
                 }
@@ -349,17 +438,13 @@ def _generate_logs(
                 timestamp = fault_start + timedelta(seconds=rng.uniform(0.0, fault_seconds))
                 trace_id = rng.choice(candidates) if candidates and rng.random() < 0.6 else None
                 severity = rng.choice(("ERROR", "ERROR", "WARN"))
-                body = (
-                    f"{service} request failed with an upstream error"
-                    if severity == "ERROR"
-                    else f"{service} request is slower than usual"
-                )
+                pool = DEGRADED_ERROR_TEMPLATES if severity == "ERROR" else DEGRADED_WARN_TEMPLATES
                 logs.append(
                     {
                         "timestamp": timestamp,
                         "service_name": service,
                         "severity": severity,
-                        "body": body,
+                        "body": _fill_log_template(rng, rng.choice(pool), service, peers[service]),
                         "trace_id": trace_id,
                         "attributes_json": json.dumps({"service.name": service}, sort_keys=True),
                     }
@@ -700,10 +785,9 @@ def build_synthetic_bundle(
     )
     logs = _generate_logs(rng, services, window, fault_start, fault_end, symptomatic, traces)
     # Resource faults leave their mark on container metrics rather than on
-    # error rates, so the resource families need a target named here or
-    # their whole signal is absent from the fixture.
-    # Resource faults leave their mark on container metrics rather than on
     # error rates, and which metric moves is what tells the classes apart.
+    # The resource families need a target named here or their whole signal
+    # is absent from the fixture.
     resource_signal = RESOURCE_SIGNAL_BY_CLASS.get(spec.fault_class)
     resource_target = spec.target_service if resource_signal else None
 

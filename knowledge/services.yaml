@@ -1,0 +1,255 @@
+# The services Firebreak investigates, described by a person.
+#
+# Telemetry knows that checkout called payment nine hundred times in the last
+# minute. It does not know who to wake up when payment breaks at three in the
+# morning, or which datastore that service cannot survive losing. That is
+# what this file is for.
+#
+# Validated by src/firebreak/graph/knowledge.py on every load, and loaded
+# into Neo4j by `make graph-load`. Check it without a database using
+# `make knowledge`.
+#
+# **Every fact here was read from the pinned demo, not remembered.** Service
+# names and the Kafka topology come from docs/target-system.md. Languages
+# come from the build files under vendor/otel-demo/src/<service>/. Datastore
+# ownership comes from the compose file's own depends_on and connection
+# strings: cart reads and writes valkey-cart, product-catalog reads
+# astronomy-db.
+#
+# **Nothing here hints at a recorded scenario.** SPEC.md Section 8.4 rule 6
+# requires these files to be reviewed for that, because a description saying
+# "this service is the usual culprit" would hand the agent an answer it is
+# supposed to derive, and the accuracy figure afterwards would be fiction.
+# Descriptions say what a service does. They do not say what tends to break.
+
+services:
+  - name: frontend
+    language: typescript
+    tier: edge
+    description: >-
+      Serves the storefront and calls almost everything else to render a page.
+      Being the first thing a customer notices makes it the first thing to
+      alert, which is rarely the same as the first thing to fail.
+    owning_team: Storefront
+    container: frontend
+    endpoints:
+      - route: /
+      - route: /cart
+      - route: /api/products
+      - route: /api/cart
+      - route: /api/checkout
+    runbooks:
+      - storefront-slow-or-erroring
+      - reading-a-dependency-chain
+
+  - name: frontend-proxy
+    language: unknown
+    tier: edge
+    description: >-
+      Envoy, the single port everything enters through. Not a service anyone
+      wrote: it routes to the frontend, the load generator UI, the flag
+      service and the observability tools. Configured by a template rather
+      than a language, so the language field is unknown rather than guessed.
+    owning_team: Platform
+    container: frontend-proxy
+    endpoints:
+      - route: /
+      - route: /loadgen/
+      - route: /flagservice/
+      - route: /feature
+    runbooks:
+      - edge-proxy-and-routing
+
+  - name: cart
+    language: dotnet
+    tier: core
+    description: >-
+      Holds each customer's basket. Reads and writes a Valkey keystore, which
+      it cannot serve requests without.
+    owning_team: Storefront
+    container: cart
+    datastores:
+      - name: valkey-cart
+        kind: keyvalue
+        access: reads_writes
+    runbooks:
+      - cart-and-its-keystore
+      - datastore-dependency-failures
+
+  - name: checkout
+    language: go
+    tier: core
+    description: >-
+      Places an order. Calls cart, currency, payment, shipping, email and
+      product-catalog in sequence, then produces to Kafka for the downstream
+      consumers. The widest fan out in the system, so a fault almost anywhere
+      shows up here as well.
+    owning_team: Checkout
+    container: checkout
+    queues:
+      - name: orders
+        role: produces
+    runbooks:
+      - checkout-cannot-complete-an-order
+      - reading-a-dependency-chain
+
+  - name: payment
+    language: typescript
+    tier: core
+    description: >-
+      Charges a card and returns a transaction id. Called only by checkout.
+      Has no datastore, so its failures are its own logic or an inability to
+      reach what it depends on.
+    owning_team: Checkout
+    container: payment
+    runbooks:
+      - payment-declines-and-errors
+
+  - name: product-catalog
+    language: go
+    tier: core
+    description: >-
+      Looks products up. Reads the astronomy Postgres database and is called
+      by frontend, checkout and recommendation, which makes it a shared
+      dependency with a wide blast radius.
+    owning_team: Catalogue
+    container: product-catalog
+    datastores:
+      - name: astronomy-db
+        kind: relational
+        access: reads
+    runbooks:
+      - product-catalog-and-its-database
+      - datastore-dependency-failures
+
+  - name: recommendation
+    language: python
+    tier: supporting
+    description: >-
+      Suggests products for a page, calling product-catalog to do it. Keeps
+      an in process cache, so its memory profile is its own rather than a
+      datastore's.
+    owning_team: Catalogue
+    container: recommendation
+    runbooks:
+      - recommendation-and-its-cache
+      - service-using-too-much-memory
+
+  - name: shipping
+    language: rust
+    tier: core
+    description: >-
+      Prices and books delivery, calling quote for the arithmetic. Called by
+      frontend and checkout.
+    owning_team: Fulfilment
+    container: shipping
+    runbooks:
+      - shipping-and-quote-latency
+
+  - name: quote
+    language: php
+    tier: supporting
+    description: >-
+      Works out a delivery cost. Called only by shipping, so its problems
+      reach a customer through shipping and never directly.
+    owning_team: Fulfilment
+    container: quote
+    runbooks:
+      - shipping-and-quote-latency
+
+  - name: currency
+    language: cpp
+    tier: supporting
+    description: >-
+      Converts between currencies. Called by frontend and checkout on nearly
+      every request, so it carries high traffic for a service that does very
+      little.
+    owning_team: Platform
+    container: currency
+    runbooks:
+      - high-traffic-low-complexity-services
+
+  - name: ad
+    language: java
+    tier: supporting
+    description: >-
+      Returns adverts for a page. Called by frontend only, and a page renders
+      without it, so its failures degrade rather than break. Runs on the JVM,
+      which makes garbage collection and heap pressure visible in a way the
+      non-JVM services do not show.
+    owning_team: Growth
+    container: ad
+    runbooks:
+      - jvm-services-and-garbage-collection
+      - degraded-but-not-broken
+
+  - name: email
+    language: ruby
+    tier: supporting
+    description: >-
+      Sends order confirmations. Called by checkout after an order is placed,
+      so a failure here means a completed order with no confirmation, which a
+      customer notices later rather than immediately.
+    owning_team: Checkout
+    container: email
+    runbooks:
+      - service-using-too-much-memory
+      - degraded-but-not-broken
+
+  - name: fraud-detection
+    language: java
+    tier: supporting
+    description: >-
+      Consumes placed orders from Kafka and scores them. Asynchronous, so it
+      falls behind rather than erroring, and the symptom is lag rather than a
+      failed request.
+    owning_team: Growth
+    container: fraud-detection
+    queues:
+      - name: orders
+        role: consumes
+    runbooks:
+      - queue-consumers-falling-behind
+      - jvm-services-and-garbage-collection
+
+  - name: accounting
+    language: dotnet
+    tier: supporting
+    description: >-
+      Consumes placed orders from Kafka and records them. Asynchronous like
+      fraud-detection, and affected by the same queue problems, which is why
+      both falling behind together points at the queue rather than at either
+      consumer.
+    owning_team: Platform
+    container: accounting
+    queues:
+      - name: orders
+        role: consumes
+    runbooks:
+      - queue-consumers-falling-behind
+
+  - name: image-provider
+    language: unknown
+    tier: supporting
+    description: >-
+      Serves product images over nginx. Configured by a template rather than
+      written in a language, so the language field is unknown rather than
+      guessed. Slow images make a page feel broken while every API call it
+      makes succeeds.
+    owning_team: Platform
+    container: image-provider
+    runbooks:
+      - static-assets-and-perceived-slowness
+
+  - name: load-generator
+    language: python
+    tier: infrastructure
+    description: >-
+      Locust, driving synthetic customer traffic. Part of the lab rather than
+      the product: it is the reason there is any traffic at all, and a change
+      in its behaviour changes every other service's numbers without anything
+      being wrong with them.
+    owning_team: Platform
+    container: load-generator
+    runbooks:
+      - traffic-changed-but-nothing-broke

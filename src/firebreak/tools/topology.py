@@ -97,9 +97,7 @@ def _edge_row(edge: dict[str, Any]) -> dict[str, Any]:
     fixed rather than accommodated.
     """
     try:
-        return EdgeRecord.model_validate(
-            {k: v for k, v in edge.items() if k != "error_ratio"}
-        ).as_row()
+        return EdgeRecord.from_row(edge).as_row()
     except ValueError as error:
         raise ToolError(f"topology edge does not match the bundle schema: {error}") from error
 

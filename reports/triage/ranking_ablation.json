@@ -1,0 +1,1006 @@
+{
+  "what": "Culprit rank under each ranking configuration",
+  "why": "Every mechanism in firebreak.graph.ranking should earn its place with a measurement rather than with a citation. Each ablation removes exactly one.",
+  "data_source": "synthetic fixtures (src/firebreak/lab/synthetic.py), NOT recorded incidents",
+  "caveat": "Synthetic data. This is a design signal, never a reported result.",
+  "splits": [
+    "train",
+    "validation"
+  ],
+  "seeds": [
+    1,
+    2,
+    3
+  ],
+  "scenarios": 59,
+  "generated_by": "scripts/measure_ranking.py",
+  "abstention": {
+    "usable": true,
+    "faulted_trials": 147,
+    "no_fault_trials": 30,
+    "faulted_top_anomaly": {
+      "min": 66.818,
+      "median": 128.426,
+      "max": 872.931
+    },
+    "no_fault_top_anomaly": {
+      "min": 2.387,
+      "median": 3.057,
+      "max": 7.724
+    },
+    "separable": true,
+    "gap": {
+      "quiet_max": 7.724,
+      "faulted_min": 66.818
+    },
+    "warning": "A gap this wide is a property of synthetic fixtures, not of production telemetry. Treat the chosen threshold as a starting point to re-tune on recorded incidents, never as a validated operating point.",
+    "chosen": {
+      "threshold": 22.717,
+      "sensitivity": 1.0,
+      "specificity": 1.0,
+      "youden_j": 1.0,
+      "rule": "geometric midpoint of a fully separating gap"
+    },
+    "curve": [
+      {
+        "threshold": 2.387,
+        "sensitivity": 1.0,
+        "specificity": 0.3333,
+        "youden_j": 0.3333
+      },
+      {
+        "threshold": 3.057,
+        "sensitivity": 1.0,
+        "specificity": 0.6667,
+        "youden_j": 0.6667
+      },
+      {
+        "threshold": 7.724,
+        "sensitivity": 1.0,
+        "specificity": 1.0,
+        "youden_j": 1.0
+      },
+      {
+        "threshold": 66.818,
+        "sensitivity": 0.9728,
+        "specificity": 1.0,
+        "youden_j": 0.9728
+      },
+      {
+        "threshold": 71.131,
+        "sensitivity": 0.9048,
+        "specificity": 1.0,
+        "youden_j": 0.9048
+      },
+      {
+        "threshold": 71.627,
+        "sensitivity": 0.7755,
+        "specificity": 1.0,
+        "youden_j": 0.7755
+      },
+      {
+        "threshold": 74.599,
+        "sensitivity": 0.7483,
+        "specificity": 1.0,
+        "youden_j": 0.7483
+      },
+      {
+        "threshold": 81.704,
+        "sensitivity": 0.7483,
+        "specificity": 1.0,
+        "youden_j": 0.7483
+      },
+      {
+        "threshold": 93.165,
+        "sensitivity": 0.6531,
+        "specificity": 1.0,
+        "youden_j": 0.6531
+      },
+      {
+        "threshold": 112.904,
+        "sensitivity": 0.585,
+        "specificity": 1.0,
+        "youden_j": 0.585
+      },
+      {
+        "threshold": 125.439,
+        "sensitivity": 0.517,
+        "specificity": 1.0,
+        "youden_j": 0.517
+      },
+      {
+        "threshold": 126.982,
+        "sensitivity": 0.517,
+        "specificity": 1.0,
+        "youden_j": 0.517
+      },
+      {
+        "threshold": 128.426,
+        "sensitivity": 0.5034,
+        "specificity": 1.0,
+        "youden_j": 0.5034
+      },
+      {
+        "threshold": 129.549,
+        "sensitivity": 0.4626,
+        "specificity": 1.0,
+        "youden_j": 0.4626
+      },
+      {
+        "threshold": 138.706,
+        "sensitivity": 0.3333,
+        "specificity": 1.0,
+        "youden_j": 0.3333
+      },
+      {
+        "threshold": 141.255,
+        "sensitivity": 0.3333,
+        "specificity": 1.0,
+        "youden_j": 0.3333
+      },
+      {
+        "threshold": 142.468,
+        "sensitivity": 0.2653,
+        "specificity": 1.0,
+        "youden_j": 0.2653
+      },
+      {
+        "threshold": 148.362,
+        "sensitivity": 0.2653,
+        "specificity": 1.0,
+        "youden_j": 0.2653
+      },
+      {
+        "threshold": 151.398,
+        "sensitivity": 0.0952,
+        "specificity": 1.0,
+        "youden_j": 0.0952
+      },
+      {
+        "threshold": 161.435,
+        "sensitivity": 0.0952,
+        "specificity": 1.0,
+        "youden_j": 0.0952
+      },
+      {
+        "threshold": 872.931,
+        "sensitivity": 0.0,
+        "specificity": 1.0,
+        "youden_j": 0.0
+      }
+    ]
+  },
+  "baseline_fraction_sweep": {
+    "0.2000": {
+      "trials": 147,
+      "top1": 43,
+      "top3": 114,
+      "trials_where_onset_ordering_survives": 148,
+      "onset_informative_share": 0.8362
+    },
+    "0.2500": {
+      "trials": 147,
+      "top1": 145,
+      "top3": 147,
+      "trials_where_onset_ordering_survives": 144,
+      "onset_informative_share": 0.8136
+    },
+    "0.3333": {
+      "trials": 147,
+      "top1": 147,
+      "top3": 147,
+      "trials_where_onset_ordering_survives": 124,
+      "onset_informative_share": 0.7006
+    },
+    "0.4000": {
+      "trials": 147,
+      "top1": 147,
+      "top3": 147,
+      "trials_where_onset_ordering_survives": 130,
+      "onset_informative_share": 0.7345
+    }
+  },
+  "configurations": {
+    "graph_default": {
+      "options": {},
+      "overall": {
+        "trials": 147,
+        "top1": 147,
+        "top3": 147,
+        "mean_reciprocal_rank": 1.0,
+        "rank_distribution": {
+          "1": 147
+        }
+      },
+      "by_family": {
+        "distractor": {
+          "trials": 15,
+          "top1": 15,
+          "top3": 15,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 15
+          }
+        },
+        "double-fault": {
+          "trials": 24,
+          "top1": 24,
+          "top3": 24,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 24
+          }
+        },
+        "error-injection": {
+          "trials": 48,
+          "top1": 48,
+          "top3": 48,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 48
+          }
+        },
+        "health": {
+          "trials": 12,
+          "top1": 12,
+          "top3": 12,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 12
+          }
+        },
+        "latency": {
+          "trials": 24,
+          "top1": 24,
+          "top3": 24,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 24
+          }
+        },
+        "messaging": {
+          "trials": 12,
+          "top1": 12,
+          "top3": 12,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 12
+          }
+        },
+        "no-fault": {
+          "trials": 0,
+          "top1": 0,
+          "top3": 0,
+          "mean_reciprocal_rank": 0.0,
+          "rank_distribution": {}
+        },
+        "unreachable": {
+          "trials": 12,
+          "top1": 12,
+          "top3": 12,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 12
+          }
+        }
+      }
+    },
+    "no_endpoint_scaling": {
+      "options": {
+        "use_endpoint_scaling": false
+      },
+      "overall": {
+        "trials": 147,
+        "top1": 143,
+        "top3": 147,
+        "mean_reciprocal_rank": 0.9864,
+        "rank_distribution": {
+          "1": 143,
+          "2": 4
+        }
+      },
+      "by_family": {
+        "distractor": {
+          "trials": 15,
+          "top1": 15,
+          "top3": 15,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 15
+          }
+        },
+        "double-fault": {
+          "trials": 24,
+          "top1": 24,
+          "top3": 24,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 24
+          }
+        },
+        "error-injection": {
+          "trials": 48,
+          "top1": 48,
+          "top3": 48,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 48
+          }
+        },
+        "health": {
+          "trials": 12,
+          "top1": 12,
+          "top3": 12,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 12
+          }
+        },
+        "latency": {
+          "trials": 24,
+          "top1": 24,
+          "top3": 24,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 24
+          }
+        },
+        "messaging": {
+          "trials": 12,
+          "top1": 8,
+          "top3": 12,
+          "mean_reciprocal_rank": 0.8333,
+          "rank_distribution": {
+            "1": 8,
+            "2": 4
+          }
+        },
+        "no-fault": {
+          "trials": 0,
+          "top1": 0,
+          "top3": 0,
+          "mean_reciprocal_rank": 0.0,
+          "rank_distribution": {}
+        },
+        "unreachable": {
+          "trials": 12,
+          "top1": 12,
+          "top3": 12,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 12
+          }
+        }
+      }
+    },
+    "no_onset_bonus": {
+      "options": {
+        "onset_bonus": 1.0
+      },
+      "overall": {
+        "trials": 147,
+        "top1": 147,
+        "top3": 147,
+        "mean_reciprocal_rank": 1.0,
+        "rank_distribution": {
+          "1": 147
+        }
+      },
+      "by_family": {
+        "distractor": {
+          "trials": 15,
+          "top1": 15,
+          "top3": 15,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 15
+          }
+        },
+        "double-fault": {
+          "trials": 24,
+          "top1": 24,
+          "top3": 24,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 24
+          }
+        },
+        "error-injection": {
+          "trials": 48,
+          "top1": 48,
+          "top3": 48,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 48
+          }
+        },
+        "health": {
+          "trials": 12,
+          "top1": 12,
+          "top3": 12,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 12
+          }
+        },
+        "latency": {
+          "trials": 24,
+          "top1": 24,
+          "top3": 24,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 24
+          }
+        },
+        "messaging": {
+          "trials": 12,
+          "top1": 12,
+          "top3": 12,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 12
+          }
+        },
+        "no-fault": {
+          "trials": 0,
+          "top1": 0,
+          "top3": 0,
+          "mean_reciprocal_rank": 0.0,
+          "rank_distribution": {}
+        },
+        "unreachable": {
+          "trials": 12,
+          "top1": 12,
+          "top3": 12,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 12
+          }
+        }
+      }
+    },
+    "with_self_loops": {
+      "options": {
+        "self_loop_ratio": 0.5
+      },
+      "overall": {
+        "trials": 147,
+        "top1": 135,
+        "top3": 147,
+        "mean_reciprocal_rank": 0.9501,
+        "rank_distribution": {
+          "1": 135,
+          "2": 4,
+          "3": 8
+        }
+      },
+      "by_family": {
+        "distractor": {
+          "trials": 15,
+          "top1": 15,
+          "top3": 15,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 15
+          }
+        },
+        "double-fault": {
+          "trials": 24,
+          "top1": 24,
+          "top3": 24,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 24
+          }
+        },
+        "error-injection": {
+          "trials": 48,
+          "top1": 48,
+          "top3": 48,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 48
+          }
+        },
+        "health": {
+          "trials": 12,
+          "top1": 12,
+          "top3": 12,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 12
+          }
+        },
+        "latency": {
+          "trials": 24,
+          "top1": 24,
+          "top3": 24,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 24
+          }
+        },
+        "messaging": {
+          "trials": 12,
+          "top1": 0,
+          "top3": 12,
+          "mean_reciprocal_rank": 0.3889,
+          "rank_distribution": {
+            "2": 4,
+            "3": 8
+          }
+        },
+        "no-fault": {
+          "trials": 0,
+          "top1": 0,
+          "top3": 0,
+          "mean_reciprocal_rank": 0.0,
+          "rank_distribution": {}
+        },
+        "unreachable": {
+          "trials": 12,
+          "top1": 12,
+          "top3": 12,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 12
+          }
+        }
+      }
+    },
+    "with_backward_edges": {
+      "options": {
+        "backward_ratio": 0.3
+      },
+      "overall": {
+        "trials": 147,
+        "top1": 10,
+        "top3": 147,
+        "mean_reciprocal_rank": 0.534,
+        "rank_distribution": {
+          "1": 10,
+          "2": 137
+        }
+      },
+      "by_family": {
+        "distractor": {
+          "trials": 15,
+          "top1": 0,
+          "top3": 15,
+          "mean_reciprocal_rank": 0.5,
+          "rank_distribution": {
+            "2": 15
+          }
+        },
+        "double-fault": {
+          "trials": 24,
+          "top1": 3,
+          "top3": 24,
+          "mean_reciprocal_rank": 0.5625,
+          "rank_distribution": {
+            "1": 3,
+            "2": 21
+          }
+        },
+        "error-injection": {
+          "trials": 48,
+          "top1": 3,
+          "top3": 48,
+          "mean_reciprocal_rank": 0.5312,
+          "rank_distribution": {
+            "1": 3,
+            "2": 45
+          }
+        },
+        "health": {
+          "trials": 12,
+          "top1": 0,
+          "top3": 12,
+          "mean_reciprocal_rank": 0.5,
+          "rank_distribution": {
+            "2": 12
+          }
+        },
+        "latency": {
+          "trials": 24,
+          "top1": 0,
+          "top3": 24,
+          "mean_reciprocal_rank": 0.5,
+          "rank_distribution": {
+            "2": 24
+          }
+        },
+        "messaging": {
+          "trials": 12,
+          "top1": 4,
+          "top3": 12,
+          "mean_reciprocal_rank": 0.6667,
+          "rank_distribution": {
+            "1": 4,
+            "2": 8
+          }
+        },
+        "no-fault": {
+          "trials": 0,
+          "top1": 0,
+          "top3": 0,
+          "mean_reciprocal_rank": 0.0,
+          "rank_distribution": {}
+        },
+        "unreachable": {
+          "trials": 12,
+          "top1": 0,
+          "top3": 12,
+          "mean_reciprocal_rank": 0.5,
+          "rank_distribution": {
+            "2": 12
+          }
+        }
+      }
+    },
+    "eirwr_as_published": {
+      "options": {
+        "self_loop_ratio": 0.5,
+        "backward_ratio": 0.3,
+        "sharpness": 2.0
+      },
+      "overall": {
+        "trials": 147,
+        "top1": 56,
+        "top3": 147,
+        "mean_reciprocal_rank": 0.6905,
+        "rank_distribution": {
+          "1": 56,
+          "2": 91
+        }
+      },
+      "by_family": {
+        "distractor": {
+          "trials": 15,
+          "top1": 6,
+          "top3": 15,
+          "mean_reciprocal_rank": 0.7,
+          "rank_distribution": {
+            "1": 6,
+            "2": 9
+          }
+        },
+        "double-fault": {
+          "trials": 24,
+          "top1": 12,
+          "top3": 24,
+          "mean_reciprocal_rank": 0.75,
+          "rank_distribution": {
+            "1": 12,
+            "2": 12
+          }
+        },
+        "error-injection": {
+          "trials": 48,
+          "top1": 24,
+          "top3": 48,
+          "mean_reciprocal_rank": 0.75,
+          "rank_distribution": {
+            "1": 24,
+            "2": 24
+          }
+        },
+        "health": {
+          "trials": 12,
+          "top1": 8,
+          "top3": 12,
+          "mean_reciprocal_rank": 0.8333,
+          "rank_distribution": {
+            "1": 8,
+            "2": 4
+          }
+        },
+        "latency": {
+          "trials": 24,
+          "top1": 2,
+          "top3": 24,
+          "mean_reciprocal_rank": 0.5417,
+          "rank_distribution": {
+            "1": 2,
+            "2": 22
+          }
+        },
+        "messaging": {
+          "trials": 12,
+          "top1": 4,
+          "top3": 12,
+          "mean_reciprocal_rank": 0.6667,
+          "rank_distribution": {
+            "1": 4,
+            "2": 8
+          }
+        },
+        "no-fault": {
+          "trials": 0,
+          "top1": 0,
+          "top3": 0,
+          "mean_reciprocal_rank": 0.0,
+          "rank_distribution": {}
+        },
+        "unreachable": {
+          "trials": 12,
+          "top1": 0,
+          "top3": 12,
+          "mean_reciprocal_rank": 0.5,
+          "rank_distribution": {
+            "2": 12
+          }
+        }
+      }
+    },
+    "sharper_restart": {
+      "options": {
+        "sharpness": 2.0
+      },
+      "overall": {
+        "trials": 147,
+        "top1": 143,
+        "top3": 147,
+        "mean_reciprocal_rank": 0.9864,
+        "rank_distribution": {
+          "1": 143,
+          "2": 4
+        }
+      },
+      "by_family": {
+        "distractor": {
+          "trials": 15,
+          "top1": 15,
+          "top3": 15,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 15
+          }
+        },
+        "double-fault": {
+          "trials": 24,
+          "top1": 24,
+          "top3": 24,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 24
+          }
+        },
+        "error-injection": {
+          "trials": 48,
+          "top1": 48,
+          "top3": 48,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 48
+          }
+        },
+        "health": {
+          "trials": 12,
+          "top1": 12,
+          "top3": 12,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 12
+          }
+        },
+        "latency": {
+          "trials": 24,
+          "top1": 24,
+          "top3": 24,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 24
+          }
+        },
+        "messaging": {
+          "trials": 12,
+          "top1": 8,
+          "top3": 12,
+          "mean_reciprocal_rank": 0.8333,
+          "rank_distribution": {
+            "1": 8,
+            "2": 4
+          }
+        },
+        "no-fault": {
+          "trials": 0,
+          "top1": 0,
+          "top3": 0,
+          "mean_reciprocal_rank": 0.0,
+          "rank_distribution": {}
+        },
+        "unreachable": {
+          "trials": 12,
+          "top1": 12,
+          "top3": 12,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 12
+          }
+        }
+      }
+    },
+    "sharpest_restart": {
+      "options": {
+        "sharpness": 3.0
+      },
+      "overall": {
+        "trials": 147,
+        "top1": 141,
+        "top3": 147,
+        "mean_reciprocal_rank": 0.9796,
+        "rank_distribution": {
+          "1": 141,
+          "2": 6
+        }
+      },
+      "by_family": {
+        "distractor": {
+          "trials": 15,
+          "top1": 15,
+          "top3": 15,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 15
+          }
+        },
+        "double-fault": {
+          "trials": 24,
+          "top1": 24,
+          "top3": 24,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 24
+          }
+        },
+        "error-injection": {
+          "trials": 48,
+          "top1": 48,
+          "top3": 48,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 48
+          }
+        },
+        "health": {
+          "trials": 12,
+          "top1": 12,
+          "top3": 12,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 12
+          }
+        },
+        "latency": {
+          "trials": 24,
+          "top1": 22,
+          "top3": 24,
+          "mean_reciprocal_rank": 0.9583,
+          "rank_distribution": {
+            "1": 22,
+            "2": 2
+          }
+        },
+        "messaging": {
+          "trials": 12,
+          "top1": 8,
+          "top3": 12,
+          "mean_reciprocal_rank": 0.8333,
+          "rank_distribution": {
+            "1": 8,
+            "2": 4
+          }
+        },
+        "no-fault": {
+          "trials": 0,
+          "top1": 0,
+          "top3": 0,
+          "mean_reciprocal_rank": 0.0,
+          "rank_distribution": {}
+        },
+        "unreachable": {
+          "trials": 12,
+          "top1": 12,
+          "top3": 12,
+          "mean_reciprocal_rank": 1.0,
+          "rank_distribution": {
+            "1": 12
+          }
+        }
+      }
+    },
+    "anomaly_only": {
+      "options": {},
+      "overall": {
+        "trials": 147,
+        "top1": 92,
+        "top3": 147,
+        "mean_reciprocal_rank": 0.8129,
+        "rank_distribution": {
+          "1": 92,
+          "2": 55
+        }
+      },
+      "by_family": {
+        "distractor": {
+          "trials": 15,
+          "top1": 10,
+          "top3": 15,
+          "mean_reciprocal_rank": 0.8333,
+          "rank_distribution": {
+            "1": 10,
+            "2": 5
+          }
+        },
+        "double-fault": {
+          "trials": 24,
+          "top1": 16,
+          "top3": 24,
+          "mean_reciprocal_rank": 0.8333,
+          "rank_distribution": {
+            "1": 16,
+            "2": 8
+          }
+        },
+        "error-injection": {
+          "trials": 48,
+          "top1": 32,
+          "top3": 48,
+          "mean_reciprocal_rank": 0.8333,
+          "rank_distribution": {
+            "1": 32,
+            "2": 16
+          }
+        },
+        "health": {
+          "trials": 12,
+          "top1": 8,
+          "top3": 12,
+          "mean_reciprocal_rank": 0.8333,
+          "rank_distribution": {
+            "1": 8,
+            "2": 4
+          }
+        },
+        "latency": {
+          "trials": 24,
+          "top1": 14,
+          "top3": 24,
+          "mean_reciprocal_rank": 0.7917,
+          "rank_distribution": {
+            "1": 14,
+            "2": 10
+          }
+        },
+        "messaging": {
+          "trials": 12,
+          "top1": 4,
+          "top3": 12,
+          "mean_reciprocal_rank": 0.6667,
+          "rank_distribution": {
+            "1": 4,
+            "2": 8
+          }
+        },
+        "no-fault": {
+          "trials": 0,
+          "top1": 0,
+          "top3": 0,
+          "mean_reciprocal_rank": 0.0,
+          "rank_distribution": {}
+        },
+        "unreachable": {
+          "trials": 12,
+          "top1": 8,
+          "top3": 12,
+          "mean_reciprocal_rank": 0.8333,
+          "rank_distribution": {
+            "1": 8,
+            "2": 4
+          }
+        }
+      }
+    }
+  }
+}

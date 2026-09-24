@@ -1,0 +1,58 @@
+# Firebreak's own infrastructure, separate from the target system.
+#
+# The pinned OpenTelemetry Demo in `vendor/` is the system under
+# investigation and is started by `ops/compose.live.yml`. Nothing here talks
+# to it directly. Keeping them in separate files is what makes it possible
+# to run the knowledge graph without the demo, which is the normal case for
+# bundle replay, and to tear the demo down and back up without losing the
+# graph.
+#
+# SPEC.md Section 20 calls this the `core` profile.
+
+name: firebreak-core
+
+services:
+  neo4j:
+    # Neo4j 5 Community, pinned to a patch release for the same reason the
+    # demo is pinned: a knowledge graph whose engine changes underneath it
+    # is not a reproducible input to a measurement. SPEC.md Section 13
+    # specifies Neo4j 5 Community.
+    image: neo4j:5.26.1-community
+    container_name: firebreak-neo4j
+    restart: unless-stopped
+    environment:
+      # Local development credentials. Deliberately not a secret and
+      # deliberately not the default `neo4j/neo4j`, which the server
+      # refuses to start with and which would otherwise force an
+      # interactive password change on first run.
+      NEO4J_AUTH: neo4j/firebreak-local
+      # Community edition allows exactly one database, so accepting the
+      # licence here is what lets the image start unattended.
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
+      # A small fixed heap. The graph is a few hundred nodes, and letting
+      # the JVM size itself against the host makes memory use differ
+      # between the machine that recorded a measurement and the one
+      # reproducing it.
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+    ports:
+      # Bolt, which the Python driver speaks.
+      - "7687:7687"
+      # The browser UI, useful when a query returns something surprising.
+      - "7474:7474"
+    volumes:
+      - neo4j-data:/data
+    healthcheck:
+      # Asks the database a question rather than checking that a port is
+      # open. Neo4j accepts connections well before it is ready to serve
+      # queries, and a loader that starts in that gap fails with an error
+      # that looks like a bug in the loader.
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "firebreak-local", "RETURN 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 20s
+
+volumes:
+  neo4j-data:

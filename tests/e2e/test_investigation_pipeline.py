@@ -18,6 +18,15 @@ properties that only exist across seams:
 5. Every tool runs, produces a summary, and records re-runnable evidence.
 6. The same question asked twice yields the same evidence id.
 7. Nothing the agent can reach names the fault, the culprit, or the scenario.
+8. Deterministic triage ranks the culprit from that bundle alone.
+9. The B0 report names it, cites evidence that exists, and abstains when
+   there is nothing to name.
+
+Phase 4 extended this rather than adding a second end to end test, because
+the seams it introduces are all inside the chain that already runs here: the
+ranking reads a bundle's topology, the report reads the ranking, and the
+report's citations have to resolve against the same evidence store the tools
+write to.
 """
 
 from __future__ import annotations
@@ -47,6 +56,8 @@ from firebreak.signals import MetricName, is_known_metric
 from firebreak.tools.base import ToolContext
 from firebreak.tools.evidence import TimeRange
 from firebreak.tools.registry import SPECIALIST_TOOLS, build_registry, registry_for
+from firebreak.triage.pipeline import triage_bundle
+from firebreak.triage.report import NO_AI_LABEL, build_b0_report
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SPECS_DIR = REPO_ROOT / "scenarios" / "specs"
@@ -356,3 +367,141 @@ def test_the_flag_inventory_still_matches_the_pinned_demo():
 
     assert inventory["flag_count"] == len(inventory["flags"])
     assert "paymentFailure" in inventory["flags"]
+
+
+# --- 8. deterministic triage ---------------------------------------------
+
+
+FAULTY_FAMILIES = [f for f in FAMILIES_UNDER_TEST if f is not FaultClass.NONE]
+
+
+@pytest.mark.parametrize("fault_class", FAULTY_FAMILIES)
+def test_triage_ranks_the_culprit_from_the_bundle_alone(recorded, fault_class):
+    """The ranking gets the bundle directory and nothing else.
+
+    Not the specification, not the label, not the fault timing. That is the
+    whole point of the opaque bundle id: everything triage knows it had to
+    read out of recorded telemetry.
+    """
+    spec, bundle_dir, _ = recorded[fault_class]
+    result = triage_bundle(bundle_dir, verify=True)
+
+    ranked = [candidate.service for candidate in result.candidates]
+    assert spec.target_service in ranked, (
+        f"{fault_class.value}: {spec.target_service} not in {ranked}"
+    )
+    assert result.top_service == spec.target_service
+
+
+@pytest.mark.parametrize("fault_class", FAMILIES_UNDER_TEST)
+def test_triage_is_deterministic(recorded, fault_class):
+    """Two runs over one bundle must agree exactly.
+
+    A ranking that reshuffled between identical runs would make a pass^3
+    reliability measure report noise as instability in the agent.
+    """
+    _, bundle_dir, _ = recorded[fault_class]
+    first = triage_bundle(bundle_dir, verify=False)
+    second = triage_bundle(bundle_dir, verify=False)
+    assert first.candidates == second.candidates
+    assert first.onsets == second.onsets
+    assert first.top_anomaly == second.top_anomaly
+
+
+def test_triage_says_nothing_is_wrong_when_nothing_is(recorded):
+    """The no fault family, which is the family it is easiest to fail.
+
+    A ranking always returns an order, so a healthy system still produces a
+    confident looking first place. Reporting it is how an operator learns to
+    ignore the tool.
+    """
+    spec, bundle_dir, _ = recorded[FaultClass.NONE]
+    assert spec.target_service is None
+    result = triage_bundle(bundle_dir, verify=True)
+    assert result.says_nothing_is_wrong
+    assert result.top_service is None
+
+
+@pytest.mark.parametrize("fault_class", FAULTY_FAMILIES)
+def test_a_real_incident_clears_the_abstention_threshold(recorded, fault_class):
+    """The other half of abstention, asserted so the threshold cannot drift up.
+
+    A threshold high enough to silence every no fault case and every real
+    one as well would pass the test above and be useless.
+    """
+    _, bundle_dir, _ = recorded[fault_class]
+    result = triage_bundle(bundle_dir, verify=False)
+    assert not result.says_nothing_is_wrong
+    assert result.top_anomaly >= result.abstention_threshold
+
+
+# --- 9. the B0 report ----------------------------------------------------
+
+
+@pytest.mark.parametrize("fault_class", FAMILIES_UNDER_TEST)
+def test_the_b0_report_cites_only_evidence_it_gathered(recorded, fault_class):
+    """Every cited id must resolve in the store that produced it.
+
+    A report citing an id nothing recorded is the simplest fabrication
+    there is, and the exit gate in a later phase catches it exactly here.
+    """
+    _, bundle_dir, _ = recorded[fault_class]
+    report = build_b0_report(bundle_dir, verify=True)
+
+    assert report.cited_ids, "a report with no citations proves nothing"
+    for evidence_id in report.cited_ids:
+        assert evidence_id in report.evidence, f"{evidence_id} was cited but never gathered"
+
+
+@pytest.mark.parametrize("fault_class", FAMILIES_UNDER_TEST)
+def test_the_b0_report_is_labelled_as_having_no_analysis(recorded, fault_class):
+    """SPEC.md Section 7 requires the deterministic floor to say so.
+
+    It reads like prose either way, so without the label an operator cannot
+    tell that nothing reasoned about it.
+    """
+    _, bundle_dir, _ = recorded[fault_class]
+    assert NO_AI_LABEL in build_b0_report(bundle_dir, verify=False).to_markdown()
+
+
+@pytest.mark.parametrize("fault_class", FAULTY_FAMILIES)
+def test_the_b0_report_names_the_culprit(recorded, fault_class):
+    spec, bundle_dir, _ = recorded[fault_class]
+    report = build_b0_report(bundle_dir, verify=False)
+    assert report.named_service == spec.target_service
+    assert not report.abstained
+
+
+def test_the_b0_report_names_nobody_when_nothing_is_wrong(recorded):
+    _, bundle_dir, _ = recorded[FaultClass.NONE]
+    report = build_b0_report(bundle_dir, verify=False)
+    assert report.abstained
+    assert report.named_service is None
+    markdown = report.to_markdown()
+    # The report must not name a leading suspect anywhere in its prose when
+    # it has decided there is no incident.
+    assert "ranks first" not in markdown
+
+
+@pytest.mark.parametrize("fault_class", FAMILIES_UNDER_TEST)
+def test_the_b0_report_never_names_the_fault_or_the_scenario(recorded, fault_class):
+    """The report is built from the bundle, so it cannot know these.
+
+    Asserted anyway, because the report is the artefact a person reads, and
+    it is the last place a leak would be noticed.
+    """
+    spec, bundle_dir, _ = recorded[fault_class]
+    markdown = build_b0_report(bundle_dir, verify=False).to_markdown().lower()
+
+    forbidden = {spec.id, spec.fault_class.value, *spec.fault_flag_names}
+    for term in forbidden:
+        assert term.lower() not in markdown, f"the B0 report names {term!r}"
+
+
+@pytest.mark.parametrize("fault_class", FAMILIES_UNDER_TEST)
+def test_the_b0_report_is_byte_identical_across_runs(recorded, fault_class):
+    """Same bundle, same report, including every evidence id in it."""
+    _, bundle_dir, _ = recorded[fault_class]
+    first = build_b0_report(bundle_dir, verify=False).to_markdown()
+    second = build_b0_report(bundle_dir, verify=False).to_markdown()
+    assert first == second

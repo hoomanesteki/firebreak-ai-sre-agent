@@ -15,6 +15,7 @@ dependencies = [
     "httpx>=0.28.1",
     "pyarrow>=25.0.1",
     "duckdb>=1.5.5",
+    "neo4j>=5.28",
 ]
 
 [project.scripts]
@@ -29,6 +30,7 @@ dev = [
     "hypothesis>=6.120",
     "pre-commit>=4.0",
     "types-pyyaml>=6.0",
+    "drain3>=0.9.11",
 ]
 
 [build-system]
@@ -68,12 +70,20 @@ show_error_codes = true
 module = ["tests.*"]
 ignore_errors = true
 
+[[tool.mypy.overrides]]
+# drain3 ships no type information. It is a dev dependency read only by
+# scripts/compare_log_templates.py, which decided ADR-0006 and does not ship,
+# so the untyped surface never reaches the product.
+module = ["drain3.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-q --strict-markers --strict-config"
 markers = [
     "live: needs the live OpenTelemetry Demo stack",
+    "neo4j: needs a running Neo4j (make graph-up)",
     "slow: takes more than 5 seconds",
 ]
 

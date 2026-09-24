@@ -1,0 +1,84 @@
+# Who owns what, and how to reach them out of hours.
+#
+# The teams and the company are fictional. The ownership split is not
+# arbitrary: it follows the call graph, so that a team owns services that
+# fail together. Splitting checkout from payment across two teams would mean
+# that the most common escalation in the system needs two pagers.
+#
+# Validated by src/firebreak/graph/knowledge.py, which requires ownership to
+# be total and unambiguous: every service owned by exactly one team, and
+# every team owning at least one service. Both failures are quiet and both
+# are expensive. A service owned by nobody is a page that goes nowhere; a
+# service owned twice is a page sent to two teams who each assume the other
+# has it.
+
+teams:
+  - name: Storefront
+    slug: storefront
+    description: >-
+      Owns what a customer sees first. Takes the alert for most incidents
+      whether or not the fault is theirs, because the frontend is where a
+      problem anywhere becomes visible.
+    escalation: "#storefront-oncall, Storefront primary rotation"
+    services:
+      - frontend
+      - cart
+
+  - name: Checkout
+    slug: checkout
+    description: >-
+      Owns taking money and confirming it. Holds the services where a failure
+      costs an order rather than a page view, so their escalation is the one
+      that gets woken up.
+    escalation: "#checkout-oncall, Payments primary rotation"
+    services:
+      - checkout
+      - payment
+      - email
+
+  - name: Catalogue
+    slug: catalogue
+    description: >-
+      Owns what the shop knows about its products, and the database behind it.
+      Both of their services read the same data, which is why they are one
+      team.
+    escalation: "#catalogue-oncall, Catalogue primary rotation"
+    services:
+      - product-catalog
+      - recommendation
+
+  - name: Fulfilment
+    slug: fulfilment
+    description: >-
+      Owns delivery pricing and booking. The two services are a caller and
+      its only callee, so a fault in either is the same team's problem.
+    escalation: "#fulfilment-oncall, Fulfilment primary rotation"
+    services:
+      - shipping
+      - quote
+
+  - name: Growth
+    slug: growth
+    description: >-
+      Owns the services that make the shop more profitable rather than
+      functional: adverts, and the fraud scoring that runs after an order.
+      Neither is on the path of a customer completing a purchase.
+    escalation: "#growth-oncall, Growth business hours rotation"
+    services:
+      - ad
+      - fraud-detection
+
+  - name: Platform
+    slug: platform
+    description: >-
+      Owns the shared plumbing: the edge proxy, currency conversion, static
+      assets, the order ledger, and the load generator. A fault in any of
+      these affects several other teams' services at once, which is why they
+      sit with the team that can change them.
+    escalation: "#platform-oncall, Platform primary rotation"
+    services:
+      - frontend-proxy
+      - currency
+      - image-provider
+      - accounting
+      - load-generator

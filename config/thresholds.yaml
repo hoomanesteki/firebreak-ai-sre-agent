@@ -1,0 +1,105 @@
+# Tuned thresholds for deterministic triage.
+#
+# Every number here was produced by scripts/measure_ranking.py on the train
+# and validation splits, and the run that produced it wrote
+# reports/triage/ranking_ablation.json alongside. Regenerate both with:
+#
+#     make measure-ranking
+#
+# Nothing in this file was chosen by eye. That rule exists because a
+# threshold picked because it looked about right is a threshold nobody can
+# defend when it misfires, and firebreak's whole claim is that its numbers
+# can be re-derived.
+#
+# IMPORTANT, and it applies to every value below: these were tuned on
+# synthetic fixtures, not on recorded incidents. Synthetic faults separate
+# far more cleanly than real ones, so treat these as defensible starting
+# points that must be re-tuned once the incident library is recorded. The
+# report carries the same warning in its own fields.
+
+# How unusual the most unusual service has to look before the system will
+# say an incident is happening at all.
+#
+# The no-fault family exists to test this (SPEC.md Section 6.2). Without an
+# abstention rule a ranking always names somebody, because PageRank always
+# returns an order, and a confident first place on a healthy system is the
+# worst failure this project can have: it trains an operator to ignore it.
+#
+# Measured over 147 faulted and 30 no-fault trials, the two populations did
+# not overlap: the loudest quiet system scored 7.7 and the quietest real
+# incident scored 66.8. The value below is the geometric midpoint of that
+# gap rather than either edge, because a threshold sitting on the loudest
+# observed quiet recording is one noisy afternoon away from crying wolf.
+#
+# That gap is implausibly wide for production telemetry and is the clearest
+# evidence in the repository that the fixtures are easier than reality.
+abstention:
+  minimum_top_anomaly_z: 22.717
+  measured:
+    faulted_trials: 147
+    no_fault_trials: 30
+    quiet_max: 7.724
+    faulted_min: 66.818
+    sensitivity: 1.0
+    specificity: 1.0
+    rule: geometric midpoint of a fully separating gap
+
+# Scoring and ranking parameters. Each was chosen by ablation, and the
+# comment records what the alternative cost, in top-1 out of 147 trials.
+ranking:
+  # Restart probability for the random walk. Not ablated, kept at the
+  # conventional 0.15 damping, because nothing in the measurement so far
+  # depends on it and inventing a bespoke value would be false precision.
+  restart_alpha: 0.15
+
+  # Exponent on the restart vector. 1.0 means no sharpening.
+  # 1.0 -> 147, 2.0 -> 143, 3.0 -> 141. Sharpening rewards the loudest
+  # service, which is usually a symptom rather than a cause.
+  restart_sharpness: 1.0
+
+  # MonitorRank's diag(sqrt(s)) W diag(sqrt(s)) edge scaling.
+  # on -> 147, off -> 143. The mechanism carrying most of the benefit.
+  use_endpoint_scaling: true
+
+  # eIRWR's self-loops. Published as an improvement, measured as a
+  # regression here: off -> 147, on -> 135.
+  self_loop_ratio: 0.0
+
+  # eIRWR's backward edges. The most harmful single setting tried:
+  # off -> 147, on -> 10, because it feeds score back into exactly the
+  # upstream symptoms the ranking exists to demote.
+  backward_ratio: 0.0
+
+  # Multiplier for the service whose anomaly started earliest. Causes
+  # precede symptoms (SPEC.md Section 6.5), so this should help, and on
+  # these fixtures it measurably does not: 147 with it and 147 without.
+  # Kept because the reason it shows nothing is that the fixtures are
+  # saturated at 100%, which leaves it no room to demonstrate anything,
+  # rather than because it was shown to be useless.
+  onset_bonus: 1.25
+
+  # How far a series must move before its crossing counts as an onset.
+  onset_threshold_z: 3.0
+
+# How a recording is split into a baseline and an incident window when no
+# alert says where the incident began. Deliberately not read from the
+# scenario spec, which knows the fault timing exactly and would be handing
+# the pipeline part of the answer.
+# Swept over 147 trials. The value is a real trade-off rather than an
+# obvious choice, and the losing options are recorded so the choice can be
+# revisited when recordings replace fixtures:
+#
+#   fraction  top-1    onset ordering still usable
+#   0.20       43/147  84%
+#   0.25      145/147  81%
+#   0.3333    147/147  70%
+#   0.40      147/147  73%
+#
+# 0.20 collapses because the baseline becomes too short to characterise.
+# 0.25 preserves onset ordering more often, at two trials of accuracy.
+# Accuracy wins because the onset bonus measurably contributes nothing on
+# these fixtures, so paying accuracy to protect it would be buying a signal
+# that has not yet shown it is worth anything.
+windows:
+  baseline_fraction: 0.3333333333333333
+  guard_seconds: 30.0

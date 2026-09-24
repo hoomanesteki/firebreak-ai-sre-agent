@@ -1,0 +1,898 @@
+{
+  "what": "Baseline B0: deterministic triage with a template report, no model",
+  "why": "SPEC.md Section 9.5. B0 is the bar every agent configuration has to beat, and principle H1 says the simplest thing that works gets built and measured before anything agentic is added.",
+  "generated_at": "2026-09-24T20:33:13.468482+00:00",
+  "generated_by": "scripts/run_baseline_b0.py",
+  "data_source": "synthetic fixtures",
+  "caveat": "Synthetic fixtures, because no incident library has been recorded yet. This is a design signal and must not be quoted as a result. Record the library and re-run to get the real figure.",
+  "splits": [
+    "train",
+    "validation"
+  ],
+  "overall": {
+    "bundles": 59,
+    "correct": 59,
+    "accuracy": 1.0,
+    "faulted": {
+      "bundles": 49,
+      "top1": 49,
+      "top3": 49,
+      "named_wrong_service": 0,
+      "abstained_on_a_real_incident": 0
+    },
+    "no_fault": {
+      "bundles": 10,
+      "correctly_said_nothing": 10,
+      "invented_a_culprit": 0
+    },
+    "cost": {
+      "mean_tool_calls": 2.66,
+      "mean_evidence_records": 2.66
+    }
+  },
+  "by_family": {
+    "distractor": {
+      "bundles": 5,
+      "correct": 5,
+      "accuracy": 1.0,
+      "faulted": {
+        "bundles": 5,
+        "top1": 5,
+        "top3": 5,
+        "named_wrong_service": 0,
+        "abstained_on_a_real_incident": 0
+      },
+      "no_fault": {
+        "bundles": 0,
+        "correctly_said_nothing": 0,
+        "invented_a_culprit": 0
+      },
+      "cost": {
+        "mean_tool_calls": 3.0,
+        "mean_evidence_records": 3.0
+      }
+    },
+    "double-fault": {
+      "bundles": 8,
+      "correct": 8,
+      "accuracy": 1.0,
+      "faulted": {
+        "bundles": 8,
+        "top1": 8,
+        "top3": 8,
+        "named_wrong_service": 0,
+        "abstained_on_a_real_incident": 0
+      },
+      "no_fault": {
+        "bundles": 0,
+        "correctly_said_nothing": 0,
+        "invented_a_culprit": 0
+      },
+      "cost": {
+        "mean_tool_calls": 3.0,
+        "mean_evidence_records": 3.0
+      }
+    },
+    "error-injection": {
+      "bundles": 16,
+      "correct": 16,
+      "accuracy": 1.0,
+      "faulted": {
+        "bundles": 16,
+        "top1": 16,
+        "top3": 16,
+        "named_wrong_service": 0,
+        "abstained_on_a_real_incident": 0
+      },
+      "no_fault": {
+        "bundles": 0,
+        "correctly_said_nothing": 0,
+        "invented_a_culprit": 0
+      },
+      "cost": {
+        "mean_tool_calls": 3.0,
+        "mean_evidence_records": 3.0
+      }
+    },
+    "health": {
+      "bundles": 4,
+      "correct": 4,
+      "accuracy": 1.0,
+      "faulted": {
+        "bundles": 4,
+        "top1": 4,
+        "top3": 4,
+        "named_wrong_service": 0,
+        "abstained_on_a_real_incident": 0
+      },
+      "no_fault": {
+        "bundles": 0,
+        "correctly_said_nothing": 0,
+        "invented_a_culprit": 0
+      },
+      "cost": {
+        "mean_tool_calls": 3.0,
+        "mean_evidence_records": 3.0
+      }
+    },
+    "latency": {
+      "bundles": 8,
+      "correct": 8,
+      "accuracy": 1.0,
+      "faulted": {
+        "bundles": 8,
+        "top1": 8,
+        "top3": 8,
+        "named_wrong_service": 0,
+        "abstained_on_a_real_incident": 0
+      },
+      "no_fault": {
+        "bundles": 0,
+        "correctly_said_nothing": 0,
+        "invented_a_culprit": 0
+      },
+      "cost": {
+        "mean_tool_calls": 3.0,
+        "mean_evidence_records": 3.0
+      }
+    },
+    "messaging": {
+      "bundles": 4,
+      "correct": 4,
+      "accuracy": 1.0,
+      "faulted": {
+        "bundles": 4,
+        "top1": 4,
+        "top3": 4,
+        "named_wrong_service": 0,
+        "abstained_on_a_real_incident": 0
+      },
+      "no_fault": {
+        "bundles": 0,
+        "correctly_said_nothing": 0,
+        "invented_a_culprit": 0
+      },
+      "cost": {
+        "mean_tool_calls": 3.0,
+        "mean_evidence_records": 3.0
+      }
+    },
+    "no-fault": {
+      "bundles": 10,
+      "correct": 10,
+      "accuracy": 1.0,
+      "faulted": {
+        "bundles": 0,
+        "top1": 0,
+        "top3": 0,
+        "named_wrong_service": 0,
+        "abstained_on_a_real_incident": 0
+      },
+      "no_fault": {
+        "bundles": 10,
+        "correctly_said_nothing": 10,
+        "invented_a_culprit": 0
+      },
+      "cost": {
+        "mean_tool_calls": 1.0,
+        "mean_evidence_records": 1.0
+      }
+    },
+    "unreachable": {
+      "bundles": 4,
+      "correct": 4,
+      "accuracy": 1.0,
+      "faulted": {
+        "bundles": 4,
+        "top1": 4,
+        "top3": 4,
+        "named_wrong_service": 0,
+        "abstained_on_a_real_incident": 0
+      },
+      "no_fault": {
+        "bundles": 0,
+        "correctly_said_nothing": 0,
+        "invented_a_culprit": 0
+      },
+      "cost": {
+        "mean_tool_calls": 3.0,
+        "mean_evidence_records": 3.0
+      }
+    }
+  },
+  "by_split": {
+    "train": {
+      "bundles": 44,
+      "correct": 44,
+      "accuracy": 1.0,
+      "faulted": {
+        "bundles": 37,
+        "top1": 37,
+        "top3": 37,
+        "named_wrong_service": 0,
+        "abstained_on_a_real_incident": 0
+      },
+      "no_fault": {
+        "bundles": 7,
+        "correctly_said_nothing": 7,
+        "invented_a_culprit": 0
+      },
+      "cost": {
+        "mean_tool_calls": 2.68,
+        "mean_evidence_records": 2.68
+      }
+    },
+    "validation": {
+      "bundles": 15,
+      "correct": 15,
+      "accuracy": 1.0,
+      "faulted": {
+        "bundles": 12,
+        "top1": 12,
+        "top3": 12,
+        "named_wrong_service": 0,
+        "abstained_on_a_real_incident": 0
+      },
+      "no_fault": {
+        "bundles": 3,
+        "correctly_said_nothing": 3,
+        "invented_a_culprit": 0
+      },
+      "cost": {
+        "mean_tool_calls": 2.6,
+        "mean_evidence_records": 2.6
+      }
+    }
+  },
+  "bundles": [
+    {
+      "bundle_id": "inc_eb294194951f",
+      "family": "error-injection",
+      "split": "train",
+      "named": "ad",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_7a7ec0c763ee",
+      "family": "error-injection",
+      "split": "train",
+      "named": "ad",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_deaa94a58363",
+      "family": "error-injection",
+      "split": "train",
+      "named": "ad",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_cab570fe7672",
+      "family": "error-injection",
+      "split": "train",
+      "named": "cart",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_d14224dee14c",
+      "family": "error-injection",
+      "split": "train",
+      "named": "cart",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_72d5fb8148a3",
+      "family": "error-injection",
+      "split": "train",
+      "named": "cart",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_15126debac87",
+      "family": "error-injection",
+      "split": "train",
+      "named": "cart",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_d74491109c47",
+      "family": "error-injection",
+      "split": "train",
+      "named": "cart",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_8be1995756be",
+      "family": "error-injection",
+      "split": "train",
+      "named": "cart",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_4b227ffb10e1",
+      "family": "error-injection",
+      "split": "train",
+      "named": "cart",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_872cfb09d7c9",
+      "family": "error-injection",
+      "split": "train",
+      "named": "cart",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_35efe627e8f6",
+      "family": "error-injection",
+      "split": "train",
+      "named": "cart",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_992233cdf354",
+      "family": "distractor",
+      "split": "train",
+      "named": "cart",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_0d40d356f1e8",
+      "family": "distractor",
+      "split": "train",
+      "named": "cart",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_c9f62ec956f2",
+      "family": "distractor",
+      "split": "train",
+      "named": "cart",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_fbfdf522fb17",
+      "family": "distractor",
+      "split": "train",
+      "named": "image-provider",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_85fc4922f2ad",
+      "family": "distractor",
+      "split": "validation",
+      "named": "image-provider",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_d9bae2779e4f",
+      "family": "double-fault",
+      "split": "train",
+      "named": "ad",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_8edcf00aa627",
+      "family": "double-fault",
+      "split": "train",
+      "named": "ad",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_7a0e340c2cb3",
+      "family": "double-fault",
+      "split": "train",
+      "named": "ad",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_5b226127f6c1",
+      "family": "double-fault",
+      "split": "train",
+      "named": "cart",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_2a2586fb6d84",
+      "family": "double-fault",
+      "split": "train",
+      "named": "cart",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_f4bbdedd861b",
+      "family": "double-fault",
+      "split": "train",
+      "named": "cart",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_da3d8eaa0d18",
+      "family": "double-fault",
+      "split": "validation",
+      "named": "image-provider",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_c6454e36c1d7",
+      "family": "double-fault",
+      "split": "validation",
+      "named": "image-provider",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_8fd3841f4ec6",
+      "family": "health",
+      "split": "train",
+      "named": "cart",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_4a17a0bad776",
+      "family": "health",
+      "split": "train",
+      "named": "cart",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_e7160d9b93e2",
+      "family": "health",
+      "split": "train",
+      "named": "cart",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_c12fa3d8012f",
+      "family": "health",
+      "split": "validation",
+      "named": "cart",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_4c4dfb8e0ded",
+      "family": "latency",
+      "split": "train",
+      "named": "image-provider",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_830df40c6f23",
+      "family": "latency",
+      "split": "train",
+      "named": "image-provider",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_f568a952adfa",
+      "family": "latency",
+      "split": "train",
+      "named": "image-provider",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_a3d0a8f6f02b",
+      "family": "latency",
+      "split": "train",
+      "named": "image-provider",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_b73f49d0357d",
+      "family": "latency",
+      "split": "train",
+      "named": "image-provider",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_5bb55253b995",
+      "family": "latency",
+      "split": "train",
+      "named": "image-provider",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_f043cb0c18c5",
+      "family": "latency",
+      "split": "validation",
+      "named": "shipping",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_f8e803697e45",
+      "family": "latency",
+      "split": "validation",
+      "named": "shipping",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_6087ac87e14d",
+      "family": "messaging",
+      "split": "train",
+      "named": "checkout",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_05e75ab6ee37",
+      "family": "messaging",
+      "split": "train",
+      "named": "checkout",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_90a5f844a397",
+      "family": "messaging",
+      "split": "train",
+      "named": "checkout",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_2a1788786a57",
+      "family": "messaging",
+      "split": "validation",
+      "named": "checkout",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_eb5b23b6d413",
+      "family": "no-fault",
+      "split": "train",
+      "named": null,
+      "abstained": true,
+      "rank_of_truth": null,
+      "correct": true,
+      "tool_calls": 1,
+      "evidence_records": 1
+    },
+    {
+      "bundle_id": "inc_1dc1af8b69aa",
+      "family": "no-fault",
+      "split": "train",
+      "named": null,
+      "abstained": true,
+      "rank_of_truth": null,
+      "correct": true,
+      "tool_calls": 1,
+      "evidence_records": 1
+    },
+    {
+      "bundle_id": "inc_59a801a56011",
+      "family": "no-fault",
+      "split": "train",
+      "named": null,
+      "abstained": true,
+      "rank_of_truth": null,
+      "correct": true,
+      "tool_calls": 1,
+      "evidence_records": 1
+    },
+    {
+      "bundle_id": "inc_a576a918cdd3",
+      "family": "no-fault",
+      "split": "train",
+      "named": null,
+      "abstained": true,
+      "rank_of_truth": null,
+      "correct": true,
+      "tool_calls": 1,
+      "evidence_records": 1
+    },
+    {
+      "bundle_id": "inc_52e385f71014",
+      "family": "no-fault",
+      "split": "train",
+      "named": null,
+      "abstained": true,
+      "rank_of_truth": null,
+      "correct": true,
+      "tool_calls": 1,
+      "evidence_records": 1
+    },
+    {
+      "bundle_id": "inc_931ebab48059",
+      "family": "no-fault",
+      "split": "train",
+      "named": null,
+      "abstained": true,
+      "rank_of_truth": null,
+      "correct": true,
+      "tool_calls": 1,
+      "evidence_records": 1
+    },
+    {
+      "bundle_id": "inc_f0684ed4c489",
+      "family": "no-fault",
+      "split": "train",
+      "named": null,
+      "abstained": true,
+      "rank_of_truth": null,
+      "correct": true,
+      "tool_calls": 1,
+      "evidence_records": 1
+    },
+    {
+      "bundle_id": "inc_64a8b29ae7f5",
+      "family": "no-fault",
+      "split": "validation",
+      "named": null,
+      "abstained": true,
+      "rank_of_truth": null,
+      "correct": true,
+      "tool_calls": 1,
+      "evidence_records": 1
+    },
+    {
+      "bundle_id": "inc_862259235b74",
+      "family": "no-fault",
+      "split": "validation",
+      "named": null,
+      "abstained": true,
+      "rank_of_truth": null,
+      "correct": true,
+      "tool_calls": 1,
+      "evidence_records": 1
+    },
+    {
+      "bundle_id": "inc_b197f032c055",
+      "family": "no-fault",
+      "split": "validation",
+      "named": null,
+      "abstained": true,
+      "rank_of_truth": null,
+      "correct": true,
+      "tool_calls": 1,
+      "evidence_records": 1
+    },
+    {
+      "bundle_id": "inc_e3115a15bae4",
+      "family": "error-injection",
+      "split": "validation",
+      "named": "payment",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_294592389aac",
+      "family": "error-injection",
+      "split": "validation",
+      "named": "payment",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_478869b89c58",
+      "family": "error-injection",
+      "split": "validation",
+      "named": "payment",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_f277a5a6a3f2",
+      "family": "error-injection",
+      "split": "validation",
+      "named": "payment",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_c59441f4711f",
+      "family": "unreachable",
+      "split": "train",
+      "named": "payment",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_c1b0122b3268",
+      "family": "unreachable",
+      "split": "train",
+      "named": "payment",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_832c515cc3a6",
+      "family": "unreachable",
+      "split": "train",
+      "named": "payment",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    },
+    {
+      "bundle_id": "inc_e2a117e10d80",
+      "family": "unreachable",
+      "split": "validation",
+      "named": "payment",
+      "abstained": false,
+      "rank_of_truth": 1,
+      "correct": true,
+      "tool_calls": 3,
+      "evidence_records": 3
+    }
+  ]
+}

@@ -10,3 +10,5 @@ The full list of required records is in SPEC.md Section 14.
 | [0003](0003-incident-bundles.md) | Incident bundles as Parquet files, queried with DuckDB | Accepted | 2 |
 | [0004](0004-typed-tool-templates.md) | Typed tool templates instead of free-form queries | Accepted | 3 |
 | [0005](0005-service-graph.md) | Service dependency edges from the service_graph connector | Accepted | 1 |
+| [0006](0006-log-templates.md) | A deterministic masker for log templates, not Drain | Accepted | 4 |
+| [0007](0007-candidate-ranking.md) | Candidate ranking by personalised PageRank over the call graph | Accepted | 4 |

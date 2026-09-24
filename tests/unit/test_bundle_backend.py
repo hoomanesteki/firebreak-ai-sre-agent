@@ -188,12 +188,19 @@ def test_search_logs_filters_by_services(backend, bundle):
 
 
 def test_search_logs_literal_pattern_matches_a_substring_of_the_body(backend, bundle):
+    """A substring that spans the fixed part of a log line and none of its variables.
+
+    The pattern is deliberately a fragment rather than a whole body. Log
+    bodies carry request ids and durations that differ per line, so a test
+    asserting on a whole body would be asserting on the random number
+    generator.
+    """
     _, manifest, _ = bundle
 
-    records = backend.search_logs(_full_window(manifest), pattern="handled request", limit=MAX_ROWS)
+    records = backend.search_logs(_full_window(manifest), pattern="handled", limit=MAX_ROWS)
 
     assert records
-    assert all("handled request" in record.body for record in records)
+    assert all("handled" in record.body for record in records)
 
 
 def test_search_logs_pattern_with_sql_metacharacters_matches_nothing_rather_than_everything(

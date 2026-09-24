@@ -3,57 +3,104 @@
   "why": "Motivates the topology ranking in SPEC.md Section 6.4. If anomaly scoring alone found the culprit reliably, the graph would be unnecessary complexity.",
   "data_source": "synthetic fixtures (src/firebreak/lab/synthetic.py), NOT recorded incidents",
   "caveat": "Synthetic data. This is a design signal, never a reported result.",
-  "trials_per_case": 20,
-  "cases": {
-    "error-injection": {
-      "trials": 20,
-      "top1": 4,
-      "top3": 20,
+  "splits": [
+    "train",
+    "validation"
+  ],
+  "seeds": [
+    1,
+    2,
+    3
+  ],
+  "scenarios": 59,
+  "generated_by": "scripts/measure_ranking.py",
+  "overall": {
+    "trials": 147,
+    "top1": 92,
+    "top3": 147,
+    "mean_reciprocal_rank": 0.8129,
+    "rank_distribution": {
+      "1": 92,
+      "2": 55
+    }
+  },
+  "by_family": {
+    "distractor": {
+      "trials": 15,
+      "top1": 10,
+      "top3": 15,
+      "mean_reciprocal_rank": 0.8333,
       "rank_distribution": {
-        "1": 4,
-        "2": 7,
-        "3": 9
+        "1": 10,
+        "2": 5
       }
     },
-    "unreachable": {
-      "trials": 20,
-      "top1": 4,
-      "top3": 20,
+    "double-fault": {
+      "trials": 24,
+      "top1": 16,
+      "top3": 24,
+      "mean_reciprocal_rank": 0.8333,
       "rank_distribution": {
-        "1": 4,
-        "2": 7,
-        "3": 9
-      }
-    },
-    "latency": {
-      "trials": 20,
-      "top1": 12,
-      "top3": 20,
-      "rank_distribution": {
-        "1": 12,
+        "1": 16,
         "2": 8
       }
     },
-    "memory-leak": {
-      "trials": 20,
-      "top1": 20,
-      "top3": 20,
+    "error-injection": {
+      "trials": 48,
+      "top1": 32,
+      "top3": 48,
+      "mean_reciprocal_rank": 0.8333,
       "rank_distribution": {
-        "1": 20
+        "1": 32,
+        "2": 16
       }
     },
-    "cpu-saturation": {
-      "trials": 20,
-      "top1": 20,
-      "top3": 20,
+    "health": {
+      "trials": 12,
+      "top1": 8,
+      "top3": 12,
+      "mean_reciprocal_rank": 0.8333,
       "rank_distribution": {
-        "1": 20
+        "1": 8,
+        "2": 4
+      }
+    },
+    "latency": {
+      "trials": 24,
+      "top1": 14,
+      "top3": 24,
+      "mean_reciprocal_rank": 0.7917,
+      "rank_distribution": {
+        "1": 14,
+        "2": 10
+      }
+    },
+    "messaging": {
+      "trials": 12,
+      "top1": 4,
+      "top3": 12,
+      "mean_reciprocal_rank": 0.6667,
+      "rank_distribution": {
+        "1": 4,
+        "2": 8
+      }
+    },
+    "no-fault": {
+      "trials": 0,
+      "top1": 0,
+      "top3": 0,
+      "mean_reciprocal_rank": 0.0,
+      "rank_distribution": {}
+    },
+    "unreachable": {
+      "trials": 12,
+      "top1": 8,
+      "top3": 12,
+      "mean_reciprocal_rank": 0.8333,
+      "rank_distribution": {
+        "1": 8,
+        "2": 4
       }
     }
-  },
-  "overall": {
-    "trials": 100,
-    "top1": 60,
-    "top3": 100
   }
 }
