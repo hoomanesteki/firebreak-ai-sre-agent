@@ -1,0 +1,64 @@
+{
+  "what": "Deterministic masker against Drain, for ADR-0006",
+  "why": "SPEC.md Section 6.5 names Drain as the stronger option and requires ADR-0006 to decide on a comparison rather than on preference.",
+  "data_source": "lines generated from the same templates src/firebreak/lab/synthetic.py writes into bundles, labelled with the template that produced them",
+  "caveat": "Synthetic log lines. Real service logs are more varied, and Drain's advantage grows with variety, so this understates it. Re-run on recorded incidents before treating the decision as settled.",
+  "corpus": {
+    "lines": 1920,
+    "true_templates": 320
+  },
+  "masker": {
+    "lines": 1920,
+    "true_templates": 320,
+    "clusters_found": 280,
+    "purity": 0.875,
+    "merged_clusters": 40,
+    "fragmented_templates": 0,
+    "worst_merge": 2,
+    "errors_only": {
+      "lines": 672,
+      "true_templates": 112,
+      "clusters_found": 112,
+      "purity": 1.0,
+      "merged_clusters": 0,
+      "fragmented_templates": 0,
+      "worst_merge": 1
+    },
+    "stability": {
+      "shuffles": 3,
+      "lines_assigned_differently": [
+        0,
+        0,
+        0
+      ],
+      "stable": true
+    }
+  },
+  "drain": {
+    "lines": 1920,
+    "true_templates": 320,
+    "clusters_found": 88,
+    "purity": 0.275,
+    "merged_clusters": 40,
+    "fragmented_templates": 0,
+    "worst_merge": 10,
+    "errors_only": {
+      "lines": 672,
+      "true_templates": 112,
+      "clusters_found": 32,
+      "purity": 0.2857,
+      "merged_clusters": 16,
+      "fragmented_templates": 0,
+      "worst_merge": 7
+    },
+    "stability": {
+      "shuffles": 3,
+      "lines_assigned_differently": [
+        0,
+        0,
+        180
+      ],
+      "stable": false
+    }
+  }
+}
