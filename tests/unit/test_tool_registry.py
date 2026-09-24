@@ -35,7 +35,11 @@ from firebreak.tools.registry import (
     registry_for,
 )
 
-EXPECTED_TOOL_COUNT = 11
+# Twelve of the fourteen in SPEC.md Section 6.3. `similar_incidents` needs
+# the incident memory from Phase 10 and `propose_remediation` needs the
+# approval service from Phase 9. Asserted as a number so that adding a tool
+# without deciding which specialist may call it fails here.
+EXPECTED_TOOL_COUNT = 12
 
 
 def _spec() -> ScenarioSpec:
