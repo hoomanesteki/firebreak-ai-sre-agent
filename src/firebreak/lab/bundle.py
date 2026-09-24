@@ -207,6 +207,21 @@ class EdgeRecord(BaseModel):
             "error_ratio": round(self.error_ratio, 6),
         }
 
+    @classmethod
+    def from_row(cls, row: dict[str, Any]) -> EdgeRecord:
+        """Parse one recorded edge, the inverse of `as_row`.
+
+        Strict: an unknown field is an error, because a producer that drifts
+        should fail loudly rather than be accommodated. `error_ratio` is the
+        one field dropped, since `as_row` derives it for a human reading the
+        JSON and this model computes it rather than accepting it.
+
+        Declared here so that both readers, the topology tools and the
+        candidate ranking, share one parse. Two copies of a parsing rule is
+        how the shapes drifted apart the first time.
+        """
+        return cls.model_validate({k: v for k, v in row.items() if k != "error_ratio"})
+
 
 def sha256_of(path: Path) -> str:
     """Checksum a file without reading it all into memory."""

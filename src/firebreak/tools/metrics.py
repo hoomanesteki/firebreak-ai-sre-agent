@@ -24,7 +24,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 
 from firebreak.backends.base import MAX_ROWS, MetricPoint
-from firebreak.signals import MetricName, StatusCode, metric_names
+from firebreak.signals import MetricName, metric_names
 from firebreak.tools.base import ToolContext, ToolResult, ToolSpec, summarise_rows
 from firebreak.tools.evidence import (
     EvidenceKind,
@@ -33,22 +33,14 @@ from firebreak.tools.evidence import (
     build_record,
 )
 from firebreak.triage.anomaly import Direction, rank_anomalies, score_series
-
-# Which way a change has to go for each metric to be worth reporting. An
-# error rate falling is a recovery, not an incident.
-ANOMALY_DIRECTIONS: dict[MetricName, Direction] = {
-    MetricName.SPAN_CALLS_TOTAL: Direction.UP,
-    MetricName.SPAN_DURATION_P95_MS: Direction.UP,
-    MetricName.SPAN_DURATION_P50_MS: Direction.UP,
-    MetricName.SERVICE_GRAPH_FAILED: Direction.UP,
-    MetricName.CONTAINER_MEMORY_BYTES: Direction.UP,
-    MetricName.CONTAINER_CPU_UTILISATION: Direction.UP,
-    # A request rate that collapses is as much a symptom as one that spikes.
-    MetricName.SERVICE_GRAPH_REQUESTS: Direction.EITHER,
-}
+from firebreak.triage.scoring import (
+    ANOMALY_DIRECTIONS,
+    MAX_SAMPLES_PER_SERIES,
+    error_only,
+    score_services,
+)
 
 TOP_ANOMALIES = 8
-MAX_SAMPLES_PER_SERIES = 400
 
 
 class MetricWindow(BaseModel):
@@ -90,18 +82,6 @@ class CompareWindowsInput(BaseModel):
     incident: MetricWindow
 
 
-def _error_only(points: list[MetricPoint]) -> list[MetricPoint]:
-    """Keep only the error status series of the call counter."""
-    return [p for p in points if p.labels.get("status_code") == StatusCode.ERROR.value]
-
-
-def _values_by_service(points: list[MetricPoint]) -> dict[str, list[float]]:
-    grouped: dict[str, list[float]] = {}
-    for point in points:
-        grouped.setdefault(point.service_name, []).append(point.value)
-    return grouped
-
-
 def _fetch(
     context: ToolContext,
     metric: MetricName,
@@ -110,7 +90,7 @@ def _fetch(
     limit: int,
 ) -> list[MetricPoint]:
     points = context.backend.query_metrics(metric, window, services=services, limit=limit)
-    return _error_only(points) if metric is MetricName.SPAN_CALLS_TOTAL else points
+    return error_only(points) if metric is MetricName.SPAN_CALLS_TOTAL else points
 
 
 def list_anomalies(context: ToolContext, arguments: ListAnomaliesInput) -> ToolResult:
@@ -118,22 +98,9 @@ def list_anomalies(context: ToolContext, arguments: ListAnomaliesInput) -> ToolR
     incident = arguments.window.to_range()
     baseline = arguments.baseline.to_range()
 
-    scores = []
-    for metric, direction in ANOMALY_DIRECTIONS.items():
-        base_points = _fetch(context, metric, baseline, arguments.services, MAX_SAMPLES_PER_SERIES)
-        inc_points = _fetch(context, metric, incident, arguments.services, MAX_SAMPLES_PER_SERIES)
-        base_by_service = _values_by_service(base_points)
-        inc_by_service = _values_by_service(inc_points)
-        for service in sorted(set(base_by_service) | set(inc_by_service)):
-            scores.append(
-                score_series(
-                    subject=service,
-                    metric=str(metric),
-                    baseline=base_by_service.get(service, []),
-                    incident=inc_by_service.get(service, []),
-                    direction=direction,
-                )
-            )
+    # The same scorer the triage pipeline runs, so what the agent is told is
+    # anomalous and what the ranking treats as anomalous cannot diverge.
+    scores = score_services(context.backend, baseline, incident, arguments.services)
 
     ranked = rank_anomalies(scores, minimum_score=arguments.minimum_score)[:TOP_ANOMALIES]
     rows = [

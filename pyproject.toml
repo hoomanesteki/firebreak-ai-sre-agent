@@ -15,6 +15,7 @@ dependencies = [
     "httpx>=0.28.1",
     "pyarrow>=25.0.1",
     "duckdb>=1.5.5",
+    "neo4j>=5.28",
 ]
 
 [project.scripts]
@@ -29,6 +30,7 @@ dev = [
     "hypothesis>=6.120",
     "pre-commit>=4.0",
     "types-pyyaml>=6.0",
+    "drain3>=0.9.11",
 ]
 
 [build-system]
@@ -74,6 +76,7 @@ pythonpath = ["src"]
 addopts = "-q --strict-markers --strict-config"
 markers = [
     "live: needs the live OpenTelemetry Demo stack",
+    "neo4j: needs a running Neo4j (make graph-up)",
     "slow: takes more than 5 seconds",
 ]
 
