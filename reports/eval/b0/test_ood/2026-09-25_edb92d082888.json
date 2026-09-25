@@ -1,0 +1,632 @@
+{
+  "configuration": "b0",
+  "split": "test_ood",
+  "trials_per_task": 3,
+  "data_source": "synthetic fixtures",
+  "quotable_as_a_result": false,
+  "caveats": [
+    "These figures come from synthetic fixtures, not recorded incidents. They are a design signal for building the harness and must never be quoted as a result. Record the incident library and re-run to obtain real figures."
+  ],
+  "generated_at": "2026-09-25T02:27:44.025477+00:00",
+  "commit": "edb92d0828887b54f0c10d16adf2dba22114210b",
+  "mode": "bundle",
+  "overall": {
+    "trials": 90,
+    "tasks": 30,
+    "headline_accuracy": {
+      "estimate": 0.8,
+      "lower": 0.633333,
+      "upper": 0.933333,
+      "resamples": 10000,
+      "observations": 30
+    },
+    "graders": {
+      "abstention": {
+        "grader": "abstention",
+        "applicable": 90,
+        "correct": 90,
+        "trials": 90,
+        "coverage": 1.0,
+        "accuracy": 1.0,
+        "interval": {
+          "estimate": 1.0,
+          "lower": 1.0,
+          "upper": 1.0,
+          "resamples": 10000,
+          "observations": 30
+        }
+      },
+      "evidence_validity": {
+        "grader": "evidence_validity",
+        "applicable": 90,
+        "correct": 90,
+        "trials": 90,
+        "coverage": 1.0,
+        "accuracy": 1.0,
+        "interval": {
+          "estimate": 1.0,
+          "lower": 1.0,
+          "upper": 1.0,
+          "resamples": 10000,
+          "observations": 30
+        }
+      },
+      "root_cause": {
+        "grader": "root_cause",
+        "applicable": 90,
+        "correct": 72,
+        "trials": 90,
+        "coverage": 1.0,
+        "accuracy": 0.8,
+        "interval": {
+          "estimate": 0.8,
+          "lower": 0.633333,
+          "upper": 0.933333,
+          "resamples": 10000,
+          "observations": 30
+        }
+      },
+      "root_cause_top3": {
+        "grader": "root_cause_top3",
+        "applicable": 90,
+        "correct": 90,
+        "trials": 90,
+        "coverage": 1.0,
+        "accuracy": 1.0,
+        "interval": {
+          "estimate": 1.0,
+          "lower": 1.0,
+          "upper": 1.0,
+          "resamples": 10000,
+          "observations": 30
+        }
+      }
+    },
+    "calibration": {
+      "expected_calibration_error": 0.13834,
+      "maximum_calibration_error": 0.159114,
+      "brier_score": 0.087563,
+      "predictions": 90,
+      "reliability_diagram": [
+        {
+          "lower": 0.0,
+          "upper": 0.1,
+          "count": 0,
+          "mean_confidence": 0.0,
+          "accuracy": 0.0,
+          "gap": 0.0
+        },
+        {
+          "lower": 0.1,
+          "upper": 0.2,
+          "count": 0,
+          "mean_confidence": 0.0,
+          "accuracy": 0.0,
+          "gap": 0.0
+        },
+        {
+          "lower": 0.2,
+          "upper": 0.3,
+          "count": 0,
+          "mean_confidence": 0.0,
+          "accuracy": 0.0,
+          "gap": 0.0
+        },
+        {
+          "lower": 0.3,
+          "upper": 0.4,
+          "count": 0,
+          "mean_confidence": 0.0,
+          "accuracy": 0.0,
+          "gap": 0.0
+        },
+        {
+          "lower": 0.4,
+          "upper": 0.5,
+          "count": 27,
+          "mean_confidence": 0.4232,
+          "accuracy": 0.333333,
+          "gap": 0.089867
+        },
+        {
+          "lower": 0.5,
+          "upper": 0.6,
+          "count": 0,
+          "mean_confidence": 0.0,
+          "accuracy": 0.0,
+          "gap": 0.0
+        },
+        {
+          "lower": 0.6,
+          "upper": 0.7,
+          "count": 0,
+          "mean_confidence": 0.0,
+          "accuracy": 0.0,
+          "gap": 0.0
+        },
+        {
+          "lower": 0.7,
+          "upper": 0.8,
+          "count": 0,
+          "mean_confidence": 0.0,
+          "accuracy": 0.0,
+          "gap": 0.0
+        },
+        {
+          "lower": 0.8,
+          "upper": 0.9,
+          "count": 63,
+          "mean_confidence": 0.840886,
+          "accuracy": 1.0,
+          "gap": -0.159114
+        },
+        {
+          "lower": 0.9,
+          "upper": 1.0,
+          "count": 0,
+          "mean_confidence": 0.0,
+          "accuracy": 0.0,
+          "gap": 0.0
+        }
+      ]
+    },
+    "selective_accuracy": {
+      "coverage": 1.0,
+      "selective_accuracy": 0.8,
+      "overall_accuracy": 0.8,
+      "answered": 90,
+      "total": 90,
+      "risk_coverage_curve": [
+        {
+          "threshold": 0.0,
+          "coverage": 1.0,
+          "accuracy": 0.8,
+          "risk": 0.2
+        },
+        {
+          "threshold": 0.4196,
+          "coverage": 1.0,
+          "accuracy": 0.8,
+          "risk": 0.2
+        },
+        {
+          "threshold": 0.425,
+          "coverage": 0.9,
+          "accuracy": 0.777778,
+          "risk": 0.222222
+        },
+        {
+          "threshold": 0.8306,
+          "coverage": 0.7,
+          "accuracy": 1.0,
+          "risk": 0.0
+        },
+        {
+          "threshold": 0.845,
+          "coverage": 0.5,
+          "accuracy": 1.0,
+          "risk": 0.0
+        }
+      ]
+    },
+    "reliability": {
+      "pass_at_1": 0.8,
+      "pass_hat_3": 0.8,
+      "tasks": 30,
+      "trials_per_task": 3
+    },
+    "cost": {
+      "trials": 90,
+      "mean_tool_calls": 3.0,
+      "mean_usd": 0.0,
+      "median_usd": 0.0,
+      "total_tokens_in": 0,
+      "total_tokens_out": 0,
+      "p50_seconds": 0.0869,
+      "p95_seconds": 0.1305
+    },
+    "median_onset_error_seconds": null
+  },
+  "by_family": {
+    "contention": {
+      "trials": 18,
+      "tasks": 6,
+      "headline_accuracy": {
+        "estimate": 0.0,
+        "lower": 0.0,
+        "upper": 0.0,
+        "resamples": 10000,
+        "observations": 6
+      },
+      "graders": {
+        "abstention": {
+          "grader": "abstention",
+          "applicable": 18,
+          "correct": 18,
+          "trials": 18,
+          "coverage": 1.0,
+          "accuracy": 1.0,
+          "interval": {
+            "estimate": 1.0,
+            "lower": 1.0,
+            "upper": 1.0,
+            "resamples": 10000,
+            "observations": 6
+          }
+        },
+        "evidence_validity": {
+          "grader": "evidence_validity",
+          "applicable": 18,
+          "correct": 18,
+          "trials": 18,
+          "coverage": 1.0,
+          "accuracy": 1.0,
+          "interval": {
+            "estimate": 1.0,
+            "lower": 1.0,
+            "upper": 1.0,
+            "resamples": 10000,
+            "observations": 6
+          }
+        },
+        "root_cause": {
+          "grader": "root_cause",
+          "applicable": 18,
+          "correct": 0,
+          "trials": 18,
+          "coverage": 1.0,
+          "accuracy": 0.0,
+          "interval": {
+            "estimate": 0.0,
+            "lower": 0.0,
+            "upper": 0.0,
+            "resamples": 10000,
+            "observations": 6
+          }
+        },
+        "root_cause_top3": {
+          "grader": "root_cause_top3",
+          "applicable": 18,
+          "correct": 18,
+          "trials": 18,
+          "coverage": 1.0,
+          "accuracy": 1.0,
+          "interval": {
+            "estimate": 1.0,
+            "lower": 1.0,
+            "upper": 1.0,
+            "resamples": 10000,
+            "observations": 6
+          }
+        }
+      },
+      "calibration": {
+        "expected_calibration_error": 0.425,
+        "maximum_calibration_error": 0.425,
+        "brier_score": 0.180625,
+        "predictions": 18,
+        "reliability_diagram": [
+          {
+            "lower": 0.0,
+            "upper": 0.1,
+            "count": 0,
+            "mean_confidence": 0.0,
+            "accuracy": 0.0,
+            "gap": 0.0
+          },
+          {
+            "lower": 0.1,
+            "upper": 0.2,
+            "count": 0,
+            "mean_confidence": 0.0,
+            "accuracy": 0.0,
+            "gap": 0.0
+          },
+          {
+            "lower": 0.2,
+            "upper": 0.3,
+            "count": 0,
+            "mean_confidence": 0.0,
+            "accuracy": 0.0,
+            "gap": 0.0
+          },
+          {
+            "lower": 0.3,
+            "upper": 0.4,
+            "count": 0,
+            "mean_confidence": 0.0,
+            "accuracy": 0.0,
+            "gap": 0.0
+          },
+          {
+            "lower": 0.4,
+            "upper": 0.5,
+            "count": 18,
+            "mean_confidence": 0.425,
+            "accuracy": 0.0,
+            "gap": 0.425
+          },
+          {
+            "lower": 0.5,
+            "upper": 0.6,
+            "count": 0,
+            "mean_confidence": 0.0,
+            "accuracy": 0.0,
+            "gap": 0.0
+          },
+          {
+            "lower": 0.6,
+            "upper": 0.7,
+            "count": 0,
+            "mean_confidence": 0.0,
+            "accuracy": 0.0,
+            "gap": 0.0
+          },
+          {
+            "lower": 0.7,
+            "upper": 0.8,
+            "count": 0,
+            "mean_confidence": 0.0,
+            "accuracy": 0.0,
+            "gap": 0.0
+          },
+          {
+            "lower": 0.8,
+            "upper": 0.9,
+            "count": 0,
+            "mean_confidence": 0.0,
+            "accuracy": 0.0,
+            "gap": 0.0
+          },
+          {
+            "lower": 0.9,
+            "upper": 1.0,
+            "count": 0,
+            "mean_confidence": 0.0,
+            "accuracy": 0.0,
+            "gap": 0.0
+          }
+        ]
+      },
+      "selective_accuracy": {
+        "coverage": 1.0,
+        "selective_accuracy": 0.0,
+        "overall_accuracy": 0.0,
+        "answered": 18,
+        "total": 18,
+        "risk_coverage_curve": [
+          {
+            "threshold": 0.0,
+            "coverage": 1.0,
+            "accuracy": 0.0,
+            "risk": 1.0
+          },
+          {
+            "threshold": 0.425,
+            "coverage": 1.0,
+            "accuracy": 0.0,
+            "risk": 1.0
+          }
+        ]
+      },
+      "reliability": null,
+      "cost": {
+        "trials": 18,
+        "mean_tool_calls": 3.0,
+        "mean_usd": 0.0,
+        "median_usd": 0.0,
+        "total_tokens_in": 0,
+        "total_tokens_out": 0,
+        "p50_seconds": 0.0876,
+        "p95_seconds": 0.1314
+      },
+      "median_onset_error_seconds": null
+    },
+    "resource": {
+      "trials": 72,
+      "tasks": 24,
+      "headline_accuracy": {
+        "estimate": 1.0,
+        "lower": 1.0,
+        "upper": 1.0,
+        "resamples": 10000,
+        "observations": 24
+      },
+      "graders": {
+        "abstention": {
+          "grader": "abstention",
+          "applicable": 72,
+          "correct": 72,
+          "trials": 72,
+          "coverage": 1.0,
+          "accuracy": 1.0,
+          "interval": {
+            "estimate": 1.0,
+            "lower": 1.0,
+            "upper": 1.0,
+            "resamples": 10000,
+            "observations": 24
+          }
+        },
+        "evidence_validity": {
+          "grader": "evidence_validity",
+          "applicable": 72,
+          "correct": 72,
+          "trials": 72,
+          "coverage": 1.0,
+          "accuracy": 1.0,
+          "interval": {
+            "estimate": 1.0,
+            "lower": 1.0,
+            "upper": 1.0,
+            "resamples": 10000,
+            "observations": 24
+          }
+        },
+        "root_cause": {
+          "grader": "root_cause",
+          "applicable": 72,
+          "correct": 72,
+          "trials": 72,
+          "coverage": 1.0,
+          "accuracy": 1.0,
+          "interval": {
+            "estimate": 1.0,
+            "lower": 1.0,
+            "upper": 1.0,
+            "resamples": 10000,
+            "observations": 24
+          }
+        },
+        "root_cause_top3": {
+          "grader": "root_cause_top3",
+          "applicable": 72,
+          "correct": 72,
+          "trials": 72,
+          "coverage": 1.0,
+          "accuracy": 1.0,
+          "interval": {
+            "estimate": 1.0,
+            "lower": 1.0,
+            "upper": 1.0,
+            "resamples": 10000,
+            "observations": 24
+          }
+        }
+      },
+      "calibration": {
+        "expected_calibration_error": 0.211775,
+        "maximum_calibration_error": 0.5804,
+        "brier_score": 0.064298,
+        "predictions": 72,
+        "reliability_diagram": [
+          {
+            "lower": 0.0,
+            "upper": 0.1,
+            "count": 0,
+            "mean_confidence": 0.0,
+            "accuracy": 0.0,
+            "gap": 0.0
+          },
+          {
+            "lower": 0.1,
+            "upper": 0.2,
+            "count": 0,
+            "mean_confidence": 0.0,
+            "accuracy": 0.0,
+            "gap": 0.0
+          },
+          {
+            "lower": 0.2,
+            "upper": 0.3,
+            "count": 0,
+            "mean_confidence": 0.0,
+            "accuracy": 0.0,
+            "gap": 0.0
+          },
+          {
+            "lower": 0.3,
+            "upper": 0.4,
+            "count": 0,
+            "mean_confidence": 0.0,
+            "accuracy": 0.0,
+            "gap": 0.0
+          },
+          {
+            "lower": 0.4,
+            "upper": 0.5,
+            "count": 9,
+            "mean_confidence": 0.4196,
+            "accuracy": 1.0,
+            "gap": -0.5804
+          },
+          {
+            "lower": 0.5,
+            "upper": 0.6,
+            "count": 0,
+            "mean_confidence": 0.0,
+            "accuracy": 0.0,
+            "gap": 0.0
+          },
+          {
+            "lower": 0.6,
+            "upper": 0.7,
+            "count": 0,
+            "mean_confidence": 0.0,
+            "accuracy": 0.0,
+            "gap": 0.0
+          },
+          {
+            "lower": 0.7,
+            "upper": 0.8,
+            "count": 0,
+            "mean_confidence": 0.0,
+            "accuracy": 0.0,
+            "gap": 0.0
+          },
+          {
+            "lower": 0.8,
+            "upper": 0.9,
+            "count": 63,
+            "mean_confidence": 0.840886,
+            "accuracy": 1.0,
+            "gap": -0.159114
+          },
+          {
+            "lower": 0.9,
+            "upper": 1.0,
+            "count": 0,
+            "mean_confidence": 0.0,
+            "accuracy": 0.0,
+            "gap": 0.0
+          }
+        ]
+      },
+      "selective_accuracy": {
+        "coverage": 1.0,
+        "selective_accuracy": 1.0,
+        "overall_accuracy": 1.0,
+        "answered": 72,
+        "total": 72,
+        "risk_coverage_curve": [
+          {
+            "threshold": 0.0,
+            "coverage": 1.0,
+            "accuracy": 1.0,
+            "risk": 0.0
+          },
+          {
+            "threshold": 0.4196,
+            "coverage": 1.0,
+            "accuracy": 1.0,
+            "risk": 0.0
+          },
+          {
+            "threshold": 0.8306,
+            "coverage": 0.875,
+            "accuracy": 1.0,
+            "risk": 0.0
+          },
+          {
+            "threshold": 0.845,
+            "coverage": 0.625,
+            "accuracy": 1.0,
+            "risk": 0.0
+          }
+        ]
+      },
+      "reliability": null,
+      "cost": {
+        "trials": 72,
+        "mean_tool_calls": 3.0,
+        "mean_usd": 0.0,
+        "median_usd": 0.0,
+        "total_tokens_in": 0,
+        "total_tokens_out": 0,
+        "p50_seconds": 0.0866,
+        "p95_seconds": 0.1305
+      },
+      "median_onset_error_seconds": null
+    }
+  }
+}

@@ -1,0 +1,90 @@
+# The gate a release candidate has to pass.
+#
+# SPEC.md Section 9.4. Read by src/firebreak/evals/gate.py.
+#
+# **Non-inferiority, not superiority.** The gate asks whether a candidate is
+# not meaningfully worse than the baseline, rather than whether it is better.
+# That is the right question for a change that is meant to improve something
+# else: a prompt edit intended to cut cost should not be blocked for scoring
+# a fraction of a point lower on accuracy, and it should be blocked for
+# costing five points.
+#
+# The test is on the lower bound of a paired bootstrap difference, not on the
+# point estimate. A candidate two points behind with an interval from minus
+# ten to plus six has not been shown to be worse, and one two points behind
+# with an interval from minus three to minus one has.
+#
+# **Every margin here is a judgement, and the judgement is the point.** These
+# numbers say how much regression is worth accepting for a gain elsewhere, and
+# nobody can derive them from data. They are written down so the trade is
+# argued once, in a pull request, rather than re-litigated per release.
+
+# Direction matters per metric. `higher_is_better` decides which end of the
+# paired interval the gate reads, and getting it backwards would pass exactly
+# the regressions it exists to catch, silently.
+metrics:
+  root_cause_top1:
+    grader: root_cause
+    higher_is_better: true
+    # Three points, in accuracy terms. On a 30 task split that is one task,
+    # so the gate cannot be more sensitive than the library is large: with 30
+    # tasks a single flipped case is 3.3 points and would fail a tighter
+    # margin as noise.
+    margin: 0.03
+
+  root_cause_top3:
+    grader: root_cause_top3
+    higher_is_better: true
+    # Looser than top-1 on purpose. Top-3 measures whether the system looked
+    # in the right place, which should be very stable, so a drop here is a
+    # more serious signal and a wider margin still catches it.
+    margin: 0.05
+
+  abstention:
+    grader: abstention
+    higher_is_better: true
+    # Tighter than accuracy. Inventing a culprit on a healthy system is the
+    # failure that teaches an operator to ignore the tool, and it is not
+    # something to trade away for cost.
+    margin: 0.02
+
+  evidence_validity:
+    grader: evidence_validity
+    higher_is_better: true
+    # Effectively zero tolerance. A citation that does not resolve is a
+    # fabrication, and the entire claim of this project is that it does not
+    # ship those. A candidate that regresses here fails.
+    margin: 0.0
+
+# Calibration is not a grader rate, so it is checked separately and its
+# direction is reversed: lower expected calibration error is better.
+calibration:
+  metric: expected_calibration_error
+  higher_is_better: false
+  margin: 0.02
+
+# SPEC.md Section 9.4: a candidate must not increase median cost per
+# investigation by more than this without an explicit flag and an explanation
+# in the pull request.
+cost:
+  metric: median_usd
+  maximum_relative_increase: 0.20
+  # Below this, a relative comparison is meaningless: going from a hundredth
+  # of a cent to two hundredths is a 100% increase and nobody cares. Absolute
+  # floor in USD.
+  ignore_below_usd: 0.01
+
+# Verdicts, in the order they are checked. The first failure decides, so the
+# order encodes which problem a reader should be told about first: a system
+# that is both wrong and expensive has a quality problem.
+verdicts:
+  - PASS
+  - FAIL_QUALITY
+  - FAIL_CALIBRATION
+  - FAIL_COST
+  - INCONCLUSIVE
+
+# A split too small to say anything is reported as INCONCLUSIVE rather than
+# as a pass. A gate that passes because it had no evidence is worse than no
+# gate, because it produces a signed statement that nothing was checked.
+minimum_tasks: 10

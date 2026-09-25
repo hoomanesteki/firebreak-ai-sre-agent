@@ -11,6 +11,7 @@ from rich.console import Console
 from rich.table import Table
 
 from firebreak import __version__
+from firebreak.cli.eval import eval_app
 from firebreak.cli.graph import graph_app
 from firebreak.cli.lab import lab_app
 from firebreak.settings import load_settings
@@ -24,6 +25,7 @@ app = typer.Typer(
 console = Console()
 app.add_typer(lab_app, name="lab")
 app.add_typer(graph_app, name="graph")
+app.add_typer(eval_app, name="eval")
 
 
 @app.command()
