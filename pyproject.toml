@@ -16,6 +16,7 @@ dependencies = [
     "pyarrow>=25.0.1",
     "duckdb>=1.5.5",
     "neo4j>=5.28",
+    "langgraph>=0.6",
 ]
 
 [project.scripts]
