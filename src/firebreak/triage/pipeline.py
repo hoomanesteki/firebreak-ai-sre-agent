@@ -47,6 +47,16 @@ BASELINE_FRACTION = 1.0 / 3.0
 # slow onset does not contaminate the baseline it is being compared against.
 GUARD_SECONDS = 30.0
 
+# The range a derived confidence may occupy. It never reaches either end:
+# deterministic triage reasons from two signals and has no business claiming
+# certainty, and a floor above zero records that it did name a suspect.
+#
+# Kept narrow deliberately. A wide range would invite reading these as
+# probabilities, and they are an ordering of confidence rather than a
+# calibrated forecast until the calibration report says otherwise.
+CONFIDENCE_FLOOR = 0.35
+CONFIDENCE_CEILING = 0.85
+
 # How many suspects to carry forward. SPEC.md Section 6.5 wants a short
 # ranked list, and a list long enough to always contain the answer is not a
 # ranking, it is the service inventory.
@@ -81,6 +91,49 @@ class TriageResult:
         `config/thresholds.yaml` with the measurement behind it.
         """
         return self.top_anomaly < self.abstention_threshold
+
+    @property
+    def confidence(self) -> float | None:
+        """How much to believe the leading suspect, from 0 to 1.
+
+        Calibration is a headline metric (SPEC.md Section 9.3), and a
+        configuration that states no confidence cannot be calibrated at all,
+        so B0 needs one or the whole calibration column is empty for the
+        baseline every other configuration is compared against.
+
+        Derived from the one thing that actually distinguishes a trustworthy
+        ranking from a lucky one: the margin between first and second place. A
+        first place that beat second tenfold is a different finding from one
+        that won by a rounding error, and nothing else available here carries
+        that information.
+
+        The margin is mapped through a ratio rather than a difference, because
+        PageRank scores are shares of a fixed total: subtracting them makes
+        the number depend on how many services are in the graph, while their
+        ratio does not.
+
+        None when abstaining. A system that has declined to name anybody has
+        no claim to attach a confidence to, and reporting a low confidence
+        instead would put it on the calibration curve as a near miss when it
+        made no prediction at all.
+        """
+        if self.says_nothing_is_wrong or not self.candidates:
+            return None
+        top = self.candidates[0]
+        if len(self.candidates) < 2:
+            # One candidate and nothing to compare it against. Not treated as
+            # certainty: an uncontested answer is uninformative rather than
+            # convincing.
+            return CONFIDENCE_FLOOR
+        runner_up = self.candidates[1]
+        if runner_up.graph_score <= 0.0:
+            return CONFIDENCE_CEILING
+        ratio = top.graph_score / runner_up.graph_score
+        # A ratio of 1 means a tie and maps to the floor; the ceiling is
+        # approached asymptotically, so the pipeline never claims certainty.
+        scaled = 1.0 - 1.0 / max(ratio, 1.0)
+        spread = CONFIDENCE_CEILING - CONFIDENCE_FLOOR
+        return round(CONFIDENCE_FLOOR + spread * scaled, 4)
 
     @property
     def top_service(self) -> str | None:
