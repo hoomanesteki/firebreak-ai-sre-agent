@@ -4,7 +4,7 @@ SHELL := /bin/bash
 
 .PHONY: help setup verify lint format types test test-cov hygiene leakage clean unhide \
         live live-config live-down live-logs lab-flags lab-library lab-bundles lab-package lab-verify lab-smoke lab-webhook \
-        graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates
+        graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates eval-b0
 
 help:  ## Show the available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -171,6 +171,15 @@ graph-check:  ## Prove a second load changes nothing
 
 measure-ranking:  ## Re-measure candidate ranking and rewrite its reports
 	PYTHONPATH=src uv run python scripts/measure_ranking.py
+
+# Three trials per task, as SPEC.md Section 9.3 specifies for pass^3. B0 has
+# no sampling in it, so its pass^3 equals its pass@1; that is a true statement
+# about a deterministic system rather than a shortcut, and it is worth having
+# in the report as the reference every later configuration is compared to.
+eval-b0:  ## Run baseline B0 on every split and write the reports
+	$(FIREBREAK) eval run --config b0 --split validation --trials 3
+	$(FIREBREAK) eval run --config b0 --split test_id --trials 3
+	$(FIREBREAK) eval run --config b0 --split test_ood --trials 3
 
 compare-log-templates:  ## Re-decide ADR-0006 by comparing the masker against Drain
 	PYTHONPATH=src uv run python scripts/compare_log_templates.py
