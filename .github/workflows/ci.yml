@@ -16,6 +16,32 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+
+    services:
+      # Without this the Neo4j integration tests skip, and skipping is the
+      # failure mode worth guarding against: the Cypher would be verified only
+      # on whichever machine happened to have a database running. SPEC.md rule
+      # 3 says an API is confirmed rather than assumed, and Cypher is an API.
+      #
+      # Pinned to the same patch release as ops/compose.core.yml, so CI and a
+      # developer's machine are testing against one engine.
+      neo4j:
+        image: neo4j:5.26.1-community
+        env:
+          NEO4J_AUTH: neo4j/firebreak-local
+        ports:
+          - 7687:7687
+        # Asks the database a question rather than checking that a port is
+        # open. Neo4j accepts connections well before it will answer queries,
+        # and a test starting in that gap fails with an error that looks like a
+        # bug in the code under test.
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p firebreak-local 'RETURN 1'"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 20
+          --health-start-period 40s
+
     steps:
       - uses: actions/checkout@v5
         with:
@@ -42,6 +68,12 @@ jobs:
         run: uv run mypy src scripts
 
       - name: Test
+        # FIREBREAK_REQUIRE_NEO4J turns the integration tests' skip into a
+        # failure. A skipped suite and a passing one look identical in a
+        # summary line, so without this a broken service would quietly reduce
+        # what CI covers rather than failing.
+        env:
+          FIREBREAK_REQUIRE_NEO4J: "1"
         run: uv run pytest --cov --cov-report=term-missing
 
       - name: Ground truth leakage
