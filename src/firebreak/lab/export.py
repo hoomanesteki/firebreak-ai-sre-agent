@@ -5,10 +5,14 @@ it happened. This is the seam that does the pulling, kept behind a protocol
 so the recorder can be exercised without a stack and so the three backends
 can be written and verified one at a time.
 
-Only the Prometheus exporter is implemented here. The Jaeger and OpenSearch
-query APIs have not been checked against the pinned release yet, and SPEC.md
-rule 3 is explicit that APIs are confirmed rather than assumed. They arrive
-with the rest of the backends in Phase 3, before any real recording happens.
+`PrometheusExporter` handles metrics and the dependency graph. Spans and logs
+come from `lab/export_traces_logs.py`, whose query APIs were confirmed against
+the running stack rather than assumed, and `LiveExporter` composes all three
+into the one protocol the recorder takes.
+
+The composition is deliberate rather than one class doing everything. Each of
+the three backends was confirmed separately and each fails separately, so when
+a recording cannot get logs it says so about logs.
 """
 
 from __future__ import annotations
@@ -56,9 +60,44 @@ METRIC_QUERIES: dict[str, str] = {
     MetricName.SERVICE_GRAPH_FAILED: (
         "sum by (client, server) (rate(traces_service_graph_request_failed_total[2m]))"
     ),
-    MetricName.CONTAINER_MEMORY_BYTES: "sum by (service_name) (container_memory_usage)",
-    MetricName.CONTAINER_CPU_UTILISATION: "sum by (service_name) (container_cpu_utilization)",
+    # Container metrics are labelled `container_name`, not `service_name`, and
+    # their names are not what a reader would guess. All three facts were
+    # confirmed against the running stack on 2026-09-25; the previous values
+    # here were `container_memory_usage` and `container_cpu_utilization`
+    # grouped by `service_name`, and all three were wrong, so both queries
+    # returned nothing. SPEC.md rule 3 exists for exactly this, and the cost
+    # of skipping it here would have been every resource family recording
+    # arriving with no resource signal in it.
+    #
+    # In this demo a container name equals its service name for all sixteen
+    # application services, which `knowledge/services.yaml` records in its
+    # `container` field and a contract test asserts.
+    MetricName.CONTAINER_MEMORY_BYTES: (
+        "sum by (container_name) (container_memory_usage_total_bytes)"
+    ),
+    MetricName.CONTAINER_CPU_UTILISATION: (
+        "sum by (container_name) (container_cpu_utilization_ratio)"
+    ),
 }
+
+# What the service_graph connector calls a peer it could not identify. It
+# emits this when a client span has no matching server span in the window,
+# which happens at a window boundary and for calls out of the instrumented
+# system.
+#
+# Edges touching it are dropped from the topology. The traffic is real, and
+# keeping it would put a service named `unknown` into the dependency graph,
+# where the candidate ranking would treat it as a service that could be a root
+# cause and could name it in a report. An unidentifiable peer cannot inform a
+# dependency ranking, so the honest thing is to leave it out rather than to
+# rank a placeholder. On a four minute window this dropped 9 of 37 edges
+# carrying about 15 percent of the observed traffic.
+UNKNOWN_PEER = "unknown"
+
+# Labels that name the subject of a sample, in the order they are trusted.
+# Declared as a list rather than written into a chain of `or` calls, because
+# adding a metric with a new subject label should be one edit in one place.
+SUBJECT_LABELS: tuple[str, ...] = ("service_name", "container_name", "client")
 
 
 class ExportError(Exception):
@@ -136,7 +175,7 @@ class PrometheusExporter:
                 labels = series.get("metric", {})
                 if not isinstance(labels, dict):
                     continue
-                service = str(labels.get("service_name") or labels.get("client") or "")
+                service = _subject(labels)
                 labels_json = json.dumps(labels, sort_keys=True)
                 for sample in series.get("values", []):
                     if not isinstance(sample, list) or len(sample) != 2:
@@ -162,11 +201,23 @@ class PrometheusExporter:
         pairing client and server spans, so this is what actually called what
         during the incident rather than a diagram somebody drew.
         """
-        totals = self._edge_totals("service_graph_requests_total", start, end)
-        failures = self._edge_totals("service_graph_failed_total", start, end)
+        # Looked up by the declared MetricName, not by a second spelling of
+        # it. This previously asked for "service_graph_requests_total" while
+        # the declared key is MetricName.SERVICE_GRAPH_REQUESTS, whose value is
+        # "traces_service_graph_request_total", so the lookup missed and every
+        # recording exported a topology with zero edges. Nothing failed: the
+        # dependency ranking would simply have had no graph to walk.
+        #
+        # That is the fifth instance in this codebase of two components
+        # agreeing on a type and disagreeing on a name, and the fifth time it
+        # returned empty rather than erroring.
+        totals = self._edge_totals(MetricName.SERVICE_GRAPH_REQUESTS, start, end)
+        failures = self._edge_totals(MetricName.SERVICE_GRAPH_FAILED, start, end)
 
         edges: list[dict[str, Any]] = []
         for (client, server), requests in sorted(totals.items()):
+            if client == UNKNOWN_PEER or server == UNKNOWN_PEER:
+                continue
             failed = failures.get((client, server), 0.0)
             edges.append(
                 EdgeRecord(
@@ -185,11 +236,14 @@ class PrometheusExporter:
         }
 
     def _edge_totals(
-        self, metric_name: str, start: datetime, end: datetime
+        self, metric_name: MetricName, start: datetime, end: datetime
     ) -> dict[tuple[str, str], float]:
         query = self._queries.get(metric_name)
         if query is None:
-            return {}
+            raise ExportError(
+                f"no query is declared for {metric_name}, so the topology would be "
+                "exported empty; add it to METRIC_QUERIES rather than returning nothing"
+            )
         totals: dict[tuple[str, str], float] = {}
         for series in self.query_range(query, start, end):
             labels = series.get("metric", {})
@@ -207,18 +261,36 @@ class PrometheusExporter:
         return totals
 
     def export_traces(self, start: datetime, end: datetime) -> list[dict[str, Any]]:
-        """Not implemented here. See the module docstring."""
+        """Prometheus has no spans. Use `LiveExporter`.
+
+        Raising rather than returning an empty list. An empty list would let a
+        recording succeed with no traces in it, and a bundle missing a whole
+        signal is worse than a recording that refused to start.
+        """
         raise ExportError(
-            "trace export needs the Jaeger query API, which is confirmed and "
-            "implemented in Phase 3 before any real recording"
+            "Prometheus does not hold spans; compose with JaegerExporter via LiveExporter"
         )
 
     def export_logs(self, start: datetime, end: datetime) -> list[dict[str, Any]]:
-        """Not implemented here. See the module docstring."""
+        """Prometheus has no logs. Use `LiveExporter`."""
         raise ExportError(
-            "log export needs the OpenSearch query API, which is confirmed and "
-            "implemented in Phase 3 before any real recording"
+            "Prometheus does not hold logs; compose with OpenSearchExporter via LiveExporter"
         )
+
+
+def _subject(labels: dict[str, Any]) -> str:
+    """Which service a sample belongs to, from whichever label carries it.
+
+    The span metrics use `service_name`, the container metrics use
+    `container_name`, and the service graph metrics use `client`. Recording an
+    empty subject would produce a bundle whose per service queries silently
+    return nothing for a whole metric.
+    """
+    for label in SUBJECT_LABELS:
+        value = labels.get(label)
+        if value:
+            return str(value)
+    return ""
 
 
 def _as_float(value: Any) -> float | None:
@@ -246,3 +318,37 @@ def collect_signals(
         "logs": exporter.export_logs(start, end),
         "topology": exporter.export_topology(start, end),
     }
+
+
+class LiveExporter:
+    """Every signal from the running stack, composed from three backends.
+
+    Satisfies `TelemetryExporter` by delegation. Composition rather than
+    inheritance or one large class, because the three systems underneath are
+    genuinely independent: Prometheus can be healthy while OpenSearch is
+    behind, and a recording that fails should say which one failed.
+    """
+
+    def __init__(
+        self,
+        client: httpx.Client,
+        endpoints: DemoEndpoints = DEFAULT_ENDPOINTS,
+        step_seconds: int = EXPORT_STEP_SECONDS,
+    ) -> None:
+        from firebreak.lab.export_traces_logs import JaegerExporter, OpenSearchExporter
+
+        self._metrics = PrometheusExporter(client, endpoints, step_seconds=step_seconds)
+        self._traces = JaegerExporter(endpoints, client)
+        self._logs = OpenSearchExporter(endpoints, client)
+
+    def export_metrics(self, start: datetime, end: datetime) -> list[dict[str, Any]]:
+        return self._metrics.export_metrics(start, end)
+
+    def export_topology(self, start: datetime, end: datetime) -> dict[str, Any]:
+        return self._metrics.export_topology(start, end)
+
+    def export_traces(self, start: datetime, end: datetime) -> list[dict[str, Any]]:
+        return self._traces.export_traces(start, end)
+
+    def export_logs(self, start: datetime, end: datetime) -> list[dict[str, Any]]:
+        return self._logs.export_logs(start, end)

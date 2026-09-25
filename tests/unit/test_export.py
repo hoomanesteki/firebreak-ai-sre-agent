@@ -13,6 +13,7 @@ from firebreak.lab.export import (
     PrometheusExporter,
     collect_signals,
 )
+from firebreak.signals import MetricName
 
 
 def _client(handler):
@@ -252,8 +253,15 @@ def test_export_topology_builds_edges_with_rates_and_error_ratio():
         return httpx.Response(200, json={"status": "success", "data": {"result": result}})
 
     queries = {
-        "service_graph_requests_total": "requests_query",
-        "service_graph_failed_total": "failed_query",
+        # The declared names, deliberately. An earlier version of this stub
+        # used "service_graph_requests_total" and "service_graph_failed_total",
+        # which are not what `METRIC_QUERIES` is keyed by, and because the
+        # production lookup used the same two wrong names the test passed while
+        # every real export produced a topology with no edges. A stub written
+        # from the implementation cannot catch a vocabulary bug; it has to be
+        # written from the declared vocabulary.
+        MetricName.SERVICE_GRAPH_REQUESTS: "requests_query",
+        MetricName.SERVICE_GRAPH_FAILED: "failed_query",
     }
     exporter = PrometheusExporter(client=_client(handler), queries=queries)
     start, end = _window()
@@ -284,8 +292,15 @@ def test_export_topology_error_ratio_is_zero_when_requests_are_zero():
         return httpx.Response(200, json={"status": "success", "data": {"result": result}})
 
     queries = {
-        "service_graph_requests_total": "requests_query",
-        "service_graph_failed_total": "failed_query",
+        # The declared names, deliberately. An earlier version of this stub
+        # used "service_graph_requests_total" and "service_graph_failed_total",
+        # which are not what `METRIC_QUERIES` is keyed by, and because the
+        # production lookup used the same two wrong names the test passed while
+        # every real export produced a topology with no edges. A stub written
+        # from the implementation cannot catch a vocabulary bug; it has to be
+        # written from the declared vocabulary.
+        MetricName.SERVICE_GRAPH_REQUESTS: "requests_query",
+        MetricName.SERVICE_GRAPH_FAILED: "failed_query",
     }
     exporter = PrometheusExporter(client=_client(handler), queries=queries)
     start, end = _window()
@@ -315,8 +330,15 @@ def test_export_topology_skips_series_missing_client_or_server():
         return httpx.Response(200, json={"status": "success", "data": {"result": result}})
 
     queries = {
-        "service_graph_requests_total": "requests_query",
-        "service_graph_failed_total": "failed_query",
+        # The declared names, deliberately. An earlier version of this stub
+        # used "service_graph_requests_total" and "service_graph_failed_total",
+        # which are not what `METRIC_QUERIES` is keyed by, and because the
+        # production lookup used the same two wrong names the test passed while
+        # every real export produced a topology with no edges. A stub written
+        # from the implementation cannot catch a vocabulary bug; it has to be
+        # written from the declared vocabulary.
+        MetricName.SERVICE_GRAPH_REQUESTS: "requests_query",
+        MetricName.SERVICE_GRAPH_FAILED: "failed_query",
     }
     exporter = PrometheusExporter(client=_client(handler), queries=queries)
     start, end = _window()
@@ -331,19 +353,19 @@ def test_export_topology_skips_series_missing_client_or_server():
 # --- export_traces / export_logs ----------------------------------------
 
 
-def test_export_traces_raises_export_error_mentioning_phase_3():
+def test_export_traces_from_prometheus_points_at_the_right_backend():
     exporter = PrometheusExporter(client=_client(lambda request: httpx.Response(200, json={})))
     start, end = _window()
 
-    with pytest.raises(ExportError, match="Phase 3"):
+    with pytest.raises(ExportError, match="does not hold"):
         exporter.export_traces(start, end)
 
 
-def test_export_logs_raises_export_error_mentioning_phase_3():
+def test_export_logs_from_prometheus_points_at_the_right_backend():
     exporter = PrometheusExporter(client=_client(lambda request: httpx.Response(200, json={})))
     start, end = _window()
 
-    with pytest.raises(ExportError, match="Phase 3"):
+    with pytest.raises(ExportError, match="does not hold"):
         exporter.export_logs(start, end)
 
 
