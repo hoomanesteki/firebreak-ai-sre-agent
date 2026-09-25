@@ -3,7 +3,7 @@
 SHELL := /bin/bash
 
 .PHONY: help setup verify lint format types test test-cov hygiene leakage clean unhide \
-        live live-config live-down live-logs lab-flags lab-library lab-bundles lab-package lab-verify lab-smoke lab-webhook \
+        live live-config live-down live-logs lab-flags lab-library lab-bundles lab-package lab-verify lab-smoke lab-webhook lab-record lab-record-library \
         graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates eval-b0
 
 help:  ## Show the available commands
@@ -134,6 +134,17 @@ lab-smoke:  ## Turn each feature flag on in turn and record the effect
 
 lab-webhook:  ## Receive Alertmanager deliveries on port 8000
 	$(FIREBREAK) lab webhook
+
+lab-record:  ## Record one scenario: make lab-record SPEC=<scenario-id> [RUN=run1]
+	@test -n "$(SPEC)" || (echo "usage: make lab-record SPEC=<scenario-id>"; exit 1)
+	$(FIREBREAK) lab record --spec $(SPEC) --run $(or $(RUN),run1)
+
+# Resumable. Skips anything already on disk, so stopping it and starting it
+# again continues rather than restarting. The whole library is about 36 hours
+# of wall clock and there is no compressing it: each scenario's baseline,
+# incident and recovery have to actually happen.
+lab-record-library:  ## Record the library in priority order, resumably
+	PYTHONPATH=src uv run python scripts/record_library.py $(if $(SPLIT),--split $(SPLIT),) $(if $(LIMIT),--limit $(LIMIT),)
 
 # --- Knowledge graph -------------------------------------------------
 #
