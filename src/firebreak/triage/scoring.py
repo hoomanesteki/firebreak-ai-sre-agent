@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from firebreak.backends.base import MetricPoint, QueryBackend
+from firebreak.backends.base import MAX_SERIES_POINTS, MetricPoint, QueryBackend
 from firebreak.signals import MetricName, StatusCode
 from firebreak.tools.evidence import TimeRange
 from firebreak.triage.anomaly import (
@@ -41,7 +41,12 @@ ANOMALY_DIRECTIONS: dict[MetricName, Direction] = {
     MetricName.SERVICE_GRAPH_REQUESTS: Direction.EITHER,
 }
 
-MAX_SAMPLES_PER_SERIES = 400
+# Read through `metric_series`, not `query_metrics`. The tool row cap of fifty
+# exists to protect a model's context and this code has none to protect; going
+# through it gave each of eighteen services three samples on the first real
+# recording, which `MIN_BASELINE_POINTS` then discarded, and a 25x latency
+# regression on the true culprit scored zero.
+MAX_SAMPLES_PER_SERIES = MAX_SERIES_POINTS
 
 # How far a series has to move before its crossing counts as the onset. The
 # same number the anomaly tools use as their default floor, so "anomalous"
@@ -87,7 +92,7 @@ def fetch_metric(
     limit: int = MAX_SAMPLES_PER_SERIES,
 ) -> list[MetricPoint]:
     """One metric over one window, with the call counter reduced to errors."""
-    points = backend.query_metrics(metric, window, services=services, limit=limit)
+    points = backend.metric_series(metric, window, services=services, limit=limit)
     return error_only(points) if metric is MetricName.SPAN_CALLS_TOTAL else points
 
 
