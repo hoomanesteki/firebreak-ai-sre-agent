@@ -171,40 +171,42 @@ def main() -> int:
     recorded = (
         {path.name: path for path in iter_bundles(BUNDLES_DIR)} if BUNDLES_DIR.is_dir() else {}
     )
-    using_recorded = bool(recorded and labels)
+
+    # Decided per scenario rather than globally. The first version flipped to
+    # recorded bundles as soon as any existed anywhere, so the first real
+    # recording meant every scenario without one was silently dropped and the
+    # report covered one bundle while claiming to cover the splits. A library is
+    # recorded over days, so the partly recorded state is the normal one.
+    by_scenario: dict[str, Path] = {}
+    for bundle_id, bundle_dir in recorded.items():
+        label = labels.get(bundle_id)
+        if label is not None:
+            by_scenario[label.scenario_id] = bundle_dir
 
     scored: list[Scored] = []
-    if using_recorded:
-        for bundle_id, bundle_dir in sorted(recorded.items()):
-            label = labels.get(bundle_id)
-            if label is None or label.split not in {s.value for s in SCORED_SPLITS}:
-                continue
-            spec = load_library(SPECS_DIR).get(label.scenario_id)
+    from_recording = 0
+    with tempfile.TemporaryDirectory(prefix="firebreak-b0-") as temporary:
+        for spec in specs:
+            existing = by_scenario.get(spec.id)
+            if existing is not None:
+                bundle_dir = existing
+                from_recording += 1
+                verify = True
+            else:
+                bundle_dir = Path(temporary) / derive_bundle_id(spec.id, SYNTHETIC_RUN)
+                build_synthetic_bundle(bundle_dir, spec, SYNTHETIC_RUN, seed=SYNTHETIC_SEED)
+                verify = False
             scored.append(
                 _score_one(
                     bundle_dir,
-                    label.scenario_id,
-                    spec.family if spec else "unknown",
-                    label.split,
-                    label.target_service,
-                    verify=True,
+                    spec.id,
+                    spec.family,
+                    spec.split.value,
+                    spec.target_service,
+                    verify=verify,
                 )
             )
-    else:
-        with tempfile.TemporaryDirectory(prefix="firebreak-b0-") as temporary:
-            for spec in specs:
-                bundle_dir = Path(temporary) / derive_bundle_id(spec.id, SYNTHETIC_RUN)
-                build_synthetic_bundle(bundle_dir, spec, SYNTHETIC_RUN, seed=SYNTHETIC_SEED)
-                scored.append(
-                    _score_one(
-                        bundle_dir,
-                        spec.id,
-                        spec.family,
-                        spec.split.value,
-                        spec.target_service,
-                        verify=False,
-                    )
-                )
+    using_recorded = from_recording == len(specs)
 
     report = {
         "what": "Baseline B0: deterministic triage with a template report, no model",
@@ -216,13 +218,16 @@ def main() -> int:
         "generated_at": datetime.now(UTC).isoformat(),
         "generated_by": "scripts/run_baseline_b0.py",
         "data_source": "recorded bundles" if using_recorded else "synthetic fixtures",
+        "scenarios_from_recordings": from_recording,
+        "scenarios_from_fixtures": len(specs) - from_recording,
         "caveat": (
             "Recorded incidents."
             if using_recorded
             else (
-                "Synthetic fixtures, because no incident library has been recorded yet. "
-                "This is a design signal and must not be quoted as a result. Record the "
-                "library and re-run to get the real figure."
+                f"Mixed: {from_recording} of {len(specs)} scenarios came from recordings "
+                "and the rest from synthetic fixtures, which are easier than reality. "
+                "A mixed figure is a design signal and must not be quoted as a result. "
+                "Record the whole library and re-run to get the real one."
             )
         ),
         "splits": [split.value for split in SCORED_SPLITS],

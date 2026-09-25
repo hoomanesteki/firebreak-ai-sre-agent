@@ -9,11 +9,11 @@ So this is built to be interrupted. It skips anything already recorded, records
 in a priority order chosen so partial progress is useful at every point, and
 writes its state after each scenario rather than at the end.
 
-**Priority order, and why.** Held out splits first, because they are the only
-ones whose numbers can be quoted, and `test_ood` before `test_id` because it
-holds entire families back and produces the most informative figure. Then
-validation, then train, because those are for re-tuning thresholds against real
-data and a threshold tuned on fixtures is better than no threshold at all.
+**Priority order, and why.** Validation and train first, then the held out
+splits. That is the reverse of the obvious order and the reason is in
+`SPLIT_ORDER`: thresholds tuned on synthetic fixtures do not transfer to real
+telemetry, so a held out recording made before they are re-tuned scores zero and
+measures nothing.
 
 Run with `make lab-record-library`. Stop it with Ctrl-C and run it again
 whenever; it picks up where it left off.
@@ -44,14 +44,29 @@ PROGRESS_PATH = REPO_ROOT / "reports" / "lab" / "recording_progress.json"
 
 DEFAULT_RUN = "run1"
 
-# Held out first: those are the only splits whose numbers may be quoted, and
-# `test_ood` holds whole families back so it says the most about
-# generalisation. Train last because it is the largest and the least urgent.
+# Tunable splits first, which is the reverse of the obvious order, and the
+# first real recording is what changed it.
+#
+# The obvious order is held out splits first, since they are the only ones whose
+# numbers may be quoted. That was the original order here and it is wrong,
+# because a quotable number from a miscalibrated system is zero and measures
+# nothing about the system.
+#
+# The first recorded incident showed why. Deterministic triage ranked the true
+# culprit first on real telemetry, and then abstained, because the abstention
+# threshold was tuned on synthetic fixtures whose anomaly magnitudes are several
+# times larger than real ones. Every held out recording would have scored zero
+# until that threshold was re-tuned, and it can only be re-tuned on validation
+# and train.
+#
+# So: validation first because it is the split SPEC.md Section 9 designates for
+# tuning and the smallest at fifteen scenarios, then train, then the held out
+# splits once the numbers they produce can mean something.
 SPLIT_ORDER: tuple[Split, ...] = (
-    Split.TEST_OOD,
-    Split.TEST_ID,
     Split.VALIDATION,
     Split.TRAIN,
+    Split.TEST_ID,
+    Split.TEST_OOD,
 )
 
 # A recording failure is usually transient: the stack is briefly busy, a
