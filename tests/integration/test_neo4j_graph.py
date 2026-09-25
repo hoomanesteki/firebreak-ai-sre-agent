@@ -155,12 +155,26 @@ def knowledge() -> Knowledge:
     return Knowledge.model_validate(KNOWLEDGE_YAML)
 
 
+# Set in CI, where a Neo4j service is provided and an unreachable database
+# means the service is broken rather than absent.
+#
+# Skipping is the failure mode worth guarding against here, because a skipped
+# suite and a passing one look identical in a summary line. Without this the
+# Cypher would be verified only on whichever machine happened to have a
+# database running, which is the same as not verifying it.
+REQUIRE_NEO4J = os.environ.get("FIREBREAK_REQUIRE_NEO4J") == "1"
+
+
 @pytest.fixture(scope="module")
 def driver() -> Iterator[object]:
     try:
         with connect(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD) as connected:
             yield connected
     except GraphError as error:
+        if REQUIRE_NEO4J:
+            pytest.fail(
+                f"FIREBREAK_REQUIRE_NEO4J is set but no Neo4j is reachable at {NEO4J_URI}: {error}"
+            )
         pytest.skip(f"no Neo4j at {NEO4J_URI}: {error}")
 
 
