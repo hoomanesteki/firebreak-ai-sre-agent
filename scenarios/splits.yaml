@@ -1,0 +1,138 @@
+# Which split each scenario belongs to. Generated, and then permanent.
+#
+# **A scenario's split never changes once it is in this file.** That is the whole
+# point of recording it rather than deriving it.
+#
+# The first version derived splits on every run by sorting each family's ids and
+# taking the first half as train. That is unstable: removing one scenario shifts
+# the position of every later one, so scenarios move between splits for a reason
+# that has nothing to do with them.
+#
+# It is a leakage hazard rather than an untidiness. Removing the twelve
+# imageSlowLoad scenarios moved two latency scenarios out of validation, and had
+# the shift gone the other way it would have moved scenarios that were already
+# recorded and analysed into test_id, silently voiding the held out guarantee
+# that is the only thing making their numbers worth having. When the hash based
+# assignment below was first tried it would have done exactly that to four
+# recorded scenarios.
+#
+# So: a new scenario is assigned by a hash of its own id, recorded here, and
+# left alone for ever. Adding or removing scenarios cannot move anything else.
+#
+# To deliberately move a scenario, edit this file, and be sure it has never been
+# looked at: a scenario that has been analysed can never become held out.
+splits:
+  ad-failure-on-20u: train
+  ad-failure-on-50u: train
+  ad-failure-on-5u: train
+  ad-high-cpu-on-20u: test_ood
+  ad-high-cpu-on-50u: test_ood
+  ad-high-cpu-on-5u: test_ood
+  ad-manual-gc-on-20u: test_ood
+  ad-manual-gc-on-50u: test_ood
+  ad-manual-gc-on-5u: test_ood
+  cart-failure-25pct-20u: train
+  cart-failure-25pct-50u: train
+  cart-failure-25pct-5u: train
+  cart-failure-50pct-20u: train
+  cart-failure-50pct-50u: train
+  cart-failure-50pct-5u: train
+  cart-failure-90pct-20u: train
+  cart-failure-90pct-50u: train
+  cart-failure-90pct-5u: train
+  distractor-cart-failure-10pct-20u: train
+  distractor-cart-failure-10pct-50u: train
+  distractor-cart-failure-10pct-5u: train
+  distractor-intl-shipping-slowdown-5sec-20u: train
+  distractor-intl-shipping-slowdown-5sec-50u: validation
+  distractor-intl-shipping-slowdown-5sec-5u: test_id
+  distractor-payment-failure-75pct-20u: test_id
+  distractor-payment-failure-75pct-50u: test_id
+  distractor-payment-failure-75pct-5u: test_id
+  double-fault-ad-failure-product-catalog-failure-20u: train
+  double-fault-ad-failure-product-catalog-failure-50u: train
+  double-fault-ad-failure-product-catalog-failure-5u: train
+  double-fault-cart-failure-ad-failure-20u: train
+  double-fault-cart-failure-ad-failure-50u: train
+  double-fault-cart-failure-ad-failure-5u: train
+  double-fault-payment-failure-cart-failure-20u: validation
+  double-fault-payment-failure-cart-failure-50u: validation
+  double-fault-payment-failure-cart-failure-5u: test_id
+  double-fault-product-catalog-failure-intl-shipping-slowdown-20u: test_id
+  double-fault-product-catalog-failure-intl-shipping-slowdown-50u: test_id
+  double-fault-product-catalog-failure-intl-shipping-slowdown-5u: test_id
+  email-memory-leak-10000x-20u: test_ood
+  email-memory-leak-10000x-50u: test_ood
+  email-memory-leak-10000x-5u: test_ood
+  email-memory-leak-1000x-20u: test_ood
+  email-memory-leak-1000x-50u: test_ood
+  email-memory-leak-1000x-5u: test_ood
+  email-memory-leak-100x-20u: test_ood
+  email-memory-leak-100x-50u: test_ood
+  email-memory-leak-100x-5u: test_ood
+  email-memory-leak-10x-20u: test_ood
+  email-memory-leak-10x-50u: test_ood
+  email-memory-leak-10x-5u: test_ood
+  email-memory-leak-1x-20u: test_ood
+  email-memory-leak-1x-50u: test_ood
+  email-memory-leak-1x-5u: test_ood
+  failed-readiness-probe-on-20u-sr10: train
+  failed-readiness-probe-on-20u-sr5: train
+  failed-readiness-probe-on-50u-sr10: train
+  failed-readiness-probe-on-50u-sr5: validation
+  failed-readiness-probe-on-5u-sr10: test_id
+  failed-readiness-probe-on-5u-sr5: test_id
+  intl-shipping-slowdown-10sec-20u: validation
+  intl-shipping-slowdown-10sec-50u: validation
+  intl-shipping-slowdown-10sec-5u: train
+  intl-shipping-slowdown-5sec-20u: validation
+  intl-shipping-slowdown-5sec-50u: test_id
+  intl-shipping-slowdown-5sec-5u: test_id
+  kafka-queue-problems-on-20u-sr10: train
+  kafka-queue-problems-on-20u-sr5: train
+  kafka-queue-problems-on-50u-sr10: train
+  kafka-queue-problems-on-50u-sr5: validation
+  kafka-queue-problems-on-5u-sr10: test_id
+  kafka-queue-problems-on-5u-sr5: test_id
+  no-fault-flood-homepage-sr1-20u: train
+  no-fault-flood-homepage-sr1-50u: train
+  no-fault-flood-homepage-sr1-5u: train
+  no-fault-flood-homepage-sr10-20u: train
+  no-fault-flood-homepage-sr10-50u: train
+  no-fault-flood-homepage-sr10-5u: train
+  no-fault-flood-homepage-sr2-20u: train
+  no-fault-flood-homepage-sr2-50u: validation
+  no-fault-flood-homepage-sr2-5u: validation
+  no-fault-flood-homepage-sr20-20u: validation
+  no-fault-flood-homepage-sr20-50u: test_id
+  no-fault-flood-homepage-sr20-5u: test_id
+  no-fault-flood-homepage-sr5-20u: test_id
+  no-fault-flood-homepage-sr5-50u: test_id
+  no-fault-flood-homepage-sr5-5u: test_id
+  payment-failure-25pct-20u: validation
+  payment-failure-25pct-50u: validation
+  payment-failure-25pct-5u: validation
+  payment-failure-50pct-20u: validation
+  payment-failure-50pct-50u: test_id
+  payment-failure-50pct-5u: test_id
+  payment-failure-90pct-20u: test_id
+  payment-failure-90pct-50u: test_id
+  payment-failure-90pct-5u: test_id
+  payment-unreachable-on-20u-sr10: train
+  payment-unreachable-on-20u-sr5: train
+  payment-unreachable-on-50u-sr10: train
+  payment-unreachable-on-50u-sr5: validation
+  payment-unreachable-on-5u-sr10: test_id
+  payment-unreachable-on-5u-sr5: test_id
+  product-catalog-failure-on-20u: test_id
+  product-catalog-failure-on-50u: test_id
+  product-catalog-failure-on-5u: test_id
+  product-catalog-lock-contention-on-20u-sr10: test_ood
+  product-catalog-lock-contention-on-20u-sr5: test_ood
+  product-catalog-lock-contention-on-50u-sr10: test_ood
+  product-catalog-lock-contention-on-50u-sr5: test_ood
+  product-catalog-lock-contention-on-5u-sr10: test_ood
+  product-catalog-lock-contention-on-5u-sr5: test_ood
+  recommendation-cache-failure-on-20u: test_ood
+  recommendation-cache-failure-on-50u: test_ood
+  recommendation-cache-failure-on-5u: test_ood
