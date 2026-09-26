@@ -198,9 +198,30 @@ def record_one(spec: ScenarioSpec, run: str) -> tuple[bool, str]:
     except subprocess.TimeoutExpired:
         return False, "timed out after 30 minutes"
     if result.returncode != 0:
-        tail = (result.stderr or result.stdout).strip().splitlines()
-        return False, tail[-1] if tail else f"exit code {result.returncode}"
+        return False, _diagnosis(result.stderr, result.stdout, result.returncode)
     return True, ""
+
+
+# How much of a failed recording's output to keep. The first version kept the
+# last line, and the first real failure reported "sending a response." with no
+# indication of which endpoint, which request, or what preceded it. Eighteen
+# minutes of a live stack deserves more than one line of explanation.
+DIAGNOSIS_LINES = 12
+DIAGNOSIS_CHARS = 2000
+
+
+def _diagnosis(stderr: str, stdout: str, returncode: int) -> str:
+    """The most informative tail of a failed recording's output.
+
+    Prefers stderr, falls back to stdout, and keeps several lines rather than
+    one, because the useful part of a traceback or an httpx error is rarely its
+    last line alone.
+    """
+    for stream in (stderr, stdout):
+        lines = [line for line in (stream or "").strip().splitlines() if line.strip()]
+        if lines:
+            return " | ".join(lines[-DIAGNOSIS_LINES:])[:DIAGNOSIS_CHARS]
+    return f"exit code {returncode} with no output"
 
 
 def _inherited_environment() -> dict[str, str]:
