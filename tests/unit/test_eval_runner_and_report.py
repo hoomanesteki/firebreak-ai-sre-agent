@@ -320,3 +320,32 @@ class TestTheCommitStampIsHonest:
     def test_the_real_repository_answers_one_way_or_the_other(self) -> None:
         stamp = report_module.git_commit()
         assert stamp == "unknown" or len(stamp.removesuffix("-dirty")) == 40
+
+
+def test_a_dirty_run_does_not_overwrite_a_clean_one(tmp_path: Path) -> None:
+    """Same commit, different code, different numbers: they need different names.
+
+    Without the marker in the filename the second run silently replaces the
+    first's numbers under a name claiming they came from the same code.
+    """
+    clean = _minimal_report(commit="a" * 40)
+    dirty = _minimal_report(commit="a" * 40 + "-dirty")
+    clean_json, _ = report_paths(clean, tmp_path)
+    dirty_json, _ = report_paths(dirty, tmp_path)
+    assert clean_json != dirty_json
+    assert dirty_json.name.endswith("-dirty.json")
+
+
+def _minimal_report(commit: str):  # type: ignore[no-untyped-def]
+    from firebreak.evals.report import EvalReport
+
+    return EvalReport(
+        configuration="b0",
+        split="validation",
+        trials_per_task=1,
+        using_recorded_bundles=True,
+        generated_at="2026-09-26T00:00:00+00:00",
+        commit=commit,
+        overall=compute_metrics([], [], trials_per_task=1, resamples=10),
+        by_family={},
+    )

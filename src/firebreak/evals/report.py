@@ -331,9 +331,16 @@ def report_paths(report: EvalReport, root: Path = REPORTS_DIR) -> tuple[Path, Pa
     Section 9.6 specifies. The commit in the filename is what makes two runs of
     different code distinguishable at a glance in a directory listing, which is
     the moment it matters.
+
+    A dirty run keeps the marker in the filename too. Without it a run from a
+    modified tree and a run from the committed one would write to the same path,
+    and the second would silently replace the first's numbers with different ones
+    under a name that claims they came from the same code.
     """
     day = report.generated_at[:10]
     stem = f"{day}_{report.commit[:12]}"
+    if report.commit.endswith("-dirty"):
+        stem += "-dirty"
     directory = root / report.configuration / report.split
     return directory / f"{stem}.json", directory / f"{stem}.md"
 
