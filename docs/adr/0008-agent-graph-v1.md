@@ -1,12 +1,13 @@
 # ADR-0008: Agent graph v1, and why the loop is not yet a LangGraph
 
-- Status: Accepted, partial
-- Date: 2026-09-25
-- Phase: 6
+- Status: Accepted
+- Date: 2026-09-26
+- Phase: 6, finalised in Phase 7
 
-Partial by design: SPEC.md Section 17 marks this record as partial in Phase 6
-and completes it in Phase 9, when the approval interrupt exists and the
-question this ADR defers can actually be answered.
+SPEC.md Section 17 marks this record partial in Phase 6 and final in Phase 7.
+The Phase 6 text said Phase 9, which was wrong: Phase 9 is when the approval
+interrupt arrives and the deferral below is revisited, not when this record is
+finalised. What Phase 7 added is at the end, under "What Phase 7 settled".
 
 ## Context
 
@@ -111,6 +112,50 @@ model tier fails there is something to fall back to that is not a stack trace.
 **Stub completions report zero tokens and zero cost.** Reporting invented
 figures would put fiction into the cost column of every eval run made in stub
 mode, and those runs are the ones CI makes.
+
+## What Phase 7 settled
+
+The Phase 6 record left three nodes described but not finished: the hypothesis
+board, the critic, and the exit gate. All three are now built, and two of the
+three claims above turned out to be measurable.
+
+**The hypothesis board counts, and the count is a difference.** `support` is
+evidence for minus evidence against, not a ratio. A hypothesis with one piece of
+evidence each way scores zero rather than one half, because one half reads as
+moderate support for something entirely unresolved. That number is what the exit
+gate's abstention check reads, so the board and the gate cannot disagree about
+what "supported" means.
+
+**The critic is a switch, and A1 measures it.** SPEC.md Section 9.5's ablation
+A1 is `investigate(use_critic=False)` rather than a second graph, so the two
+configurations cannot differ in anything but the critic. On the eight clean
+validation recordings in stub mode, FB and A1 score identically on every grader:
+the critic changes no outcome. That is a statement about the stub, which applies
+one keyword rule, and not about a model. It is recorded because the comparison
+machinery now exists and will produce a real number the day credentials do.
+
+**The exit gate is code, and it is unavoidable.** Every route out of
+`investigate` returns through one function, which runs all six checks. The Phase
+6 version called the gate once at the end of the main loop, so the two
+short-circuit paths, a malformed incident and an abstaining triage, returned
+reports nothing had checked. Moving it to the single funnel is what makes
+"cannot be bypassed" a property of the code rather than a habit.
+
+Finding the gate's own bypass is the part worth recording. `run_exit_gate` had a
+`repair=False` argument meant to inspect without changing anything. It stripped
+the failing claims anyway, then re-checked the stripped report and returned
+`passed=True, removed=1`. A caller asking what was wrong got a silently shortened
+report claiming it was fine. It was a loop written for two passes with the
+removal inside the loop body; the fix was to stop pretending it was a loop.
+
+**What the gate needed from elsewhere.** Check 2 re-runs each cited record and
+compares hashes, and no record could re-run itself: `query` is a description
+("compare_windows:latency") and `parameters` are canonicalised, neither being
+what a tool would accept. The registry now stamps the tool name and its validated
+arguments onto the record it recorded, in one place rather than in fourteen
+tools. This is the sixth instance in this project of two components agreeing on a
+type and disagreeing on a vocabulary; the remedy is the same as the other five,
+which is to declare the vocabulary once and assert it in a test.
 
 ## Alternatives considered
 

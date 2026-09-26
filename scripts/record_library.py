@@ -35,7 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _reporting import describe_path
 from firebreak.lab.bundle import derive_bundle_id
-from firebreak.lab.scenario import ScenarioSpec, Split, load_library
+from firebreak.lab.scenario import FaultKind, ScenarioSpec, Split, load_library
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SPECS_DIR = REPO_ROOT / "scenarios" / "specs"
@@ -150,16 +150,27 @@ def already_recorded(spec: ScenarioSpec, run: str) -> bool:
 def ordered_scenarios(splits: tuple[Split, ...] = SPLIT_ORDER) -> list[ScenarioSpec]:
     """Every scenario, in recording priority order.
 
-    Sorted by id within a split so two runs agree about what comes next, which
-    matters for resumability: an interrupted run should continue rather than
-    start somewhere new.
+    Within a split, the no-fault scenarios come first, then everything else by
+    id. Sorted rather than shuffled so two runs agree about what comes next,
+    which is what makes an interrupted run continue rather than start somewhere
+    new.
+
+    **Why no-fault first.** They are the scarce resource, not the numerous one.
+    Validation has three of sixteen and train seven of thirty nine, and the
+    abstention threshold is the only tuned number whose accuracy depends entirely
+    on them: it decides when the system says nothing is wrong, and one healthy
+    recording cannot calibrate that. Measured on the first eight clean
+    recordings, with a single no-fault among them, the shipped threshold abstains
+    on five of seven real faults and no defensible replacement can be fitted.
+    `config/thresholds.yaml` records that measurement. Recording the negatives
+    early is what makes the threshold tunable at all, and a faulted recording is
+    no use for it however many there are.
     """
     library = load_library(SPECS_DIR)
     ordered: list[ScenarioSpec] = []
     for split in splits:
-        ordered.extend(
-            sorted((s for s in library.values() if s.split is split), key=lambda s: s.id)
-        )
+        in_split = [s for s in library.values() if s.split is split]
+        ordered.extend(sorted(in_split, key=lambda s: (s.fault.kind is not FaultKind.NONE, s.id)))
     return ordered
 
 
