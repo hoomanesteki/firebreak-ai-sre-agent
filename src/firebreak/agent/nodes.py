@@ -128,7 +128,7 @@ def entry_gate(state: InvestigationState) -> InvestigationState:
                 "report": Report(
                     incident_id=state.incident_id,
                     root_cause_service=None,
-                    claims=(Claim(text=f"Not investigated: {'; '.join(problems)}."),),
+                    notes=(f"Not investigated: {'; '.join(problems)}.",),
                 ),
             }
         )
@@ -422,27 +422,6 @@ def reporter(state: InvestigationState, context: NodeContext) -> Report:
         claims=written.claims,
         stopped_because=state.stopped_because,
     )
-
-
-def exit_gate(state: InvestigationState, report: Report) -> Report:
-    """Strip every claim that does not cite evidence the investigation gathered.
-
-    SPEC.md Section 6.9. Deterministic and unavoidable: a claim citing an id
-    nothing recorded is the cheapest fabrication there is, and a claim citing
-    nothing at all is an assertion the system cannot show.
-
-    A report stripped down to no claims still names its root cause, because the
-    ranking behind it is deterministic and did not come from a model. What it
-    loses is the prose, which is the right thing to lose.
-    """
-    kept = []
-    for claim in report.claims:
-        resolvable = tuple(
-            evidence_id for evidence_id in claim.evidence_ids if evidence_id in state.evidence
-        )
-        if resolvable:
-            kept.append(claim.model_copy(update={"evidence_ids": resolvable}))
-    return report.model_copy(update={"claims": tuple(kept)})
 
 
 def should_continue(state: InvestigationState) -> StopReason | None:

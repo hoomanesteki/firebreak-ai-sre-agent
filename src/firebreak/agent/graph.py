@@ -30,22 +30,23 @@ from pathlib import Path
 from typing import Any
 
 from firebreak.agent.budget import BudgetLimits, BudgetState, StopReason
+from firebreak.agent.gates import GateOutcome, run_exit_gate
 from firebreak.agent.llm import LlmClient
 from firebreak.agent.nodes import (
+    MIN_SUPPORT_TO_CONCLUDE,
     NodeContext,
     commander,
     critic,
     entry_gate,
-    exit_gate,
     hypothesis_board,
     reporter,
     run_specialist,
     seed_hypotheses,
     should_continue,
 )
+from firebreak.agent.reexecute import re_execute
 from firebreak.agent.state import (
     Alert,
-    Claim,
     Finding,
     InvestigationState,
     Report,
@@ -57,6 +58,7 @@ from firebreak.settings import LlmMode
 from firebreak.tools.base import ToolContext
 from firebreak.tools.registry import ALL_TOOLS, build_registry
 from firebreak.triage.pipeline import triage_bundle
+from firebreak.triage.thresholds import ThresholdError, load_thresholds
 
 # Every specialist runs every round in v1. SPEC.md Section 6.6 fans them out in
 # parallel; they are run in sequence here because each one's cost is a tool call
@@ -198,6 +200,10 @@ class InvestigationResult:
     rounds: int
     notes: list[str]
     wall_clock_seconds: float
+    # SPEC.md Section 6.9: the gate's results are kept, not just applied. A
+    # report that lost four statements and a report that passed cleanly look the
+    # same afterwards, and the difference is what an eval measures.
+    gate: GateOutcome
 
 
 def investigate(
@@ -265,9 +271,7 @@ def investigate(
             stop = should_continue(state)
 
         state = state.model_copy(update={"status": Status.REPORTING, "stopped_because": stop})
-        written = reporter(state, context)
-        final = exit_gate(state, written)
-        return _finish(state, final, stop, started, context)
+        return _finish(state, reporter(state, context), stop, started, context)
 
 
 def _collected(context: NodeContext) -> dict[str, Any]:
@@ -284,6 +288,12 @@ def _abstention_report(state: InvestigationState) -> Report:
 
     Written in code rather than by the reporter, because there is nothing to
     report and a model asked to write about nothing writes something.
+
+    The explanation is a note rather than a claim. It describes what the system
+    did and why it stopped, the numbers come from the deterministic triage result
+    rather than from a model, and there is no tool call to cite for them: triage
+    runs before the registry exists. A claim would fail check 1 and be removed,
+    which would leave an abstention with no stated reason.
     """
     triage = state.triage
     detail = ""
@@ -295,7 +305,7 @@ def _abstention_report(state: InvestigationState) -> Report:
     return Report(
         incident_id=state.incident_id,
         root_cause_service=None,
-        claims=(Claim(text=f"No service was unusual enough to investigate.{detail}"),),
+        notes=(f"No service was unusual enough to investigate.{detail}",),
     )
 
 
@@ -306,13 +316,55 @@ def _finish(
     started: float,
     context: NodeContext,
 ) -> InvestigationResult:
-    final = report or Report(incident_id=state.incident_id, root_cause_service=None)
+    """Run the exit gate and return the published report.
+
+    Every route out of `investigate` comes through here, which is what SPEC.md
+    Section 17 Phase 7's "the gate cannot be bypassed" means in code. An earlier
+    version called the gate once, at the end of the main loop, so the two
+    short-circuit paths returned reports nothing had checked.
+    """
+    written = report or Report(incident_id=state.incident_id, root_cause_service=None)
+    evidence = _collected(context)
+
+    # Re-run each cited record against the same backend, through a fresh tool
+    # context so verification does not spend the investigation's per-tool caps.
+    rerun = re_execute(
+        context.registry,
+        ToolContext(backend=context.tools.backend),
+        evidence,
+        written.cited_evidence,
+    )
+    context.notes.extend(rerun.notes)
+
+    outcome = run_exit_gate(
+        written, state.notebook, evidence, rerun.records, min_support=_min_support(context)
+    )
+    final = outcome.report
+    if outcome.notice is not None:
+        final = final.model_copy(update={"notes": (*final.notes, outcome.notice)})
     status = Status.ABSTAINED if final.abstained else Status.COMPLETE
     return InvestigationResult(
-        state=state.model_copy(update={"report": final, "status": status}),
+        state=state.model_copy(update={"report": final, "status": status, "evidence": evidence}),
         report=final,
         stopped_because=stop,
         rounds=state.budget.rounds,
         notes=list(context.notes),
         wall_clock_seconds=time.monotonic() - started,
+        gate=outcome,
     )
+
+
+def _min_support(context: NodeContext) -> int:
+    """The gate's abstention threshold, from `config/thresholds.yaml`.
+
+    Falls back to the loop's completion rule when the file cannot be read, and
+    says so in the notes. A gate that silently abstained on a different threshold
+    than the one on disk would make every abstention unexplainable.
+    """
+    try:
+        return load_thresholds().abstention.minimum_hypothesis_support
+    except ThresholdError as error:
+        context.notes.append(
+            f"could not read the abstention threshold ({error}), using {MIN_SUPPORT_TO_CONCLUDE}"
+        )
+        return MIN_SUPPORT_TO_CONCLUDE

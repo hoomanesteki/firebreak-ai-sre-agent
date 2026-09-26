@@ -33,6 +33,10 @@ class AbstentionThresholds(BaseModel):
     model_config = ConfigDict(frozen=True, extra="ignore")
 
     minimum_top_anomaly_z: float = Field(ge=0.0)
+    # The exit gate's check 6, rather than triage's. Both are abstention rules
+    # and both belong in one place, because a system that abstains at triage on
+    # one rule and at the gate on another has two answers to the same question.
+    minimum_hypothesis_support: int = Field(ge=1)
 
 
 class RankingThresholds(BaseModel):

@@ -168,13 +168,51 @@ class Critique(BaseModel):
     resolved: bool = False
 
 
+class ClaimType(StrEnum):
+    """What kind of assertion a claim is making.
+
+    The type decides which gate checks apply to it. A measurement has numbers
+    to verify against the evidence it cites; a mechanism is prose and cannot be
+    checked that way. Collapsing the two would mean either skipping the number
+    check or inventing numbers to check.
+    """
+
+    MEASUREMENT = "measurement"
+    MECHANISM = "mechanism"
+    TIMELINE = "timeline"
+    BLAST_RADIUS = "blast_radius"
+    RULED_OUT = "ruled_out"
+
+
+class CitedNumber(BaseModel):
+    """One number in a claim, and where it came from.
+
+    SPEC.md Section 6.9 check 3 verifies that every number in a claim appears in
+    the extracted facts of the evidence it cites. That is only checkable if the
+    claim says which evidence and which field the number came from, so it says.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    value: float
+    unit: str
+    evidence_id: str
+    field: str
+
+
 class Claim(BaseModel):
     """One sentence of a report, with what it rests on."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     text: str
+    claim_type: ClaimType = ClaimType.MECHANISM
     evidence_ids: tuple[str, ...] = ()
+    numbers: tuple[CitedNumber, ...] = ()
+    # Set for a timeline claim, so check 4 can verify the order against the
+    # evidence timestamps rather than against the order the prose happens to
+    # list things in.
+    at: datetime | None = None
 
     @property
     def is_supported(self) -> bool:
@@ -196,6 +234,18 @@ class Report(BaseModel):
     # report produced under a budget stop or a stall to say so and lower its
     # confidence, and a reader has to be able to see which.
     stopped_because: StopReason | None = None
+    # What the system says about its own run: that the incident was malformed,
+    # that triage found nothing worth investigating, that the exit gate removed
+    # statements. Never an assertion about the telemetry, so never cited and
+    # never checked.
+    #
+    # This is not a hole in the exit gate. `ReporterOutput` has no such field, so
+    # the model that writes the report cannot write a note, and `reporter` builds
+    # the `Report` field by field rather than from the model's output wholesale.
+    # Everything here is written by code from a deterministic result. A claim
+    # about what the telemetry showed goes in `claims`, where the gate can reach
+    # it, and putting one here instead would be a bug worth failing a review for.
+    notes: tuple[str, ...] = ()
 
     @property
     def abstained(self) -> bool:

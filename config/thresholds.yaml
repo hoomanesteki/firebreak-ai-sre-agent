@@ -35,6 +35,19 @@
 # evidence in the repository that the fixtures are easier than reality.
 abstention:
   minimum_top_anomaly_z: 22.717
+
+  # How much net support the leading hypothesis needs before the report is
+  # allowed to name it (SPEC.md Section 6.9 check 6). Support is evidence for
+  # minus evidence against, so 2 means two independent findings and no standing
+  # objection, or three findings and one refutation.
+  #
+  # NOT TUNED. This is the same value as the investigation loop's completion
+  # rule, chosen so that the gate agrees with the loop rather than second
+  # guessing it. Tuning it needs runs of the full agent over the validation
+  # split, which needs model credentials, so the tuned value is TBD (produced in
+  # Phase 7 once the agent can be run against validation). Until then this is a
+  # defensible default and is labelled as one.
+  minimum_hypothesis_support: 2
   measured:
     faulted_trials: 147
     no_fault_trials: 30
