@@ -228,6 +228,57 @@ def _inherited_environment() -> dict[str, str]:
     return dict(os.environ)
 
 
+def hold_awake() -> subprocess.Popen[bytes] | None:
+    """Stop the machine sleeping while this runs, on macOS.
+
+    One overnight run lost seven hours and forty three minutes to maintenance
+    sleep. The bundle it produced looked complete: a manifest, four parquet
+    files, a label. It held eighteen minutes of telemetry spread across a seven
+    hour window, because `datetime.now` jumps across a suspension while
+    `time.monotonic` does not, so the thirty minute subprocess timeout here never
+    fired. `firebreak.lab.recorder.check_duration` now refuses such a bundle;
+    this stops it being produced in the first place.
+
+    `caffeinate -w` exits when this process does, so an interrupted run does not
+    leave an assertion held.
+    """
+    if sys.platform != "darwin":
+        return None
+    try:
+        return subprocess.Popen(
+            ["caffeinate", "-i", "-m", "-s", "-w", str(os.getpid())],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        print(f"could not hold the machine awake ({error}); recordings may be suspended")
+        return None
+
+
+def warn_if_on_battery() -> None:
+    """Say so plainly, because caffeinate cannot prevent sleep on battery.
+
+    `caffeinate -s` is documented as valid only on AC power, and the run that
+    lost seven hours was on battery at 65 percent. A warning is all this can do,
+    but an unattended thirty six hour run deserves one.
+    """
+    if sys.platform != "darwin":
+        return
+    try:
+        state = subprocess.run(
+            ["pmset", "-g", "batt"], capture_output=True, text=True, timeout=10
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return
+    if "AC Power" in state:
+        return
+    print(
+        "WARNING: running on battery. macOS takes maintenance sleep on battery "
+        "whatever caffeinate asks for, and a suspended recording is discarded. "
+        "Plug in before leaving this unattended."
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run", default=DEFAULT_RUN, help="run id for every recording")
@@ -258,6 +309,9 @@ def main() -> int:
 
     scenarios = ordered_scenarios(splits)
     progress = Progress.load()
+
+    warn_if_on_battery()
+    hold_awake()
 
     outstanding = [s for s in scenarios if not already_recorded(s, arguments.run)]
     done = len(scenarios) - len(outstanding)

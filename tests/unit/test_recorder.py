@@ -12,7 +12,9 @@ from firebreak.lab.recorder import (
     AlertWatcher,
     Recorder,
     RecordingClock,
+    RecordingDriftError,
     RecordingError,
+    check_duration,
 )
 from firebreak.lab.scenario import (
     Distractor,
@@ -488,3 +490,64 @@ def test_recorder_record_produces_a_bundle_that_passes_verify_bundle(tmp_path: P
     outcome = recorder.record(spec, run_id="run-1")
 
     assert verify_bundle(outcome.bundle_dir) == outcome.manifest
+
+
+def _timed(warmup: int, fault: int, cooldown: int):
+    return _spec(
+        timing=Timing(warmup_seconds=warmup, fault_seconds=fault, cooldown_seconds=cooldown)
+    )
+
+
+class TestDurationDrift:
+    """A recording whose window is far wider than planned did not happen as described.
+
+    The case that motivated this: an overnight recording of an eighteen minute
+    scenario produced a bundle with a seven hour forty three minute window,
+    because the laptop entered maintenance sleep and `datetime.now` jumped across
+    it. The bundle looked complete and held eighteen minutes of telemetry spread
+    over a window twenty five times too wide.
+    """
+
+    def test_a_recording_that_ran_to_plan_is_accepted(self) -> None:
+        spec = _timed(300, 600, 180)
+        start = datetime(2026, 1, 1, tzinfo=UTC)
+        observed = check_duration(spec, start, start + timedelta(seconds=1090))
+        assert observed == pytest.approx(1090.0)
+
+    def test_a_slightly_long_recording_is_accepted(self) -> None:
+        """Export, the alert wait and a slow stack all add minutes legitimately."""
+        spec = _timed(300, 600, 180)
+        start = datetime(2026, 1, 1, tzinfo=UTC)
+        assert check_duration(spec, start, start + timedelta(seconds=1380)) > 0
+
+    def test_a_suspended_recording_is_refused(self) -> None:
+        spec = _timed(300, 600, 180)
+        start = datetime(2026, 1, 1, tzinfo=UTC)
+        with pytest.raises(RecordingDriftError, match="does not describe the experiment"):
+            check_duration(spec, start, start + timedelta(seconds=27606))
+
+    def test_the_message_names_both_durations(self) -> None:
+        """The number an operator needs to tell a stall from a suspension."""
+        spec = _timed(300, 600, 180)
+        start = datetime(2026, 1, 1, tzinfo=UTC)
+        with pytest.raises(RecordingDriftError) as raised:
+            check_duration(spec, start, start + timedelta(seconds=27606))
+        assert "1080s" in str(raised.value)
+        assert "27606s" in str(raised.value)
+
+    def test_a_short_scenario_gets_an_absolute_floor_not_just_a_multiple(self) -> None:
+        """A minute of overrun on a short scenario is noise, not a suspension.
+
+        Without the floor, a three minute scenario would be refused for taking
+        five, which export alone can account for.
+        """
+        spec = _timed(60, 60, 0)
+        start = datetime(2026, 1, 1, tzinfo=UTC)
+        assert check_duration(spec, start, start + timedelta(seconds=390)) > 0
+        with pytest.raises(RecordingDriftError):
+            check_duration(spec, start, start + timedelta(seconds=700))
+
+    def test_the_drift_error_is_a_recording_error(self) -> None:
+        """The recording loop catches RecordingError and retries, which is the
+        right response: a suspended recording is worth another attempt."""
+        assert issubclass(RecordingDriftError, RecordingError)
