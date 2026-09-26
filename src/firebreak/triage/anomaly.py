@@ -110,6 +110,23 @@ def robust_scale(values: list[float], reference: float | None = None) -> float:
     appearing where there was none is strong evidence, worth about as much as a
     large measured regression and no more. The alternative, capping the z-score
     afterwards, would preserve the same wrong ordering with tidier numbers.
+
+    **A pooled scale was tried here and measured worse, twice.** The objection
+    to this floor is real: `incident / (incident * 0.05)` is exactly 20 for
+    every service and every magnitude, so it is a constant rather than a cap and
+    it erases the size of what appeared. Borrowing a scale from the other
+    services on the same metric, which is the standard treatment for a group
+    with degenerate variance, should have fixed that.
+
+    On eleven real validation recordings it did not. Pooling as a general floor
+    took top-3 from 6 of 9 to 4 of 9, and pooling only as the flat-baseline
+    floor also gave 4 of 9. Preserving the magnitude let a loud bystander such
+    as product-catalog or frontend-proxy win outright, where the constant makes
+    the true culprit and its caller tie on anomaly and lets the dependency
+    ranking break the tie, which it does correctly.
+
+    So the constant stays, and it stays for a measured reason rather than a
+    principled one. It is worth revisiting on a larger recorded library.
     """
     if len(values) < 2:
         return _zero_baseline_scale(0.0, reference)

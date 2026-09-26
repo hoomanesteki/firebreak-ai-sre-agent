@@ -1,0 +1,24 @@
+{
+  "recorded": [
+    "distractor-image-slow-load-5sec-50u",
+    "double-fault-image-slow-load-intl-shipping-slowdown-20u",
+    "double-fault-image-slow-load-intl-shipping-slowdown-50u",
+    "failed-readiness-probe-on-50u-sr5",
+    "intl-shipping-slowdown-10sec-20u",
+    "intl-shipping-slowdown-10sec-50u",
+    "kafka-queue-problems-on-50u-sr5",
+    "no-fault-flood-homepage-sr2-5u",
+    "no-fault-flood-homepage-sr20-20u",
+    "payment-failure-25pct-20u",
+    "payment-failure-25pct-50u",
+    "payment-failure-25pct-5u",
+    "payment-failure-50pct-20u",
+    "payment-unreachable-on-50u-sr5"
+  ],
+  "failed": {
+    "no-fault-flood-homepage-sr2-50u": "inc_9fe20e0e50b0 already exists; pass --force to re-record it"
+  },
+  "started_at": "2026-09-25T13:08:41.457769+00:00",
+  "updated_at": "2026-09-25T20:10:27.624240+00:00",
+  "minutes_spent": 282.2
+}
