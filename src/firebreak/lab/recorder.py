@@ -22,6 +22,7 @@ stack and without waiting twenty minutes.
 
 from __future__ import annotations
 
+import shutil
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -247,27 +248,65 @@ class Recorder:
         window: TimeWindow,
         alert_fired_at: datetime | None,
     ) -> BundleManifest:
-        bundle_dir = self._bundle_dir(spec.id, run_id)
-        bundle_dir.mkdir(parents=True, exist_ok=True)
+        """Export every signal into a bundle, all of it or none of it.
 
-        writer = BundleWriter(
-            bundle_dir=bundle_dir,
-            bundle_id=derive_bundle_id(spec.id, run_id),
-            run_id=run_id,
-            demo_tag=self._demo_tag,
-            recorder_version=RECORDER_VERSION,
-        )
-        writer.write_metrics(self._exporter.export_metrics(window.start, window.end))
-        writer.write_traces(self._exporter.export_traces(window.start, window.end))
-        writer.write_logs(self._exporter.export_logs(window.start, window.end))
-        writer.write_topology(self._exporter.export_topology(window.start, window.end))
-        writer.write_alert(self._alert_payload(spec, alert_fired_at))
-        writer.write_changes(self._change_records(spec, window), fault_flags=spec.fault_flag_names)
-        return writer.finalise(
-            window=window,
-            alert_fired=alert_fired_at is not None,
-            alert_fired_at=alert_fired_at,
-        )
+        Written into a staging directory and moved into place only once the
+        manifest exists, because an eighteen minute recording that fails during
+        export must not leave something that looks like a bundle.
+
+        The first real batch run proved why. One export failed after the metrics
+        were written, leaving a directory holding `metrics.parquet` and nothing
+        else. That broke two things at once: the retry refused because the
+        directory already existed, and the batch recorder's resume check, which
+        asked only whether the directory was there, would have skipped that
+        scenario for ever and left a silent gap in the library.
+
+        The move is `Path.replace` within one parent directory, which is
+        `os.replace` underneath and so atomic on every filesystem this runs on.
+        A reader therefore sees either no bundle or a complete one, never a half
+        written one.
+        """
+        bundle_dir = self._bundle_dir(spec.id, run_id)
+        bundle_dir.parent.mkdir(parents=True, exist_ok=True)
+        staging = bundle_dir.parent / f".{bundle_dir.name}.partial"
+
+        # A staging directory left by a previous crash is rubbish, not data.
+        if staging.exists():
+            shutil.rmtree(staging)
+        staging.mkdir(parents=True)
+
+        try:
+            writer = BundleWriter(
+                bundle_dir=staging,
+                bundle_id=derive_bundle_id(spec.id, run_id),
+                run_id=run_id,
+                demo_tag=self._demo_tag,
+                recorder_version=RECORDER_VERSION,
+            )
+            writer.write_metrics(self._exporter.export_metrics(window.start, window.end))
+            writer.write_traces(self._exporter.export_traces(window.start, window.end))
+            writer.write_logs(self._exporter.export_logs(window.start, window.end))
+            writer.write_topology(self._exporter.export_topology(window.start, window.end))
+            writer.write_alert(self._alert_payload(spec, alert_fired_at))
+            writer.write_changes(
+                self._change_records(spec, window), fault_flags=spec.fault_flag_names
+            )
+            manifest = writer.finalise(
+                window=window,
+                alert_fired=alert_fired_at is not None,
+                alert_fired_at=alert_fired_at,
+            )
+        except BaseException:
+            # BaseException rather than Exception, so that a Ctrl-C during a
+            # long export also cleans up. An interrupted batch run is expected,
+            # and it must not leave a partial bundle behind either.
+            shutil.rmtree(staging, ignore_errors=True)
+            raise
+
+        if bundle_dir.exists():
+            shutil.rmtree(bundle_dir)
+        staging.replace(bundle_dir)
+        return manifest
 
     def _alert_payload(self, spec: ScenarioSpec, fired_at: datetime | None) -> dict[str, Any]:
         """The alert as Firebreak received it, or a record that none came."""

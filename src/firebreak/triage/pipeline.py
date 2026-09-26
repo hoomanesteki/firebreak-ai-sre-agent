@@ -57,6 +57,50 @@ GUARD_SECONDS = 30.0
 CONFIDENCE_FLOOR = 0.35
 CONFIDENCE_CEILING = 0.85
 
+# Names the service graph reports that are not part of the system under
+# investigation, and so cannot be a root cause.
+#
+# An exclusion list rather than an inclusion list, deliberately. The obvious
+# approach is to keep only what `knowledge/services.yaml` describes, and it is
+# wrong: the service graph reports the cart keystore as `redis` and the broker as
+# `kafka`, while the knowledge file names them `valkey-cart` and `orders`. Both
+# are legitimate root causes, and an inclusion filter would silently drop them.
+# Excluding too little is recoverable; excluding the real culprit is not.
+#
+# Each entry has its own reason:
+#
+# - The observability stack is what is doing the watching. Naming Jaeger as the
+#   cause of an incident it merely recorded is a category error, and the first
+#   real recordings ranked `jaeger` and `flagd-ui` in the top three.
+# - `flagd` and `flagd-ui` are the fault injection mechanism. Excluding them is
+#   partly that same category error and partly leakage control: a report naming
+#   the flag service as the root cause is saying "a feature flag did this",
+#   which is the answer the agent is supposed to derive.
+# - `telemetry-docs` and `load-generator` are lab scaffolding. The load
+#   generator is the reason there is any traffic at all, so it is always busy and
+#   never the fault.
+# - `user` is the synthetic client the load generator presents as, not a service.
+# - `firebreak-neo4j` is this project's own container, which the collector's
+#   docker receiver scrapes because it scrapes everything on the host.
+NOT_UNDER_INVESTIGATION: frozenset[str] = frozenset(
+    {
+        "jaeger",
+        "prometheus",
+        "grafana",
+        "opensearch",
+        "opamp-server",
+        "otel-collector",
+        "otelcol-contrib",
+        "alertmanager",
+        "flagd",
+        "flagd-ui",
+        "telemetry-docs",
+        "load-generator",
+        "user",
+        "firebreak-neo4j",
+    }
+)
+
 # How many suspects to carry forward. SPEC.md Section 6.5 wants a short
 # ranked list, and a list long enough to always contain the answer is not a
 # ranking, it is the service inventory.
@@ -227,7 +271,12 @@ def triage_bundle(
             backend, baseline, incident, threshold=tuned.ranking.onset_threshold_z
         )
 
-    edges = edges_from_topology(reader.topology())
+    edges = [
+        edge
+        for edge in edges_from_topology(reader.topology())
+        if edge.client not in NOT_UNDER_INVESTIGATION and edge.server not in NOT_UNDER_INVESTIGATION
+    ]
+    scores = [score for score in scores if score.subject not in NOT_UNDER_INVESTIGATION]
     candidates = rank_candidates(edges, scores, onsets=onsets, **options)  # type: ignore[arg-type]
 
     ranked = rank_anomalies(scores)

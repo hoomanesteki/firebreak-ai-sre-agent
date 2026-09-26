@@ -38,7 +38,27 @@ from firebreak.lab.scenario import Split
 LIMIT = 2
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(autouse=True)
+def no_recorded_library(monkeypatch, tmp_path_factory):  # type: ignore[no-untyped-def]
+    """Point the runner at an empty bundles directory for every test here.
+
+    These cover the fixture path and the shapes around it, and once the real
+    library started being recorded they began depending on what the developer
+    happened to have on disk: a validation recording made them exercise the
+    recorded path instead, and four of them failed. A unit test that changes
+    meaning when somebody records an incident is not testing what it claims to.
+
+    The recorded path has its own coverage in `tests/integration` and in the
+    eval reports themselves.
+    """
+    from firebreak.evals import runner as module
+
+    empty = tmp_path_factory.mktemp("no-bundles")
+    monkeypatch.setattr(module, "BUNDLES_DIR", empty / "bundles")
+    monkeypatch.setattr(module, "LABELS_DIR", empty / "labels")
+
+
+@pytest.fixture
 def validation_run(tmp_path_factory):  # type: ignore[no-untyped-def]
     workspace = tmp_path_factory.mktemp("eval-validation")
     return run_configuration("b0", Split.VALIDATION, workspace, limit=LIMIT)

@@ -130,13 +130,21 @@ class Progress:
 
 
 def already_recorded(spec: ScenarioSpec, run: str) -> bool:
-    """True when a bundle for this scenario and run already exists on disk.
+    """True when a complete bundle for this scenario and run is on disk.
 
     The filesystem rather than the progress file is the authority. A progress
-    file can be stale or deleted; a bundle directory either exists or it does
-    not.
+    file can be stale or deleted; a bundle either exists or it does not.
+
+    **A manifest, not just a directory.** The first batch run found the
+    difference: one export failed partway and left a directory holding a single
+    parquet file, and a check for the directory alone would have treated that as
+    a finished recording and skipped the scenario for ever, leaving a silent gap
+    in the library. The recorder now stages and moves atomically so a partial
+    bundle cannot appear, and this asks for the manifest anyway, because the
+    cost of being wrong is eighteen minutes of a scenario that never gets
+    recorded.
     """
-    return (BUNDLES_DIR / derive_bundle_id(spec.id, run)).is_dir()
+    return (BUNDLES_DIR / derive_bundle_id(spec.id, run) / "manifest.json").is_file()
 
 
 def ordered_scenarios(splits: tuple[Split, ...] = SPLIT_ORDER) -> list[ScenarioSpec]:
