@@ -156,6 +156,31 @@ def per_task_scores(sheets: list[GradeSheet], grader: str) -> list[float]:
     return [sum(per_task[task]) / len(per_task[task]) for task in sorted(per_task)]
 
 
+def per_task_table(sheets: list[GradeSheet]) -> dict[str, dict[str, float]]:
+    """Every grader's score for every task, averaged over that task's trials.
+
+    The shape a paired comparison needs: keyed by bundle id so two runs are
+    paired by task rather than by position, and averaged over trials for the same
+    reason `per_task_scores` is, since resampling trials would narrow an interval
+    with confidence that came from nowhere.
+
+    A grader that did not apply to a task is absent rather than zero. Scoring a
+    grader that made no claim as a failure would punish B0 for declining to
+    invent a fault class.
+    """
+    gathered: dict[str, dict[str, list[float]]] = {}
+    for sheet in sheets:
+        task = gathered.setdefault(sheet.bundle_id, {})
+        for result in sheet.results:
+            if not result.applies:
+                continue
+            task.setdefault(result.grader, []).append(1.0 if result.correct else 0.0)
+    return {
+        bundle_id: {grader: sum(scores) / len(scores) for grader, scores in sorted(graders.items())}
+        for bundle_id, graders in sorted(gathered.items())
+    }
+
+
 def headline_scores(sheets: list[GradeSheet]) -> list[float]:
     """One headline score per task, averaged over that task's trials."""
     per_task: dict[str, list[float]] = {}
