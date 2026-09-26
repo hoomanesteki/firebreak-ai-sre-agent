@@ -55,10 +55,27 @@ def git_commit() -> str:
 
     A report that cannot be traced to a commit cannot be reproduced, and a
     missing commit is worth recording as missing rather than omitting.
+
+    Marked `-dirty` when tracked files differ from the commit, because that is
+    exactly when the stamp is a lie: the numbers came from code that is not at
+    that commit and nobody can re-derive them from it. Five reports were written
+    that way before the suffix existed, which is how it was noticed.
+
+    Tracked files only. Untracked ones are not at the commit either, but they
+    include every bundle, label and report, so counting them would mark every
+    report dirty and the marker would stop meaning anything.
     """
+    commit = _git_output(["rev-parse", "HEAD"])
+    if commit == "unknown":
+        return commit
+    return commit if _tree_matches_head() else f"{commit}-dirty"
+
+
+def _git_output(arguments: list[str]) -> str:
+    """One git command's output, or `unknown` when git cannot be run."""
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+            ["git", *arguments],
             capture_output=True,
             text=True,
             check=True,
@@ -68,6 +85,27 @@ def git_commit() -> str:
     except (subprocess.SubprocessError, OSError):
         return "unknown"
     return result.stdout.strip() or "unknown"
+
+
+def _tree_matches_head() -> bool:
+    """Whether tracked files are unmodified.
+
+    `git diff --quiet HEAD` exits non-zero when they differ, which is the answer
+    rather than an error. Any other failure counts as modified: over-marking a
+    report costs a suffix, and under-marking it claims a reproducibility that was
+    never checked.
+    """
+    try:
+        subprocess.run(
+            ["git", "diff", "--quiet", "HEAD"],
+            capture_output=True,
+            check=True,
+            cwd=REPO_ROOT,
+            timeout=10,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return False
+    return True
 
 
 @dataclass(frozen=True)
