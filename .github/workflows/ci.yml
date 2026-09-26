@@ -65,7 +65,15 @@ jobs:
           uv run ruff format --check .
 
       - name: Type check
-        run: uv run mypy src scripts
+        # Every platform, not just the runner's. mypy narrows sys.platform to
+        # the platform it checks for, so code behind a platform guard is only
+        # half checked by one run, and whichever half is dead becomes a
+        # warn_unreachable error on the other platform. A darwin-only local run
+        # passed while this step failed on Linux.
+        run: |
+          uv run mypy --platform darwin src scripts
+          uv run mypy --platform linux src scripts
+          uv run mypy --platform win32 src scripts
 
       - name: Test
         # FIREBREAK_REQUIRE_NEO4J turns the integration tests' skip into a

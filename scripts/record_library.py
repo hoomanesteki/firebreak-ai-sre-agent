@@ -44,6 +44,15 @@ PROGRESS_PATH = REPO_ROOT / "reports" / "lab" / "recording_progress.json"
 
 DEFAULT_RUN = "run1"
 
+# Whether the sleep prevention below can do anything. Read into a constant rather
+# than compared inline, because mypy narrows a `sys.platform` comparison to the
+# platform it is checking for: on Linux everything after an inline
+# `if sys.platform != "darwin": return` is statically unreachable, and
+# warn_unreachable then fails the build. That failure reached CI once. A bool
+# carries no literal type, so both branches stay reachable on every platform,
+# which is the truth at runtime.
+ON_MACOS = sys.platform == "darwin"
+
 # Tunable splits first, which is the reverse of the obvious order, and the
 # first real recording is what changed it.
 #
@@ -253,7 +262,7 @@ def hold_awake() -> subprocess.Popen[bytes] | None:
     `caffeinate -w` exits when this process does, so an interrupted run does not
     leave an assertion held.
     """
-    if sys.platform != "darwin":
+    if not ON_MACOS:
         return None
     try:
         return subprocess.Popen(
@@ -273,7 +282,7 @@ def warn_if_on_battery() -> None:
     lost seven hours was on battery at 65 percent. A warning is all this can do,
     but an unattended thirty six hour run deserves one.
     """
-    if sys.platform != "darwin":
+    if not ON_MACOS:
         return
     try:
         state = subprocess.run(

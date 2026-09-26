@@ -45,8 +45,16 @@ format:  ## Apply formatting and safe lint fixes
 	uv run ruff format .
 	uv run ruff check --fix .
 
-types:  ## Type check src and scripts with mypy strict
-	uv run mypy src scripts
+types:  ## Type check src and scripts with mypy strict, for every platform we run on
+	# Three platforms, because mypy narrows sys.platform to the one it is
+	# checking for. Code behind a platform guard is only half checked by a
+	# single run: on macOS the guard's else branch is unreachable, on Linux the
+	# body is, and warn_unreachable turns whichever half is dead into an error.
+	# A darwin-only local run passed while CI's Linux run failed, which is
+	# exactly the failure this catches before a push.
+	uv run mypy --platform darwin src scripts
+	uv run mypy --platform linux src scripts
+	uv run mypy --platform win32 src scripts
 
 test:  ## Run the test suite with the coverage floor
 	uv run pytest --cov --cov-report=term-missing
