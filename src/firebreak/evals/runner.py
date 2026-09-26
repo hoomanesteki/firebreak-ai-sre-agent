@@ -114,7 +114,39 @@ def run_b0(bundle_dir: Path) -> tuple[InvestigationOutcome, set[str]]:
     return outcome, set(report.evidence)
 
 
-CONFIGURATIONS: dict[str, Configuration] = {"b0": run_b0}
+def run_fb_v1(bundle_dir: Path) -> tuple[InvestigationOutcome, set[str]]:
+    """Firebreak v1: the multi-agent graph, in whatever mode it is configured for.
+
+    Defaults to stub, which is what makes this runnable in CI and in the offline
+    demo. A stub run is not a claim about what a model would do; it is a claim
+    about the harness, the tool layer and the gates, which is exactly what a
+    regression suite should be protecting.
+    """
+    from firebreak.agent.graph import investigate
+
+    result = investigate(bundle_dir, verify=False)
+    report = result.report
+    triage = result.state.triage
+    outcome = InvestigationOutcome(
+        bundle_id=result.state.incident_id,
+        root_cause_service=report.root_cause_service,
+        ranked_candidates=tuple(c.service for c in triage.candidates) if triage else (),
+        abstained=report.abstained,
+        fault_class=report.fault_class,
+        fault_onset=report.fault_onset,
+        confidence=report.confidence.as_probability if report.confidence else None,
+        cited_evidence=report.cited_evidence,
+        tool_calls=result.state.budget.tool_calls,
+        tokens_in=result.state.budget.tokens_in,
+        tokens_out=result.state.budget.tokens_out,
+        usd=result.state.budget.usd,
+        wall_clock_seconds=result.wall_clock_seconds,
+        notes={"stopped_because": result.stopped_because.value},
+    )
+    return outcome, set(result.state.evidence)
+
+
+CONFIGURATIONS: dict[str, Configuration] = {"b0": run_b0, "fb-v1": run_fb_v1}
 
 
 def load_labels(labels_dir: Path = LABELS_DIR) -> dict[str, IncidentLabel]:

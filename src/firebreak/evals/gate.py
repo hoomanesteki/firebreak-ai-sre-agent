@@ -307,6 +307,19 @@ def evaluate_gate(
     if calibration_check is not None:
         checks.append(calibration_check)
         if not calibration_check.passed:
+            # The same distinction the quality metrics make, and it was missing
+            # here: a calibration gap whose point estimate sits inside the
+            # margin has not been shown to have regressed, however wide the
+            # interval is. Reporting FAIL_CALIBRATION for that would fail a
+            # candidate whose calibration actually improved, which is what
+            # happened the first time this gate ran on recorded data.
+            if calibration_check.difference.estimate <= gate.calibration.margin:
+                return GateResult(
+                    Verdict.INCONCLUSIVE,
+                    tuple(checks),
+                    f"calibration: {calibration_check.reason}; the estimate is inside "
+                    "the margin but the interval cannot rule a regression out",
+                )
             return GateResult(Verdict.FAIL_CALIBRATION, tuple(checks), calibration_check.reason)
 
     cost_check = _check_cost(candidate, baseline, gate, resamples)
@@ -355,7 +368,7 @@ def _check_calibration(
     candidate_ece = _ece(candidate)
     baseline_ece = _ece(baseline)
     reason = (
-        f"mean calibration gap moved {difference.estimate:+.4f} with upper bound "
+        f"mean Brier score moved {difference.estimate:+.4f} with upper bound "
         f"{difference.upper:+.4f} against a margin of {gate.calibration.margin:.4f}; "
         f"binned ECE {baseline_ece:.4f} to {candidate_ece:.4f}"
     )
@@ -363,13 +376,22 @@ def _check_calibration(
 
 
 def _confidence_gaps(side: Side) -> dict[str, float]:
-    """Per-task absolute distance between stated confidence and correctness."""
+    """Per-task squared error between stated confidence and correctness.
+
+    The Brier contribution, not the absolute gap. The absolute gap cannot tell
+    a confident mistake from a hedge: a system saying 0.99 and being right half
+    the time and one saying 0.5 both average a gap of 0.5, so the gate reported
+    no difference between a badly overconfident candidate and a well hedged one.
+
+    Squaring separates them, 0.98 against 0.25, and it is the proper scoring
+    rule SPEC.md Section 9.3 already names alongside expected calibration error.
+    """
     gaps: dict[str, list[float]] = {}
     for outcome, sheet in zip(side.outcomes, side.sheets, strict=True):
         if outcome.confidence is None:
             continue
         actual = 1.0 if sheet.correct_root_cause else 0.0
-        gaps.setdefault(sheet.bundle_id, []).append(abs(outcome.confidence - actual))
+        gaps.setdefault(sheet.bundle_id, []).append((outcome.confidence - actual) ** 2)
     return {task: sum(values) / len(values) for task, values in gaps.items()}
 
 

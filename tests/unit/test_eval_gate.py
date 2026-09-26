@@ -233,7 +233,14 @@ class TestInconclusive:
 
 class TestCalibration:
     def test_a_calibration_regression_fails_on_calibration(self, config: GateConfig) -> None:
-        """Both sides equally accurate, but the candidate is badly overconfident."""
+        """Both sides equally accurate, but the candidate is badly overconfident.
+
+        The gate scores the per-task Brier contribution rather than the absolute
+        gap, because the absolute gap cannot separate these two: 0.99 stated at
+        50% accuracy and 0.5 stated at 50% accuracy both average a gap of 0.5,
+        and the first version of this check reported no difference between a
+        badly overconfident candidate and a well hedged one.
+        """
         candidate = _side(15, confidence=0.99)
         baseline = _side(15, confidence=0.5)
         result = evaluate_gate(candidate, baseline, config=config, resamples=RESAMPLES)
