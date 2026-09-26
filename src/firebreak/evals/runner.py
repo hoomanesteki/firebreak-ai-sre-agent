@@ -25,6 +25,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from firebreak.evals.graders import GradeSheet, grade_trial
 from firebreak.evals.outcome import InvestigationOutcome
@@ -34,6 +35,13 @@ from firebreak.lab.scenario import ScenarioSpec, Split, load_library
 from firebreak.lab.synthetic import build_synthetic_bundle
 from firebreak.triage.report import build_b0_report
 from firebreak_eval_labels import IncidentLabel, new_canary
+
+if TYPE_CHECKING:
+    # Imported for types only. The configurations import the agent lazily so
+    # that `collect_tasks` and the graders stay usable without pulling the whole
+    # graph and its model client in.
+    from firebreak.agent.graph import InvestigationResult
+    from firebreak.agent.react import ReactResult
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SPECS_DIR = REPO_ROOT / "scenarios" / "specs"
@@ -124,7 +132,15 @@ def run_fb_v1(bundle_dir: Path) -> tuple[InvestigationOutcome, set[str]]:
     """
     from firebreak.agent.graph import investigate
 
-    result = investigate(bundle_dir, verify=False)
+    return _fb_outcome(investigate(bundle_dir, verify=False))
+
+
+def _fb_outcome(result: InvestigationResult) -> tuple[InvestigationOutcome, set[str]]:
+    """Translate an FB run into the outcome the graders read.
+
+    Shared by FB and by every ablation of it, so that a configuration differing
+    only in a switch cannot also differ in how it is scored.
+    """
     report = result.report
     triage = result.state.triage
     outcome = InvestigationOutcome(
@@ -146,7 +162,65 @@ def run_fb_v1(bundle_dir: Path) -> tuple[InvestigationOutcome, set[str]]:
     return outcome, set(result.state.evidence)
 
 
-CONFIGURATIONS: dict[str, Configuration] = {"b0": run_b0, "fb-v1": run_fb_v1}
+def _react_outcome(result: ReactResult) -> tuple[InvestigationOutcome, set[str]]:
+    """Translate a B1 or B2 run into the outcome the graders read.
+
+    `ranked_candidates` is empty and stays empty. B1 has no ranking, so it has no
+    ranked list, and filling one in from the anomaly scores it happened to see
+    would hand it a top-3 metric it did not earn. The graders score an empty
+    ranking as a miss beyond rank 1, which is the honest reading of a
+    configuration that names one service and offers no alternatives.
+    """
+    report = result.report
+    return (
+        InvestigationOutcome(
+            bundle_id=report.incident_id,
+            root_cause_service=report.root_cause_service,
+            ranked_candidates=(),
+            abstained=report.abstained,
+            fault_class=report.fault_class,
+            fault_onset=report.fault_onset,
+            confidence=report.confidence.as_probability if report.confidence else None,
+            cited_evidence=report.cited_evidence,
+            tool_calls=result.budget.tool_calls,
+            tokens_in=result.budget.tokens_in,
+            tokens_out=result.budget.tokens_out,
+            usd=result.budget.usd,
+            wall_clock_seconds=result.wall_clock_seconds,
+            notes={"stopped_because": result.stopped_because.value},
+        ),
+        set(result.evidence),
+    )
+
+
+def run_b1(bundle_dir: Path) -> tuple[InvestigationOutcome, set[str]]:
+    """Baseline B1: a single ReAct agent with all tools and no gates."""
+    from firebreak.agent.react import investigate_react
+
+    return _react_outcome(investigate_react(bundle_dir, verify=False))
+
+
+def run_b2(bundle_dir: Path) -> tuple[InvestigationOutcome, set[str]]:
+    """Baseline B2: B1 plus the exit gate, and nothing else changed."""
+    from firebreak.agent.react import investigate_react
+
+    return _react_outcome(investigate_react(bundle_dir, verify=False, gate=True))
+
+
+def run_a1(bundle_dir: Path) -> tuple[InvestigationOutcome, set[str]]:
+    """Ablation A1: the full system with the critic switched off."""
+    from firebreak.agent.graph import investigate
+
+    return _fb_outcome(investigate(bundle_dir, verify=False, use_critic=False))
+
+
+CONFIGURATIONS: dict[str, Configuration] = {
+    "b0": run_b0,
+    "b1": run_b1,
+    "b2": run_b2,
+    "fb-v1": run_fb_v1,
+    "a1": run_a1,
+}
 
 
 def load_labels(labels_dir: Path = LABELS_DIR) -> dict[str, IncidentLabel]:

@@ -211,6 +211,7 @@ def investigate(
     llm: LlmClient | None = None,
     limits: BudgetLimits | None = None,
     verify: bool = False,
+    use_critic: bool = True,
 ) -> InvestigationResult:
     """Run one investigation over one recorded bundle.
 
@@ -263,9 +264,14 @@ def investigate(
             state = hypothesis_board(state, findings)
             state = state.model_copy(update={"evidence": _collected(context)})
 
-            objection = critic(state, context)
-            if objection is not None:
-                state = state.model_copy(update={"critiques": (*state.critiques, objection)})
+            # Ablation A1, SPEC.md Section 9.5: FB without the critic, to find
+            # out what independent critique is worth [R8]. A switch rather than a
+            # separate graph, so the two configurations cannot drift apart in
+            # anything but the critic.
+            if use_critic:
+                objection = critic(state, context)
+                if objection is not None:
+                    state = state.model_copy(update={"critiques": (*state.critiques, objection)})
 
             state.budget.end_round(len(state.evidence))
             stop = should_continue(state)
