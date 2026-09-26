@@ -1,11 +1,11 @@
 {
   "demo_tag": "3.1.0",
-  "scenarios": 120,
+  "scenarios": 114,
   "counts_by_split": {
-    "test_id": 31,
+    "test_id": 29,
     "test_ood": 30,
-    "train": 44,
-    "validation": 15
+    "train": 41,
+    "validation": 14
   },
   "families_by_split": {
     "test_id": [
@@ -47,7 +47,7 @@
     "contention",
     "resource"
   ],
-  "tunable_scenarios": 59,
-  "held_out_scenarios": 61,
-  "estimated_recording_hours": 36.0
+  "tunable_scenarios": 55,
+  "held_out_scenarios": 59,
+  "estimated_recording_hours": 34.2
 }

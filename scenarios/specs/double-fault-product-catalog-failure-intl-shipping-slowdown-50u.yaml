@@ -1,10 +1,10 @@
-id: double-fault-image-slow-load-intl-shipping-slowdown-50u
+id: double-fault-product-catalog-failure-intl-shipping-slowdown-50u
 family: double-fault
 fault:
   kind: flag
-  flag: imageSlowLoad
-  variant: 10sec
-target_service: image-provider
+  flag: productCatalogFailure
+  variant: 'on'
+target_service: product-catalog
 fault_class: multiple
 load:
   users: 50
@@ -20,5 +20,5 @@ distractors:
   flag: intlShippingSlowdown
   variant: 5sec
 expected_alert: null
-split: validation
+split: test_id
 notes: null

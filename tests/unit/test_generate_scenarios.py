@@ -46,6 +46,16 @@ EXCLUDED_FLAGS = frozenset({"aiSlowResponse", "aiRunawayAgent", "emitRawPii"})
 FLAGS = load_inventory(INVENTORY_PATH)
 
 
+# The library's size, declared once so the number lives in one place.
+#
+# It was 120 and is 114. Twelve scenarios built on `imageSlowLoad` were removed
+# and six working replacements generated, because that flag is evaluated in the
+# frontend's browser code and the load generator cannot trigger it: every
+# scenario built on it recorded a bundle in which nothing happened while its
+# label named a culprit. See UNUSABLE_FLAGS in scripts/generate_scenarios.py.
+EXPECTED_LIBRARY_SIZE = 114
+
+
 def generated_specs() -> list:
     return generate_library(FLAGS)
 
@@ -100,7 +110,7 @@ def test_require_variant_raises_against_a_trimmed_inventory():
 
 
 def test_generate_library_produces_the_expected_size():
-    assert len(generated_specs()) == 120
+    assert len(generated_specs()) == EXPECTED_LIBRARY_SIZE
 
 
 def test_generated_ids_are_unique():
@@ -112,7 +122,7 @@ def test_generated_ids_are_unique():
 def test_every_generated_spec_loads_from_disk(tmp_path: Path):
     library = write_to(tmp_path)
 
-    assert len(library) == 120
+    assert len(library) == EXPECTED_LIBRARY_SIZE
 
 
 def test_every_filename_stem_equals_its_id(tmp_path: Path):
@@ -135,7 +145,7 @@ def test_generated_library_has_sound_splits(tmp_path: Path):
 
     summary = require_sound_splits(library)
 
-    assert summary.scenarios == 120
+    assert summary.scenarios == EXPECTED_LIBRARY_SIZE
 
 
 # --- held out families ---------------------------------------------------
@@ -271,6 +281,6 @@ def test_main_writes_the_library_and_reports_a_summary(tmp_path, monkeypatch, ca
     assert generate_scenarios.main() == 0
 
     output = capsys.readouterr().out
-    assert "120 scenario specs" in output
-    assert len(list((tmp_path / "specs").glob("*.yaml"))) == 120
+    assert f"{EXPECTED_LIBRARY_SIZE} scenario specs" in output
+    assert len(list((tmp_path / "specs").glob("*.yaml"))) == EXPECTED_LIBRARY_SIZE
     assert (tmp_path / "CARD.md").is_file()

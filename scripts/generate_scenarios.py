@@ -178,12 +178,45 @@ def build_unreachable(flags: dict[str, Any]) -> list[ScenarioSpec]:
     return specs
 
 
+# Flags the load generator cannot trigger, and so cannot be built on.
+#
+# `imageSlowLoad` is evaluated in the frontend's browser side React component
+# (`vendor/otel-demo/src/frontend/components/ProductCard/ProductCard.tsx`),
+# which reads the flag and sets an `x-envoy-fault-delay-request` header. Envoy
+# applies the delay when it sees that header. The load generator is an HTTP
+# client and never runs React, so it never sets the header and the delay never
+# happens.
+#
+# Confirmed three ways rather than inferred once:
+#
+# 1. The source shows the flag read in browser code and nowhere server side. It
+#    is the only one of the fifteen fault flags evaluated that way.
+# 2. An eighteen minute recording at fifty users with the flag on shows
+#    image-provider p95 latency flat at 1.90ms throughout.
+# 3. A direct request with the flag on takes 0.0026s; the same request carrying
+#    the header a browser would set takes 5.005s.
+#
+# Twelve of the original 120 scenarios were built on it, and every one of them
+# recorded a bundle in which nothing happened while its label named
+# image-provider as the culprit. A system that correctly reported a healthy
+# system would have been scored wrong on all twelve.
+UNUSABLE_FLAGS: frozenset[str] = frozenset({"imageSlowLoad"})
+
+
 def build_latency(flags: dict[str, Any]) -> list[ScenarioSpec]:
-    """imageSlowLoad, intlShippingSlowdown -> latency."""
-    plan: tuple[tuple[str, str], ...] = (
-        ("imageSlowLoad", "image-provider"),
-        ("intlShippingSlowdown", "shipping"),
-    )
+    """intlShippingSlowdown -> latency, at two variants and two spawn rates.
+
+    `imageSlowLoad` used to be the other half of this family and is now
+    excluded. See `UNUSABLE_FLAGS` for the evidence: it is evaluated in the
+    frontend's browser code, so the load generator cannot trigger it and every
+    scenario built on it recorded a bundle in which nothing happened.
+
+    Losing it leaves `intlShippingSlowdown` as the only server side latency
+    fault the demo offers, so the family is filled out with spawn rate variants
+    instead of a second flag. That is a thinner family than intended and it is
+    an honest one.
+    """
+    plan: tuple[tuple[str, str], ...] = (("intlShippingSlowdown", "shipping"),)
     variants = ("5sec", "10sec")
     specs: list[ScenarioSpec] = []
     for flag, service in plan:
@@ -372,7 +405,11 @@ def build_distractor(flags: dict[str, Any]) -> list[ScenarioSpec]:
     """An error-injection or latency base fault plus one unrelated deploy event."""
     plan: tuple[tuple[str, str, str, FaultClass, str, int], ...] = (
         ("paymentFailure", "payment", "75%", FaultClass.ERROR_INJECTION, "recommendation", -120),
-        ("imageSlowLoad", "image-provider", "5sec", FaultClass.LATENCY, "frontend", -90),
+        # Was imageSlowLoad against image-provider. Replaced because that flag
+        # is evaluated in browser code the load generator never runs, so the
+        # scenario recorded a bundle in which nothing happened while its label
+        # named a culprit. See UNUSABLE_FLAGS.
+        ("intlShippingSlowdown", "shipping", "5sec", FaultClass.LATENCY, "frontend", -90),
         ("cartFailure", "cart", "10%", FaultClass.ERROR_INJECTION, "ad", -150),
     )
     specs: list[ScenarioSpec] = []
@@ -422,8 +459,19 @@ def build_double_fault(flags: dict[str, Any]) -> list[ScenarioSpec]:
         DoubleFaultPair("paymentFailure", "payment", "50%", "cartFailure", "cart", "10%"),
         DoubleFaultPair("cartFailure", "cart", "50%", "adFailure", "ad", "on"),
         DoubleFaultPair("adFailure", "ad", "on", "productCatalogFailure", "product-catalog", "on"),
+        # Was imageSlowLoad paired with intlShippingSlowdown, and it was the
+        # worst of the twelve inert scenarios rather than merely a wasted one.
+        # The primary fault did nothing, so the only thing that actually
+        # happened was the flag labelled a harmless distractor, and a system
+        # correctly naming shipping was scored wrong while being expected to
+        # name a service that was fine.
         DoubleFaultPair(
-            "imageSlowLoad", "image-provider", "10sec", "intlShippingSlowdown", "shipping", "5sec"
+            "productCatalogFailure",
+            "product-catalog",
+            "on",
+            "intlShippingSlowdown",
+            "shipping",
+            "5sec",
         ),
     )
     specs: list[ScenarioSpec] = []

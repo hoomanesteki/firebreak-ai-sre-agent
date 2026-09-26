@@ -60,6 +60,15 @@ from firebreak.triage.pipeline import triage_bundle
 from firebreak.triage.report import NO_AI_LABEL, build_b0_report
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+# The library's size, declared once so the number lives in one place.
+#
+# It was 120 and is 114. Twelve scenarios built on `imageSlowLoad` were removed
+# and six working replacements generated, because that flag is evaluated in the
+# frontend's browser code and the load generator cannot trigger it: every
+# scenario built on it recorded a bundle in which nothing happened while its
+# label named a culprit. See UNUSABLE_FLAGS in scripts/generate_scenarios.py.
+EXPECTED_LIBRARY_SIZE = 114
 SPECS_DIR = REPO_ROOT / "scenarios" / "specs"
 INVENTORY = REPO_ROOT / "reports" / "lab" / "flag_inventory.json"
 
@@ -121,7 +130,7 @@ def _windows(manifest: BundleManifest) -> tuple[dict[str, str], dict[str, str]]:
 def test_the_real_library_loads_and_its_splits_are_sound(library):
     summary = require_sound_splits(library)
 
-    assert summary.scenarios == 120
+    assert summary.scenarios == EXPECTED_LIBRARY_SIZE
     assert summary.tunable_scenarios > 0
     assert summary.held_out_scenarios > 0
 
