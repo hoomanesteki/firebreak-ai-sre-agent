@@ -16,6 +16,9 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    # The suite takes about two minutes. Twenty is generous for a cold cache and
+    # far short of the six hour default, which a hung test would otherwise burn.
+    timeout-minutes: 20
 
     services:
       # Without this the Neo4j integration tests skip, and skipping is the
@@ -92,8 +95,19 @@ jobs:
           git fetch origin main --depth=50 || true
           uv run python scripts/check_repo_hygiene.py --base-ref origin/main
 
+      - name: Spec conformance
+        # Reads SPEC.md's own tables and fails when a completed phase left
+        # something out. It found two on the day it was written: an ablation no
+        # phase claimed, and a make target CLAUDE.md promised and nobody had
+        # added. Planned work is reported and does not fail, because a checker
+        # that failed on the plan would have to be silenced.
+        env:
+          PYTHONPATH: src
+        run: uv run python scripts/check_spec_conformance.py
+
   security:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
         with:

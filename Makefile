@@ -4,7 +4,7 @@ SHELL := /bin/bash
 
 .PHONY: help setup verify lint format types test test-cov hygiene leakage clean unhide \
         live live-config live-down live-logs lab-flags lab-library lab-bundles lab-package lab-verify lab-smoke lab-webhook lab-record lab-record-library \
-        graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates eval-b0
+        graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates eval-b0 eval eval-compare spec-check ci-status
 
 help:  ## Show the available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -35,7 +35,7 @@ unhide:
 		chflags nohidden .venv/lib/python*/site-packages/*.pth 2>/dev/null || true; \
 	fi
 
-verify: unhide lint types test hygiene leakage  ## Run every check the review gate expects
+verify: unhide lint types test hygiene leakage spec-check  ## Run every check the review gate expects
 
 lint:  ## Lint and check formatting
 	uv run ruff check .
@@ -199,6 +199,36 @@ eval-b0:  ## Run baseline B0 on every split and write the reports
 	$(FIREBREAK) eval run --config b0 --split validation --trials 3
 	$(FIREBREAK) eval run --config b0 --split test_id --trials 3
 	$(FIREBREAK) eval run --config b0 --split test_ood --trials 3
+
+# CLAUDE.md promises this command and it did not exist until the spec
+# conformance check asked for it. TRIALS defaults to 3 for the same reason
+# eval-b0 uses 3: SPEC.md Section 9.3 specifies three for pass^3.
+eval:  ## Run one configuration on one split: make eval CONFIG=fb-v1 SPLIT=validation [TRIALS=3]
+ifndef CONFIG
+	$(error CONFIG is required, for example: make eval CONFIG=fb-v1 SPLIT=validation)
+endif
+ifndef SPLIT
+	$(error SPLIT is required, one of train validation test_id test_ood)
+endif
+	$(FIREBREAK) eval run --config $(CONFIG) --split $(SPLIT) --trials $(or $(TRIALS),3)
+
+eval-compare:  ## Compare two configurations: make eval-compare TREATMENT=fb-v1 CONTROL=b1 SPLIT=validation
+ifndef TREATMENT
+	$(error TREATMENT is required, for example: make eval-compare TREATMENT=fb-v1 CONTROL=b0 SPLIT=validation)
+endif
+ifndef CONTROL
+	$(error CONTROL is required, the configuration to judge against)
+endif
+ifndef SPLIT
+	$(error SPLIT is required, one of train validation test_id test_ood)
+endif
+	$(FIREBREAK) eval compare --treatment $(TREATMENT) --control $(CONTROL) --split $(SPLIT)
+
+spec-check:  ## Check the repository against SPEC.md's own tables
+	PYTHONPATH=src uv run python scripts/check_spec_conformance.py
+
+ci-status:  ## What CI said about HEAD: make ci-status [WATCH=1]
+	PYTHONPATH=src uv run python scripts/ci_status.py $(if $(WATCH),--watch,)
 
 compare-log-templates:  ## Re-decide ADR-0006 by comparing the masker against Drain
 	PYTHONPATH=src uv run python scripts/compare_log_templates.py
