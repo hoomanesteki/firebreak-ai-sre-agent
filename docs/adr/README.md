@@ -12,3 +12,4 @@ The full list of required records is in SPEC.md Section 14.
 | [0005](0005-service-graph.md) | Service dependency edges from the service_graph connector | Accepted | 1 |
 | [0006](0006-log-templates.md) | A deterministic masker for log templates, not Drain | Accepted | 4 |
 | [0007](0007-candidate-ranking.md) | Candidate ranking by personalised PageRank over the call graph | Accepted | 4 |
+| [0008](0008-agent-graph-v1.md) | Agent graph v1, and why the loop is not yet a LangGraph | Accepted, partial | 6 |
