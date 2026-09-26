@@ -20,5 +20,5 @@ distractors:
   flag: cartFailure
   variant: 10%
 expected_alert: null
-split: test_id
+split: validation
 notes: null

@@ -22,7 +22,29 @@ from firebreak.tools.evidence import BackendFingerprint, TimeRange
 # SPEC.md Section 6.3. A window longer than this is almost always a mistake,
 # and answering it politely would hide the mistake.
 MAX_WINDOW_SECONDS = 2 * 60 * 60
+
+# The row cap for tool calls. It exists to protect a model's context, which is
+# the only reason it is as small as fifty: ADR-0004 is explicit that a tool
+# returns a summary and an evidence id, never a page of rows.
 MAX_ROWS = 50
+
+# The cap for reading a whole series, which is a different question with a
+# different reason.
+#
+# Deterministic analysis has no context to protect. It computes a median and a
+# median absolute deviation, and both need the series rather than a sample of
+# it. Applying the tool cap here was a real defect and a severe one: with
+# `ORDER BY timestamp` and a limit of fifty across eighteen services, each
+# service received three samples, `MIN_BASELINE_POINTS` discarded them as
+# untrustworthy, and a real 25x latency regression on the true culprit scored
+# zero. On synthetic bundles with eight services fifty rows happened to leave
+# just enough per service, so nothing failed until the first real recording.
+#
+# Still bounded, because an unbounded read is how a query becomes a denial of
+# service. Two thousand points is four times what the widest allowed window
+# can hold at the recorded fifteen second step, so it bounds the pathological
+# case without ever truncating a legitimate one.
+MAX_SERIES_POINTS = 2000
 MAX_LOG_BYTES = 20_000
 MIN_STEP_SECONDS = 5
 
@@ -108,6 +130,24 @@ class QueryBackend(Protocol):
         services: tuple[str, ...] = (),
         limit: int = MAX_ROWS,
     ) -> list[MetricPoint]: ...
+
+    def metric_series(
+        self,
+        metric_name: str,
+        window: TimeRange,
+        services: tuple[str, ...] = (),
+        limit: int = MAX_SERIES_POINTS,
+    ) -> list[MetricPoint]:
+        """Every sample of one metric in a window, for deterministic analysis.
+
+        Deliberately a second method rather than a larger limit on
+        `query_metrics`. The two answer different questions and must keep
+        different caps: a tool returns rows a model will read, and a scorer
+        computes a statistic over a series. Sharing one method would mean one
+        cap serving both, and whichever value it took would be wrong for the
+        other caller.
+        """
+        ...
 
     def search_logs(
         self,

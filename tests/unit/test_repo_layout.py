@@ -40,13 +40,46 @@ REQUIRED_PATHS = [
     "prompts/critic.md",
     "scenarios/specs/payment-failure.yaml",
     "scenarios/injectors/log_injector.py",
-    "bundles/scenario/run/manifest.json",
     "labels/scenario/run.json",
     "recordings/cassette.json",
     "reports/eval/fb/test-id/result.json",
     "ops/grafana/dashboard.json",
     "config/models.yaml",
 ]
+
+# Recorded bundles are the one path SPEC.md Section 7.1 lists that is
+# deliberately ignored, and the reason is in the same line of the spec: it sends
+# them "via Git LFS or release assets".
+#
+# Release assets, because git-lfs is not installed here and requiring it to
+# clone the repository would be a real cost for a convenience. `firebreak lab
+# package` archives the library with checksums for that purpose, and a clone
+# without bundles works: the eval falls back to fixtures per split and every
+# report says which it used.
+#
+# At roughly 2.7 MB per bundle the full library of 120 is about 320 MB, which
+# does not belong in git objects either way.
+#
+# This entry is kept rather than deleted so the decision is visible next to the
+# guard it is an exception to. The path SPEC.md uses is also pre-Phase-2: real
+# bundles are stored under an opaque `inc_<12 hex>` id, not under the scenario
+# name, precisely so a path cannot state the answer.
+DELIBERATELY_IGNORED_FROM_THE_LAYOUT = ["bundles/inc_0123456789ab/manifest.json"]
+
+
+@pytest.mark.parametrize("rel_path", DELIBERATELY_IGNORED_FROM_THE_LAYOUT)
+def test_bundles_are_ignored_on_purpose(rel_path: str):
+    """Asserted rather than assumed, so the decision cannot drift back silently.
+
+    If bundles ever stop being ignored, either somebody adopted Git LFS, which
+    is fine and should update this test, or a 320 MB directory is about to enter
+    git history, which is not.
+    """
+    assert is_ignored(rel_path), (
+        f"{rel_path} is no longer ignored; bundles ship as release assets, "
+        "see firebreak lab package"
+    )
+
 
 # Things that must stay out of the repository.
 IGNORED_PATHS = [

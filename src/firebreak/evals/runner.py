@@ -114,7 +114,39 @@ def run_b0(bundle_dir: Path) -> tuple[InvestigationOutcome, set[str]]:
     return outcome, set(report.evidence)
 
 
-CONFIGURATIONS: dict[str, Configuration] = {"b0": run_b0}
+def run_fb_v1(bundle_dir: Path) -> tuple[InvestigationOutcome, set[str]]:
+    """Firebreak v1: the multi-agent graph, in whatever mode it is configured for.
+
+    Defaults to stub, which is what makes this runnable in CI and in the offline
+    demo. A stub run is not a claim about what a model would do; it is a claim
+    about the harness, the tool layer and the gates, which is exactly what a
+    regression suite should be protecting.
+    """
+    from firebreak.agent.graph import investigate
+
+    result = investigate(bundle_dir, verify=False)
+    report = result.report
+    triage = result.state.triage
+    outcome = InvestigationOutcome(
+        bundle_id=result.state.incident_id,
+        root_cause_service=report.root_cause_service,
+        ranked_candidates=tuple(c.service for c in triage.candidates) if triage else (),
+        abstained=report.abstained,
+        fault_class=report.fault_class,
+        fault_onset=report.fault_onset,
+        confidence=report.confidence.as_probability if report.confidence else None,
+        cited_evidence=report.cited_evidence,
+        tool_calls=result.state.budget.tool_calls,
+        tokens_in=result.state.budget.tokens_in,
+        tokens_out=result.state.budget.tokens_out,
+        usd=result.state.budget.usd,
+        wall_clock_seconds=result.wall_clock_seconds,
+        notes={"stopped_because": result.stopped_because.value},
+    )
+    return outcome, set(result.state.evidence)
+
+
+CONFIGURATIONS: dict[str, Configuration] = {"b0": run_b0, "fb-v1": run_fb_v1}
 
 
 def load_labels(labels_dir: Path = LABELS_DIR) -> dict[str, IncidentLabel]:
@@ -163,10 +195,17 @@ def collect_tasks(
 ) -> tuple[list[Task], bool]:
     """The tasks for one split, and whether they are recorded or synthetic.
 
-    Recorded bundles are preferred whenever they exist, and fixtures are built
-    only when they do not. The boolean travels into the report, because a
-    figure from a fixture and a figure from a recording are different kinds of
-    claim and nothing downstream should have to guess which it has.
+    **Decided per split, not globally.** The first version flipped to recorded
+    bundles as soon as any existed anywhere, and the first real recording broke
+    it immediately: one test_ood bundle on disk meant validation found no tasks
+    and the run refused to start. A library is recorded over days, so the
+    partially recorded state is the normal state and has to work.
+
+    **All or nothing within a split**, though. Mixing a recorded bundle and a
+    fixture in one report would produce an average across two different kinds of
+    claim, and no caveat on the report could tell a reader which half a number
+    came from. So a split with any recording uses only recordings, and the
+    caller is told how much of the split that covers.
     """
     library = load_library(SPECS_DIR)
     labels = load_labels()
@@ -174,14 +213,18 @@ def collect_tasks(
         {path.name: path for path in iter_bundles(BUNDLES_DIR)} if BUNDLES_DIR.is_dir() else {}
     )
 
+    in_split = [
+        (bundle_id, path)
+        for bundle_id, path in sorted(recorded.items())
+        if (label := labels.get(bundle_id)) is not None and label.split == split.value
+    ]
+
     tasks: list[Task] = []
-    using_recorded = bool(recorded and labels)
-    if using_recorded:
-        for bundle_id, bundle_dir in sorted(recorded.items()):
-            label = labels.get(bundle_id)
-            if label is None or label.split != split.value:
-                continue
+    if in_split:
+        for bundle_id, bundle_dir in in_split:
+            label = labels[bundle_id]
             tasks.append(Task(bundle_id, bundle_dir, label, library.get(label.scenario_id)))
+        using_recorded = True
     else:
         specs = sorted(
             (spec for spec in library.values() if spec.split is split), key=lambda s: s.id
@@ -191,12 +234,32 @@ def collect_tasks(
             bundle_dir = workspace / label.bundle_id
             build_synthetic_bundle(bundle_dir, spec, run_id, seed=seed)
             tasks.append(Task(label.bundle_id, bundle_dir, label, spec))
+        using_recorded = False
 
     if limit:
         tasks = tasks[:limit]
     if not tasks:
         raise RunnerError(f"no tasks found for split {split.value}")
     return tasks, using_recorded
+
+
+def split_coverage(split: Split) -> tuple[int, int]:
+    """How many of a split's scenarios are recorded, and how many exist.
+
+    Reported on every eval so a figure from three bundles is never mistaken for
+    a figure from thirty. A partially recorded split produces a real number
+    about a small sample, which is worth having and worth labelling.
+    """
+    library = load_library(SPECS_DIR)
+    total = sum(1 for spec in library.values() if spec.split is split)
+    labels = load_labels()
+    recorded = {path.name for path in iter_bundles(BUNDLES_DIR)} if BUNDLES_DIR.is_dir() else set()
+    covered = sum(
+        1
+        for bundle_id in recorded
+        if (label := labels.get(bundle_id)) is not None and label.split == split.value
+    )
+    return covered, total
 
 
 def allowed_remediation_ids() -> set[str]:
@@ -223,6 +286,8 @@ class RunResult:
     trials_per_task: int
     using_recorded_bundles: bool
     trials: tuple[Trial, ...]
+    recorded_scenarios: int = 0
+    total_scenarios: int = 0
 
     @property
     def sheets(self) -> list[GradeSheet]:
@@ -278,10 +343,13 @@ def run_configuration(
                 )
             )
 
+    covered, total = split_coverage(split)
     return RunResult(
         configuration=configuration,
         split=split.value,
         trials_per_task=trials_per_task,
         using_recorded_bundles=using_recorded,
         trials=tuple(trials),
+        recorded_scenarios=covered,
+        total_scenarios=total,
     )

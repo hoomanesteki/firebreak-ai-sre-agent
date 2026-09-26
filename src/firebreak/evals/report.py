@@ -76,17 +76,39 @@ class EvalReport:
     commit: str
     overall: SplitMetrics
     by_family: dict[str, SplitMetrics]
+    recorded_scenarios: int = 0
+    total_scenarios: int = 0
 
     @property
     def quotable(self) -> bool:
-        """Whether these numbers support a claim about performance."""
-        return self.using_recorded_bundles and self.split in RESULT_SPLITS
+        """Whether these numbers support a claim about performance.
+
+        Requires a fully recorded held out split. A partly recorded one gives a
+        real measurement of a small sample, which is useful for development and
+        is not the split's result.
+        """
+        return (
+            self.using_recorded_bundles
+            and self.split in RESULT_SPLITS
+            and not self.partial_coverage
+        )
+
+    @property
+    def partial_coverage(self) -> bool:
+        """Whether this split is only partly recorded."""
+        return self.using_recorded_bundles and 0 < self.recorded_scenarios < self.total_scenarios
 
     @property
     def caveats(self) -> tuple[str, ...]:
         notes = []
         if not self.using_recorded_bundles:
             notes.append(SYNTHETIC_WARNING)
+        if self.partial_coverage:
+            notes.append(
+                f"Only {self.recorded_scenarios} of this split's {self.total_scenarios} "
+                "scenarios are recorded, so this is a real figure about a small sample "
+                "rather than the split's result. Record the rest before quoting it."
+            )
         if self.split not in RESULT_SPLITS:
             notes.append(TUNED_SPLIT_WARNING)
         return tuple(notes)
@@ -102,6 +124,8 @@ class EvalReport:
             "split": self.split,
             "trials_per_task": self.trials_per_task,
             "data_source": self.data_source,
+            "recorded_scenarios": self.recorded_scenarios,
+            "total_scenarios": self.total_scenarios,
             "quotable_as_a_result": self.quotable,
             "caveats": list(self.caveats),
             "generated_at": self.generated_at,
@@ -132,6 +156,8 @@ def build_report(result: RunResult, resamples: int = BOOTSTRAP_RESAMPLES) -> Eva
         commit=git_commit(),
         overall=overall,
         by_family=by_family,
+        recorded_scenarios=result.recorded_scenarios,
+        total_scenarios=result.total_scenarios,
     )
 
 
@@ -163,7 +189,12 @@ def render_markdown(report: EvalReport) -> str:
         f"- Split: `{report.split}`",
         f"- Trials per task: {report.trials_per_task}",
         f"- Tasks: {report.overall.tasks}, trials: {report.overall.trials}",
-        f"- Data source: {report.data_source}",
+        f"- Data source: {report.data_source}"
+        + (
+            f" ({report.recorded_scenarios} of {report.total_scenarios} scenarios recorded)"
+            if report.using_recorded_bundles
+            else ""
+        ),
         f"- Commit: `{report.commit}`",
         f"- Generated: {report.generated_at}",
         "",

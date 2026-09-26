@@ -1,13 +1,13 @@
-id: distractor-image-slow-load-5sec-50u
+id: distractor-intl-shipping-slowdown-5sec-5u
 family: distractor
 fault:
   kind: flag
-  flag: imageSlowLoad
+  flag: intlShippingSlowdown
   variant: 5sec
-target_service: image-provider
+target_service: shipping
 fault_class: latency
 load:
-  users: 50
+  users: 5
   spawn_rate: 5.0
 timing:
   warmup_seconds: 300
@@ -20,5 +20,5 @@ distractors:
   flag: null
   variant: null
 expected_alert: null
-split: validation
+split: test_id
 notes: null

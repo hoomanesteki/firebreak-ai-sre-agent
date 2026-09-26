@@ -1,0 +1,219 @@
+{
+  "configuration": "b0",
+  "split": "test_ood",
+  "trials_per_task": 1,
+  "data_source": "recorded bundles",
+  "recorded_scenarios": 1,
+  "total_scenarios": 30,
+  "quotable_as_a_result": false,
+  "caveats": [
+    "Only 1 of this split's 30 scenarios are recorded, so this is a real figure about a small sample rather than the split's result. Record the rest before quoting it."
+  ],
+  "generated_at": "2026-09-25T12:56:34.656467+00:00",
+  "commit": "b82d75b00fa686029c4eb87632b9d79bd6cd5137",
+  "mode": "bundle",
+  "overall": {
+    "trials": 1,
+    "tasks": 1,
+    "headline_accuracy": {
+      "estimate": 0.0,
+      "lower": 0.0,
+      "upper": 0.0,
+      "resamples": 500,
+      "observations": 1
+    },
+    "graders": {
+      "abstention": {
+        "grader": "abstention",
+        "applicable": 1,
+        "correct": 0,
+        "trials": 1,
+        "coverage": 1.0,
+        "accuracy": 0.0,
+        "interval": {
+          "estimate": 0.0,
+          "lower": 0.0,
+          "upper": 0.0,
+          "resamples": 500,
+          "observations": 1
+        }
+      },
+      "evidence_validity": {
+        "grader": "evidence_validity",
+        "applicable": 1,
+        "correct": 1,
+        "trials": 1,
+        "coverage": 1.0,
+        "accuracy": 1.0,
+        "interval": {
+          "estimate": 1.0,
+          "lower": 1.0,
+          "upper": 1.0,
+          "resamples": 500,
+          "observations": 1
+        }
+      },
+      "root_cause": {
+        "grader": "root_cause",
+        "applicable": 1,
+        "correct": 0,
+        "trials": 1,
+        "coverage": 1.0,
+        "accuracy": 0.0,
+        "interval": {
+          "estimate": 0.0,
+          "lower": 0.0,
+          "upper": 0.0,
+          "resamples": 500,
+          "observations": 1
+        }
+      },
+      "root_cause_top3": {
+        "grader": "root_cause_top3",
+        "applicable": 1,
+        "correct": 1,
+        "trials": 1,
+        "coverage": 1.0,
+        "accuracy": 1.0,
+        "interval": {
+          "estimate": 1.0,
+          "lower": 1.0,
+          "upper": 1.0,
+          "resamples": 500,
+          "observations": 1
+        }
+      }
+    },
+    "calibration": null,
+    "selective_accuracy": {
+      "coverage": 0.0,
+      "selective_accuracy": 0.0,
+      "overall_accuracy": 0.0,
+      "answered": 0,
+      "total": 1,
+      "risk_coverage_curve": [
+        {
+          "threshold": 0.0,
+          "coverage": 0.0,
+          "accuracy": 0.0,
+          "risk": 1.0
+        }
+      ]
+    },
+    "reliability": null,
+    "cost": {
+      "trials": 1,
+      "mean_tool_calls": 1.0,
+      "mean_usd": 0.0,
+      "median_usd": 0.0,
+      "total_tokens_in": 0,
+      "total_tokens_out": 0,
+      "p50_seconds": 0.2469,
+      "p95_seconds": 0.2469
+    },
+    "median_onset_error_seconds": null
+  },
+  "by_family": {
+    "contention": {
+      "trials": 1,
+      "tasks": 1,
+      "headline_accuracy": {
+        "estimate": 0.0,
+        "lower": 0.0,
+        "upper": 0.0,
+        "resamples": 500,
+        "observations": 1
+      },
+      "graders": {
+        "abstention": {
+          "grader": "abstention",
+          "applicable": 1,
+          "correct": 0,
+          "trials": 1,
+          "coverage": 1.0,
+          "accuracy": 0.0,
+          "interval": {
+            "estimate": 0.0,
+            "lower": 0.0,
+            "upper": 0.0,
+            "resamples": 500,
+            "observations": 1
+          }
+        },
+        "evidence_validity": {
+          "grader": "evidence_validity",
+          "applicable": 1,
+          "correct": 1,
+          "trials": 1,
+          "coverage": 1.0,
+          "accuracy": 1.0,
+          "interval": {
+            "estimate": 1.0,
+            "lower": 1.0,
+            "upper": 1.0,
+            "resamples": 500,
+            "observations": 1
+          }
+        },
+        "root_cause": {
+          "grader": "root_cause",
+          "applicable": 1,
+          "correct": 0,
+          "trials": 1,
+          "coverage": 1.0,
+          "accuracy": 0.0,
+          "interval": {
+            "estimate": 0.0,
+            "lower": 0.0,
+            "upper": 0.0,
+            "resamples": 500,
+            "observations": 1
+          }
+        },
+        "root_cause_top3": {
+          "grader": "root_cause_top3",
+          "applicable": 1,
+          "correct": 1,
+          "trials": 1,
+          "coverage": 1.0,
+          "accuracy": 1.0,
+          "interval": {
+            "estimate": 1.0,
+            "lower": 1.0,
+            "upper": 1.0,
+            "resamples": 500,
+            "observations": 1
+          }
+        }
+      },
+      "calibration": null,
+      "selective_accuracy": {
+        "coverage": 0.0,
+        "selective_accuracy": 0.0,
+        "overall_accuracy": 0.0,
+        "answered": 0,
+        "total": 1,
+        "risk_coverage_curve": [
+          {
+            "threshold": 0.0,
+            "coverage": 0.0,
+            "accuracy": 0.0,
+            "risk": 1.0
+          }
+        ]
+      },
+      "reliability": null,
+      "cost": {
+        "trials": 1,
+        "mean_tool_calls": 1.0,
+        "mean_usd": 0.0,
+        "median_usd": 0.0,
+        "total_tokens_in": 0,
+        "total_tokens_out": 0,
+        "p50_seconds": 0.2469,
+        "p95_seconds": 0.2469
+      },
+      "median_onset_error_seconds": null
+    }
+  }
+}

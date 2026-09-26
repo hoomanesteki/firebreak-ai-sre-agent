@@ -27,6 +27,7 @@ import duckdb
 
 from firebreak.backends.base import (
     MAX_ROWS,
+    MAX_SERIES_POINTS,
     BackendError,
     LogRecord,
     MetricPoint,
@@ -156,6 +157,51 @@ class BundleBackend:
             sql += f" AND service_name IN ({placeholders})"
             parameters.extend(services)
         sql += " ORDER BY timestamp, service_name LIMIT ?"
+        parameters.append(capped)
+
+        return [
+            MetricPoint(
+                timestamp=str(row["timestamp"]),
+                metric_name=str(row["metric_name"]),
+                service_name=str(row["service_name"]),
+                value=float(row["value"]),
+                labels=json.loads(row["labels_json"]) if row.get("labels_json") else {},
+            )
+            for row in self._run(sql, parameters)
+        ]
+
+    def metric_series(
+        self,
+        metric_name: str,
+        window: TimeRange,
+        services: tuple[str, ...] = (),
+        limit: int = MAX_SERIES_POINTS,
+    ) -> list[MetricPoint]:
+        """Every sample of one metric in a window, oldest first.
+
+        The same query as `query_metrics` with a different bound, and the
+        difference is the whole point. See `MAX_SERIES_POINTS` for why reading a
+        series through the tool row cap starved the anomaly scorer of data on
+        the first real recording.
+        """
+        check_window(window)
+        capped = check_limit(limit, maximum=MAX_SERIES_POINTS)
+        sql = (
+            f"SELECT {_iso('timestamp')} AS timestamp, metric_name, "
+            f"service_name, value, labels_json "
+            f"FROM {self._table(METRICS_FILE)} "
+            "WHERE metric_name = ? AND timestamp >= ? AND timestamp <= ?"
+        )
+        parameters: list[Any] = [metric_name, window.start, window.end]
+        if services:
+            placeholders = ", ".join("?" for _ in services)
+            sql += f" AND service_name IN ({placeholders})"
+            parameters.extend(services)
+        # Ordered by service first, so that a truncation at the cap loses whole
+        # services rather than the tail of every one of them. A starved series
+        # that still looks present is worse than an absent one, because
+        # `MIN_BASELINE_POINTS` can only reject what it can see.
+        sql += " ORDER BY service_name, timestamp LIMIT ?"
         parameters.append(capped)
 
         return [

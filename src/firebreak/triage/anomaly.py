@@ -31,7 +31,12 @@ MAD_TO_SIGMA = 1.4826
 
 # When every baseline value is identical, MAD is zero and the z-score is
 # undefined. Rather than returning infinity for a series that merely sat
-# still, the deviation is floored at a fraction of the baseline level.
+# still, the deviation is floored at a fraction of the level: the baseline's
+# own where it has one, the incident's where the baseline is flat at zero.
+#
+# This fraction also sets the ceiling on a zero-baseline score, at its
+# reciprocal of 20, which is what stops "a signal appeared" from outranking
+# every measured regression.
 MIN_SCALE_FRACTION = 0.05
 ABSOLUTE_MIN_SCALE = 1e-9
 
@@ -82,31 +87,85 @@ class AnomalyScore:
         return self.delta / abs(self.baseline_median)
 
 
-def robust_scale(values: list[float]) -> float:
-    """A standard deviation estimate that extreme values cannot inflate."""
+def robust_scale(values: list[float], reference: float | None = None) -> float:
+    """A standard deviation estimate that extreme values cannot inflate.
+
+    `reference` is a level to fall back on when the baseline carries no scale
+    of its own, which happens whenever it is flat at zero. Pass the incident
+    median.
+
+    **Why a zero baseline needs its own answer.** A flat baseline has a MAD of
+    zero, so the scale falls to the absolute floor, and the first version used
+    1e-9 for that. Any departure from a flat-zero series then scored around
+    ten million.
+
+    That is not a large anomaly, it is an undefined one, and on the first real
+    recording it wrecked the ranking: an error counter on the edge proxy moving
+    from exactly zero to 0.01 per second scored 3.1e7, while a genuine 25x
+    latency regression on the true culprit scored 11.8. One event per hundred
+    seconds outranked the incident by six orders of magnitude.
+
+    Flooring against the incident level instead bounds the score at
+    1 / MIN_SCALE_FRACTION, which is 20. That is the honest statement: a signal
+    appearing where there was none is strong evidence, worth about as much as a
+    large measured regression and no more. The alternative, capping the z-score
+    afterwards, would preserve the same wrong ordering with tidier numbers.
+
+    **A pooled scale was tried here and measured worse, twice.** The objection
+    to this floor is real: `incident / (incident * 0.05)` is exactly 20 for
+    every service and every magnitude, so it is a constant rather than a cap and
+    it erases the size of what appeared. Borrowing a scale from the other
+    services on the same metric, which is the standard treatment for a group
+    with degenerate variance, should have fixed that.
+
+    On eleven real validation recordings it did not. Pooling as a general floor
+    took top-3 from 6 of 9 to 4 of 9, and pooling only as the flat-baseline
+    floor also gave 4 of 9. Preserving the magnitude let a loud bystander such
+    as product-catalog or frontend-proxy win outright, where the constant makes
+    the true culprit and its caller tie on anomaly and lets the dependency
+    ranking break the tie, which it does correctly.
+
+    So the constant stays, and it stays for a measured reason rather than a
+    principled one. It is worth revisiting on a larger recorded library.
+    """
     if len(values) < 2:
-        return ABSOLUTE_MIN_SCALE
+        return _zero_baseline_scale(0.0, reference)
     median = statistics.median(values)
     deviations = [abs(value - median) for value in values]
     mad = statistics.median(deviations)
     scale = mad * MAD_TO_SIGMA
-    # A perfectly flat baseline has a MAD of zero, which would make every
-    # later point infinitely anomalous. Floor it relative to the level, so a
-    # flat series at 1000 needs a bigger jump than a flat series at 1.
-    floor = max(abs(median) * MIN_SCALE_FRACTION, ABSOLUTE_MIN_SCALE)
+    # A flat baseline has no spread, so the floor is what decides the score.
+    # Relative to its own level where it has one, so a flat series at 1000
+    # needs a bigger jump than a flat series at 1.
+    floor = max(abs(median) * MIN_SCALE_FRACTION, _zero_baseline_scale(median, reference))
     return max(scale, floor)
+
+
+def _zero_baseline_scale(median: float, reference: float | None) -> float:
+    """The floor for a baseline that carries no scale of its own.
+
+    Falls back to the absolute minimum only when there is no reference either,
+    which means both windows were empty or flat at zero. In that case there is
+    genuinely nothing to compare and the score will be zero regardless.
+    """
+    if median == 0.0 and reference:
+        return abs(reference) * MIN_SCALE_FRACTION
+    return ABSOLUTE_MIN_SCALE
 
 
 def robust_z_score(baseline: list[float], incident: list[float]) -> float:
     """How many robust deviations the incident median sits from the baseline.
 
-    Returns a signed score: positive when the incident is higher.
+    Returns a signed score: positive when the incident is higher. The incident
+    median is passed to `robust_scale` as the reference level, so a baseline
+    that is flat at zero is scored against the size of what appeared rather
+    than against a floor of 1e-9.
     """
     if not baseline or not incident:
         return 0.0
     baseline_median = statistics.median(baseline)
     incident_median = statistics.median(incident)
-    return (incident_median - baseline_median) / robust_scale(baseline)
+    return (incident_median - baseline_median) / robust_scale(baseline, incident_median)
 
 
 def score_series(

@@ -16,6 +16,7 @@ from rich.table import Table
 from firebreak.evals.splits import SplitError, require_sound_splits
 from firebreak.lab.bundle import BundleError, iter_bundles, verify_bundle
 from firebreak.lab.endpoints import DEFAULT_ENDPOINTS, DEMO_TAG
+from firebreak.lab.export import ExportError, LiveExporter
 from firebreak.lab.flags import (
     FlagController,
     FlagError,
@@ -24,6 +25,7 @@ from firebreak.lab.flags import (
 )
 from firebreak.lab.load import LoadController, LoadError
 from firebreak.lab.package import PackageError, package_library, unpack_library
+from firebreak.lab.recorder import Recorder, RecordingError
 from firebreak.lab.scenario import ScenarioError, check_against_inventory, load_library
 from firebreak.lab.smoke import EXCLUDED_FLAGS, build_report, smoke_one_flag
 from firebreak.lab.stack import render_flag_store, render_prometheus_config
@@ -46,6 +48,7 @@ INVENTORY_REPORT = REPO_ROOT / "reports" / "lab" / "flag_inventory.json"
 VERIFICATION_DIR = REPO_ROOT / "reports" / "lab" / "live_verification"
 SPECS_DIR = REPO_ROOT / "scenarios" / "specs"
 BUNDLES_DIR = REPO_ROOT / "bundles"
+LABELS_DIR = REPO_ROOT / "labels"
 LIBRARY_REPORT = REPO_ROOT / "reports" / "lab" / "library.json"
 WEBHOOK_LOG = REPO_ROOT / "reports" / "lab" / "alerts.jsonl"
 HTTP_TIMEOUT_SECONDS = 15.0
@@ -452,3 +455,60 @@ def unpack(archive: str) -> None:
         _fail(str(error))
         return
     console.print(f"[green]unpacked and verified {count} bundle(s)[/green]")
+
+
+@lab_app.command("record")
+def record(
+    spec: str = typer.Option(..., "--spec", help="scenario id from scenarios/specs"),
+    run: str = typer.Option("run1", "--run", help="run id, so one scenario can be recorded twice"),
+    force: bool = typer.Option(False, "--force", help="re-record over an existing bundle"),
+) -> None:
+    """Record one scenario from the running stack into a bundle and a label.
+
+    The whole recording takes as long as the scenario says: warmup, then the
+    fault, then cooldown. A 300/600/180 scenario is eighteen minutes of wall
+    clock and there is no way to shorten it, because the baseline, the incident
+    and the recovery all have to actually happen.
+    """
+    library = load_library(SPECS_DIR)
+    if spec not in library:
+        _fail(f"unknown scenario {spec!r}; see scenarios/specs")
+    scenario = library[spec]
+
+    from firebreak.lab.bundle import derive_bundle_id
+
+    bundle_dir = BUNDLES_DIR / derive_bundle_id(scenario.id, run)
+    if bundle_dir.exists() and not force:
+        _fail(f"{bundle_dir.name} already exists; pass --force to re-record it")
+
+    minutes = scenario.timing.total_seconds / 60
+    console.print(
+        f"recording [bold]{scenario.id}[/bold] as run {run}, "
+        f"about {minutes:.0f} minutes of wall clock"
+    )
+
+    with httpx.Client(timeout=60.0) as client:
+        recorder = Recorder(
+            flags=FlagController(client, DEFAULT_ENDPOINTS),
+            load=LoadController(client, DEFAULT_ENDPOINTS),
+            exporter=LiveExporter(client, DEFAULT_ENDPOINTS),
+            bundles_root=BUNDLES_DIR,
+            labels_root=LABELS_DIR,
+            demo_tag=DEMO_TAG,
+            resting_variants=read_vendored_defaults(VENDORED_FLAG_FILE),
+        )
+        try:
+            outcome = recorder.record(scenario, run)
+        except (RecordingError, ExportError, FlagError, LoadError) as error:
+            _fail(f"recording failed: {error}")
+
+    table = Table(title=f"Recorded {scenario.id}")
+    table.add_column("Field")
+    table.add_column("Value")
+    table.add_row("bundle", outcome.bundle_dir.name)
+    table.add_row("label", str(outcome.label_path.relative_to(REPO_ROOT)))
+    table.add_row("window", f"{outcome.manifest.window.start} to {outcome.manifest.window.end}")
+    table.add_row("alert fired", str(outcome.manifest.alert_fired))
+    for name, count in sorted(outcome.manifest.row_counts().items()):
+        table.add_row(name, str(count))
+    console.print(table)

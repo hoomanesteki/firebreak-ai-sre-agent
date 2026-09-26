@@ -227,3 +227,17 @@ requirements-audit.txt
 # Generated stack configuration, rendered from the pinned demo
 ops/generated/
 reports/lab/alerts.jsonl
+
+# Recorded incident bundles. About 2.7 MB each, so the full library of 120 is
+# roughly 320 MB, which does not belong in git history.
+#
+# SPEC.md Section 8 says they travel as Git LFS or release assets, and
+# `firebreak lab package` already archives them with checksums for exactly
+# that. A fresh clone therefore has no bundles, which is handled: the eval
+# falls back to synthetic fixtures per split and labels every report with
+# which one it used.
+#
+# `labels/` is deliberately NOT ignored. The labels are small JSON, the eval
+# needs them, and the leakage control is the import rule in
+# `config/leakage.yaml` rather than the labels being absent from the repository.
+/bundles/
