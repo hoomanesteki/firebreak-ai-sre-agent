@@ -13,4 +13,6 @@ The full list of required records is in SPEC.md Section 14.
 | [0006](0006-log-templates.md) | A deterministic masker for log templates, not Drain | Accepted | 4 |
 | [0007](0007-candidate-ranking.md) | Candidate ranking by personalised PageRank over the call graph | Accepted | 4 |
 | [0008](0008-agent-graph-v1.md) | Agent graph v1, and why the loop is not yet a LangGraph | Accepted | 6 |
+| [0009](0009-tiers-cascade-floor.md) | Model tiers, a rule-based cascade, and a deterministic floor | Accepted | 8 |
 | [0010](0010-exit-gate.md) | Exit gate with re-execution, and abstention as a separate rule | Accepted | 7 |
+| [0012](0012-eval-gate-and-splits.md) | A non-inferiority eval gate, and the split design behind it | Accepted | 8 |
