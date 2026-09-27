@@ -4,7 +4,7 @@ SHELL := /bin/bash
 
 .PHONY: help setup verify lint format types test test-cov hygiene leakage clean unhide \
         live live-config live-down live-logs lab-flags lab-library lab-bundles lab-package lab-verify lab-smoke lab-webhook lab-record lab-record-library \
-        graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates eval-b0 eval eval-compare eval-gate eval-regression cost-table spec-check ci-status
+        graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates eval-b0 eval eval-compare eval-gate eval-regression cost-table optimize prompts spec-check ci-status
 
 help:  ## Show the available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -239,6 +239,17 @@ endif
 
 eval-regression:  ## Run the stub subset twice and prove the harness is deterministic
 	PYTHONPATH=src uv run python scripts/eval_regression.py --tasks $(or $(TASKS),30)
+
+optimize:  ## Optimize one node's prompt on train: make optimize NODE=reporter [BUDGET=40]
+ifndef NODE
+	$(error NODE is required, one of commander specialist critic reporter)
+endif
+	PYTHONPATH=src uv run --group optimize python scripts/optimize_prompt.py \
+		--node $(NODE) --budget $(or $(BUDGET),40)
+
+prompts:  ## List the prompts in use with their hashes
+	PYTHONPATH=src uv run python -c "from firebreak.prompts import stamps; \
+		[print(f'{n:11s} {s}') for n, s in stamps().items()]"
 
 cost-table:  ## Cost versus accuracy for all-strong, all-small and the cascade
 	PYTHONPATH=src uv run python scripts/cost_accuracy_table.py --split $(or $(SPLIT),validation)

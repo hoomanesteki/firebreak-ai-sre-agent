@@ -31,9 +31,37 @@ dev = [
     "hypothesis>=6.120",
     "pre-commit>=4.0",
     "types-pyyaml>=6.0",
-    "drain3>=0.9.11",
     "scikit-learn>=1.6",
     "scipy>=1.15",
+]
+
+# Kept out of `dev` because of a real conflict, not for tidiness. drain3 pins
+# cachetools==4.2.1 exactly, and dspy 3, which is the first release carrying the GEPA
+# optimizer SPEC.md Section 10.4 asks for, needs cachetools>=5.5. The two cannot be
+# installed together.
+#
+# drain3 is read by exactly one script, `scripts/compare_log_templates.py`, which
+# decided ADR-0006 in favour of the deterministic masker and does not ship. So it moves
+# here: `uv sync --group logcompare` to re-derive that decision, and nothing else needs
+# it. Resolving the conflict the other way would have meant no prompt optimization.
+logcompare = [
+    "drain3>=0.9.11",
+]
+
+optimize = [
+    "dspy>=3.0",
+]
+
+# uv resolves every group into one environment unless told they conflict, so putting
+# drain3 and dspy in separate groups was not enough on its own. Declared here, which
+# is what makes `uv sync --group optimize` and `uv sync --group logcompare` two
+# different environments rather than an unsatisfiable one.
+[tool.uv]
+conflicts = [
+    [
+        { group = "logcompare" },
+        { group = "optimize" },
+    ],
 ]
 
 [build-system]
@@ -72,6 +100,13 @@ show_error_codes = true
 [[tool.mypy.overrides]]
 module = ["tests.*"]
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+# dspy ships no py.typed marker. It is an optional dependency read only by
+# src/firebreak/optimize/gepa.py, and only inside the one function that calls GEPA, so
+# the untyped surface is bounded to that call rather than reaching the product.
+module = ["dspy.*"]
+ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 # drain3 ships no type information. It is a dev dependency read only by

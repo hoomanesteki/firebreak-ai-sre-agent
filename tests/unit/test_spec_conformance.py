@@ -95,6 +95,17 @@ class TestARangeClaimsTheAblationsInside:
 
 
 class TestLateWorkFailsAndPlannedWorkReports:
+    """Every configuration SPEC.md names is now registered, so these tests empty the
+    registry rather than borrowing a real gap. Relying on one meant the tests broke each
+    time an ablation was built, which is the wrong signal: the checker's own logic did
+    not change."""
+
+    @pytest.fixture(autouse=True)
+    def _empty_registry(self, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        from firebreak.evals import runner
+
+        monkeypatch.setattr(runner, "CONFIGURATIONS", {})
+
     def test_a_configuration_due_in_a_past_phase_is_late(self) -> None:
         tasks = {3: "build A6 here"}
         found = check_configurations(_spec_with_configuration("A6"), tasks, phase=7)
@@ -126,7 +137,12 @@ class TestLateWorkFailsAndPlannedWorkReports:
         found = check_configurations(_spec_with_configuration("B9"), {3: "build B9"}, phase=7)
         assert any("no runner id for" in item for item in found.late)
 
-    def test_the_real_repository_has_nothing_late(self) -> None:
+
+class TestTheRealRepository:
+    """Outside the class above, because that one empties the registry to test the
+    checker's logic and this one needs the real thing."""
+
+    def test_nothing_a_completed_phase_left_out(self) -> None:
         """The assertion that makes this suite worth running in CI."""
         phase = current_phase()
         for found in (

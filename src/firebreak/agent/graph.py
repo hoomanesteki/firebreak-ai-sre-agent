@@ -217,6 +217,11 @@ class AgentOptions:
     tier_override: Tier | None = None
     # A5: FB without incident memory. What learning from past incidents is worth.
     use_memory: bool = True
+    # A6: FB with prompts optimized by GEPA, per SPEC.md Section 9.5. Names the prompt
+    # version set to run with, so the ablation is "these prompts against those" rather
+    # than a boolean nobody can trace to a file. Empty means the latest of each, which
+    # is what every other configuration runs.
+    prompt_versions: str = ""
 
     @property
     def name(self) -> str:
@@ -233,6 +238,8 @@ class AgentOptions:
             return "no-graph"
         if not self.use_memory:
             return "no-memory"
+        if self.prompt_versions:
+            return f"prompts-{self.prompt_versions}"
         return "full"
 
 

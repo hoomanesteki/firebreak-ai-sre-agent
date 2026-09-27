@@ -22,9 +22,20 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-import compare_log_templates as clt  # noqa: E402
 import measure_ranking as mr  # noqa: E402
 import run_baseline_b0 as b0  # noqa: E402
+
+# `compare_log_templates` imports drain3, which is an optional dependency group rather
+# than a dev one, because it pins cachetools==4.2.1 and dspy 3 needs 5.5 or newer. The
+# two cannot be installed together and the GEPA optimizer needs dspy, so the comparison
+# that decided ADR-0006 moved behind `uv sync --group logcompare`.
+#
+# Skipped rather than removed: ADR-0006 is a decision somebody may want to re-derive,
+# and a test deleted because its dependency moved is a test nobody notices is gone.
+clt = pytest.importorskip(
+    "compare_log_templates",
+    reason="drain3 is in the optional logcompare group; run uv sync --group logcompare",
+)
 
 
 class TestRankingSummary:

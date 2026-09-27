@@ -1,0 +1,16 @@
+{
+  "node": "reporter",
+  "baseline_prompt": "reporter/v1@44514537950f",
+  "baseline_score": 0.8277,
+  "candidate_score": 0.8277,
+  "improved": false,
+  "verdict": "no improvement on train, so there is nothing to submit. This is a result: the hand written prompt is at least as good as what GEPA found within this budget.",
+  "rollouts": 0,
+  "train_tasks": 39,
+  "candidate_path": null,
+  "notes": [
+    "no reflection model was configured, so GEPA did not run. The baseline score above is a real measurement of the current prompt on train; the candidate score is the same number and means nothing. Configure a model and run again.",
+    "the candidate prompt body does not reach the model yet: prompts are versioned and hashed, and LlmClient serves stub and replay only, so wiring them in is the same work as implementing api mode"
+  ],
+  "generated_at": "2026-09-27T13:01:04.327868+00:00"
+}
