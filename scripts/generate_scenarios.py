@@ -26,6 +26,7 @@ is `cache_failure` here, not `memory_leak`).
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from collections import Counter, defaultdict
@@ -533,40 +534,110 @@ def generate_library(flags: dict[str, Any]) -> list[ScenarioSpec]:
     return assign_splits(specs)
 
 
-def assign_splits(specs: list[ScenarioSpec]) -> list[ScenarioSpec]:
-    """Assign the real split per family, deterministically by sorted id.
+# Where the split assignment lives. Not derived on every run: recorded, so that
+# a scenario's split can never change once it has been assigned.
+SPLITS_FILE = Path(__file__).resolve().parent.parent / "scenarios" / "splits.yaml"
 
-    `resource` and `contention` are entirely `test_ood` already (assigned in
-    their builders). Every other family splits by sorting its own ids and
-    taking the first 50% as `train`, the next 20% as `validation`, and the
-    rest as `test_id`, per SPEC.md Section 8.2. Sorting ids, rather than
-    drawing at random, is what makes two runs of this script agree.
+# Cumulative bounds for assigning a scenario that has no entry yet, per SPEC.md
+# Section 8.2: half train, a fifth validation, the rest held out in distribution.
+TRAIN_SHARE = 0.5
+VALIDATION_SHARE = 0.2
+
+
+def split_for_id(scenario_id: str) -> Split:
+    """Which split a new scenario belongs to, from its id alone.
+
+    Only ever consulted for a scenario `splits.yaml` has not seen. A salt is
+    mixed in and fixed, so this repository's assignment is stable and is not the
+    same function a bare sha256 of the same names would give anybody else.
     """
-    by_family: dict[str, list[ScenarioSpec]] = defaultdict(list)
-    for spec in specs:
-        by_family[spec.family].append(spec)
+    digest = hashlib.sha256(f"firebreak-split-v1\x00{scenario_id}".encode()).digest()
+    # The first eight bytes as a fraction in [0, 1). Plenty of resolution for a
+    # three way split, and it avoids the modulo bias of a remainder against a
+    # small number.
+    position = int.from_bytes(digest[:8], "big") / float(1 << 64)
+    if position < TRAIN_SHARE:
+        return Split.TRAIN
+    if position < TRAIN_SHARE + VALIDATION_SHARE:
+        return Split.VALIDATION
+    return Split.TEST_ID
+
+
+def load_split_assignment(path: Path = SPLITS_FILE) -> dict[str, Split]:
+    """The recorded split for every scenario that has one."""
+    if not path.is_file():
+        return {}
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    assignments = raw.get("splits") or {}
+    return {str(k): Split(str(v)) for k, v in assignments.items()}
+
+
+def write_split_assignment(assignment: dict[str, Split], path: Path = SPLITS_FILE) -> None:
+    """Record the assignment, sorted, so a diff shows only what changed."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = {
+        "splits": {name: assignment[name].value for name in sorted(assignment)},
+    }
+    path.write_text(
+        HEADER + yaml.safe_dump(body, sort_keys=False, default_flow_style=False),
+        encoding="utf-8",
+    )
+
+
+HEADER = """# Which split each scenario belongs to. Generated, and then permanent.
+#
+# **A scenario's split never changes once it is in this file.** That is the whole
+# point of recording it rather than deriving it.
+#
+# The first version derived splits on every run by sorting each family's ids and
+# taking the first half as train. That is unstable: removing one scenario shifts
+# the position of every later one, so scenarios move between splits for a reason
+# that has nothing to do with them.
+#
+# It is a leakage hazard rather than an untidiness. Removing the twelve
+# imageSlowLoad scenarios moved two latency scenarios out of validation, and had
+# the shift gone the other way it would have moved scenarios that were already
+# recorded and analysed into test_id, silently voiding the held out guarantee
+# that is the only thing making their numbers worth having. When the hash based
+# assignment below was first tried it would have done exactly that to four
+# recorded scenarios.
+#
+# So: a new scenario is assigned by a hash of its own id, recorded here, and
+# left alone for ever. Adding or removing scenarios cannot move anything else.
+#
+# To deliberately move a scenario, edit this file, and be sure it has never been
+# looked at: a scenario that has been analysed can never become held out.
+"""
+
+
+def assign_splits(specs: list[ScenarioSpec]) -> list[ScenarioSpec]:
+    """Assign each scenario's split, honouring what has already been assigned.
+
+    `resource` and `contention` are entirely `test_ood`, assigned in their
+    builders, and are recorded here too so the file is a complete picture.
+
+    A scenario already in `splits.yaml` keeps that split whatever the hash would
+    say. A scenario not in it is assigned by hash and added. Nothing is ever
+    reassigned, which is what makes a held out split stay held out across every
+    future change to the library.
+    """
+    recorded = load_split_assignment()
+    assignment: dict[str, Split] = dict(recorded)
 
     result: list[ScenarioSpec] = []
-    for family, group in by_family.items():
-        if family in OOD_FAMILIES:
-            result.extend(group)
+    for spec in specs:
+        if spec.family in OOD_FAMILIES:
+            assignment[spec.id] = spec.split
+            result.append(spec)
             continue
+        split = assignment.get(spec.id) or split_for_id(spec.id)
+        assignment[spec.id] = split
+        result.append(spec.model_copy(update={"split": split}))
 
-        ordered_ids = sorted(spec.id for spec in group)
-        train_count = int(len(ordered_ids) * 0.5)
-        validation_count = int(len(ordered_ids) * 0.2)
-        split_by_id: dict[str, Split] = {}
-        for index, spec_id in enumerate(ordered_ids):
-            if index < train_count:
-                split_by_id[spec_id] = Split.TRAIN
-            elif index < train_count + validation_count:
-                split_by_id[spec_id] = Split.VALIDATION
-            else:
-                split_by_id[spec_id] = Split.TEST_ID
-
-        for spec in group:
-            result.append(spec.model_copy(update={"split": split_by_id[spec.id]}))
-
+    # Scenarios that no longer exist stay in the file. They cost nothing, and
+    # dropping them would let a removed scenario come back later under a
+    # different split, which is the hazard this file exists to prevent.
+    write_split_assignment(assignment)
     return result
 
 

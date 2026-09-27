@@ -197,6 +197,15 @@ class ToolRegistry:
         result = spec.handler(context, parsed)
         if result.tool != name:
             raise ToolError(f"{name} returned a result labelled {result.tool!r}")
+        if result.evidence_id is not None:
+            if result.evidence_id not in context.evidence:
+                raise ToolError(
+                    f"{name} cited evidence {result.evidence_id} that it never recorded"
+                )
+            # Stamped here rather than in each tool, so the exit gate can re-run
+            # every record whatever tool produced it. A tool's own build_record
+            # call does not have the validated arguments; this does.
+            context.evidence.restamp(result.evidence_id, name, parsed.model_dump(mode="json"))
         return result
 
 

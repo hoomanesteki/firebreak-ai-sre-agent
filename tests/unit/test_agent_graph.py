@@ -17,9 +17,10 @@ from typing import Any
 import pytest
 
 from firebreak.agent.budget import BudgetLimits, StopReason
+from firebreak.agent.gates import run_exit_gate
 from firebreak.agent.graph import SPECIALISTS, investigate, stub_handlers
 from firebreak.agent.llm import LlmClient, LlmError, Tier
-from firebreak.agent.nodes import _gather, entry_gate, exit_gate, seed_hypotheses
+from firebreak.agent.nodes import _gather, entry_gate, seed_hypotheses
 from firebreak.agent.state import (
     Claim,
     Confidence,
@@ -153,7 +154,10 @@ class TestEntryGate:
         result = entry_gate(state)
         assert result.status is Status.FAILED
         assert result.report is not None
-        assert "no window" in result.report.claims[0].text
+        # A note rather than a claim: it describes the investigation, not the
+        # telemetry, and there is nothing to cite for it.
+        assert result.report.claims == ()
+        assert "no window" in result.report.notes[0]
 
     def test_a_backwards_window_is_refused(self) -> None:
         from datetime import UTC, datetime
@@ -174,7 +178,7 @@ class TestSeeding:
         result = investigate(quiet_bundle)
         assert result.report.abstained
         assert result.state.budget.tool_calls == 0
-        assert "No service was unusual enough" in result.report.claims[0].text
+        assert "No service was unusual enough" in result.report.notes[0]
 
     def test_candidates_become_hypotheses_without_a_model_call(self, faulted_bundle) -> None:  # type: ignore[no-untyped-def]
         from firebreak.triage.pipeline import triage_bundle
@@ -255,24 +259,9 @@ class TestBudgets:
 
 
 class TestExitGate:
-    def test_a_claim_citing_nothing_is_stripped(self) -> None:
-        state = InvestigationState(incident_id="inc_000000000000")
-        report = Report(
-            incident_id="inc_000000000000",
-            root_cause_service="payment",
-            claims=(Claim(text="payment broke"),),
-        )
-        assert exit_gate(state, report).claims == ()
-
-    def test_a_claim_citing_an_invented_id_is_stripped(self) -> None:
-        """The cheapest fabrication there is, caught here."""
-        state = InvestigationState(incident_id="inc_000000000000")
-        report = Report(
-            incident_id="inc_000000000000",
-            root_cause_service="payment",
-            claims=(Claim(text="payment broke", evidence_ids=("ev_invented",)),),
-        )
-        assert exit_gate(state, report).claims == ()
+    """The six checks have their own file. These are the two properties that
+    matter to the graph rather than to the gate: what a stripped report keeps,
+    and what it loses."""
 
     def test_the_root_cause_survives_losing_every_claim(self) -> None:
         """The ranking behind it is deterministic and did not come from a model.
@@ -280,13 +269,34 @@ class TestExitGate:
         What a stripped report loses is the prose, which is the right thing to
         lose.
         """
-        state = InvestigationState(incident_id="inc_000000000000")
+        notebook = Notebook(
+            hypotheses=(
+                Hypothesis(
+                    id="h1",
+                    service="payment",
+                    statement="payment is the cause",
+                    supporting_evidence=("a", "b"),
+                ),
+            )
+        )
         report = Report(
             incident_id="inc_000000000000",
             root_cause_service="payment",
             claims=(Claim(text="unsupported"),),
         )
-        assert exit_gate(state, report).root_cause_service == "payment"
+        outcome = run_exit_gate(report, notebook, {}, {})
+        assert outcome.report.claims == ()
+        assert outcome.report.root_cause_service == "payment"
+
+    def test_a_root_cause_the_notebook_does_not_support_does_not_survive(self) -> None:
+        """Check 6. A named service nothing in the notebook backs is exactly what
+        abstention is for, and it is the failure mode a fluent model produces."""
+        report = Report(
+            incident_id="inc_000000000000",
+            root_cause_service="payment",
+            claims=(Claim(text="unsupported"),),
+        )
+        assert run_exit_gate(report, Notebook(), {}, {}).report.root_cause_service is None
 
 
 class TestFindingsMustCiteEvidence:

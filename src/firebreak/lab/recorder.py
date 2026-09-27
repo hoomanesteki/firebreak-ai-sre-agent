@@ -30,7 +30,13 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from firebreak.lab.bundle import BundleManifest, ChangeRecord, TimeWindow, derive_bundle_id
+from firebreak.lab.bundle import (
+    BundleManifest,
+    ChangeRecord,
+    TimeWindow,
+    check_continuity,
+    derive_bundle_id,
+)
 from firebreak.lab.bundle_writer import BundleWriter
 from firebreak.lab.export import TelemetryExporter
 from firebreak.lab.flags import OFF_VARIANT, FlagController
@@ -46,9 +52,50 @@ RECORDER_VERSION = "1.0.0"
 ALERT_WAIT_SECONDS = 180.0
 ALERT_POLL_SECONDS = 5.0
 
+# How much longer than planned a recording may take before the bundle is
+# refused, as a multiple of the scenario's own total.
+#
+# A recording is a controlled experiment with a planned duration. If it took
+# materially longer, the sleeps did not measure what they were asked to and the
+# bundle's window covers a stretch of time the experiment was not running for.
+#
+# This is not hypothetical. One overnight recording of an eighteen minute
+# scenario produced a bundle with a seven hour forty three minute window,
+# because the laptop it was running on entered maintenance sleep and
+# `time.sleep` kept counting wall clock across it. The bundle looked complete:
+# a manifest, four parquet files, a label. It held eighteen minutes of
+# telemetry spread across a window twenty five times too wide, its fault onset
+# and clear timestamps were meaningless, and it crashed triage by asking for a
+# window wider than the backend's cap. Nothing in the pipeline noticed.
+#
+# The recording loop already has a thirty minute subprocess timeout, and it did
+# not fire. It could not: on macOS `time.monotonic` stops while the system is
+# asleep, so the timeout saw twenty five minutes of awake time, while
+# `datetime.now` jumped seven hours and produced the window. Anything measuring
+# elapsed wall clock has to read the same clock the window was built from, which
+# is why this check compares the window itself.
+#
+# 1.5 is loose on purpose. Export takes a variable couple of minutes, the alert
+# wait adds up to three, and a scenario that ran slightly long is still a valid
+# recording. What this catches is the order of magnitude.
+MAX_DURATION_OVERRUN = 1.5
+
+# Below this, the multiple is meaningless: a ten second overrun on a short
+# scenario is noise, not a suspended machine.
+MIN_OVERRUN_SECONDS = 300.0
+
 
 class RecordingError(Exception):
     """A recording could not be made, or could not be trusted."""
+
+
+class RecordingDriftError(RecordingError):
+    """The recording took materially longer than the scenario asked for.
+
+    Separate from `RecordingError` because the remedy is different: a drifted
+    recording is worth retrying on a machine that will stay awake, where a
+    malformed scenario is not worth retrying at all.
+    """
 
 
 @dataclass
@@ -96,6 +143,33 @@ class AlertWatcher:
             clock.sleep(poll_seconds)
             waited += poll_seconds
         return None
+
+
+def check_duration(
+    spec: ScenarioSpec,
+    window_start: datetime,
+    window_end: datetime,
+    overrun: float = MAX_DURATION_OVERRUN,
+    floor_seconds: float = MIN_OVERRUN_SECONDS,
+) -> float:
+    """Refuse a recording whose window is far wider than the scenario planned.
+
+    Returns the observed duration so a caller can report it. Raises
+    `RecordingDriftError` when the window cannot describe the experiment.
+
+    Checked on the window rather than on the process, because the window is what
+    the bundle claims and what every query against it is bounded by.
+    """
+    observed = (window_end - window_start).total_seconds()
+    planned = float(spec.timing.total_seconds)
+    allowed = max(planned * overrun, planned + floor_seconds)
+    if observed > allowed:
+        raise RecordingDriftError(
+            f"{spec.id} planned {planned:.0f}s but its window spans {observed:.0f}s, "
+            f"over the {allowed:.0f}s limit; the recording was suspended or the stack "
+            "stalled, so the window does not describe the experiment"
+        )
+    return observed
 
 
 class Recorder:
@@ -152,6 +226,8 @@ class Recorder:
         self._clock.sleep(spec.timing.cooldown_seconds)
         window_end = self._clock.now()
         stages["cooldown_done"] = window_end
+
+        check_duration(spec, window_start, window_end)
 
         manifest = self._export_bundle(
             spec=spec,
@@ -296,6 +372,12 @@ class Recorder:
                 alert_fired=alert_fired_at is not None,
                 alert_fired_at=alert_fired_at,
             )
+            # Checked in staging, so a recording with a hole in it never lands in
+            # the library. The duration check before export catches a suspension
+            # that moved the window; this catches one that did not, and it is the
+            # stronger of the two because it reads the telemetry rather than the
+            # clock.
+            check_continuity(staging)
         except BaseException:
             # BaseException rather than Exception, so that a Ctrl-C during a
             # long export also cleans up. An interrupted batch run is expected,

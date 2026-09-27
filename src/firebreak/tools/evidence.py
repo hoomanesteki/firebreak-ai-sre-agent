@@ -195,6 +195,17 @@ class EvidenceRecord(BaseModel):
     result_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     facts: tuple[Fact, ...] = ()
     truncated: bool = False
+    # How to ask this question again. `query` and `parameters` describe what was
+    # asked in terms a reader understands: "compare_windows:latency" over a
+    # canonicalised baseline. They are deliberately not the tool's arguments, and
+    # they cannot be replayed. The exit gate's re-execution check needs arguments
+    # a tool will accept, so the registry stamps them here after the call.
+    #
+    # Neither field is part of the id, which covers the question rather than the
+    # route to it. Two tools that could ask the same question of the same backend
+    # over the same window would be asking the same question.
+    tool: str | None = None
+    arguments: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _id_matches_its_content(self) -> Self:
@@ -308,6 +319,28 @@ class EvidenceStore:
         if record is None:
             raise KeyError(f"no evidence recorded under {evidence_ref!r}")
         return record
+
+    def restamp(self, evidence_ref: str, tool: str, arguments: dict[str, Any]) -> EvidenceRecord:
+        """Record how to ask this question again.
+
+        Called by the registry rather than by each tool, because there are
+        fourteen tools and one registry, and the thirteenth tool to be written
+        would be the one that forgot. A tool's own `build_record` call does not
+        know the validated arguments; `ToolRegistry.call` does.
+
+        A record already stamped keeps its first stamp. The store deduplicates by
+        id, so a tool asking a question an earlier call already asked cites that
+        earlier record, and restamping it with this call's arguments would
+        describe the wrong route to it.
+        """
+        record = self._records.get(evidence_ref)
+        if record is None:
+            raise KeyError(f"no evidence recorded under {evidence_ref!r}")
+        if record.tool is not None:
+            return record
+        stamped = record.model_copy(update={"tool": tool, "arguments": arguments})
+        self._records[evidence_ref] = stamped
+        return stamped
 
     def repeat_count(self, evidence_ref: str) -> int:
         """How many times this exact question was asked again."""

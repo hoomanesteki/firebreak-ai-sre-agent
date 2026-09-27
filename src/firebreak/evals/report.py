@@ -16,11 +16,17 @@ from __future__ import annotations
 
 import json
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from firebreak.evals.metrics import GraderSummary, SplitMetrics, compute_metrics, group_by
+from firebreak.evals.metrics import (
+    GraderSummary,
+    SplitMetrics,
+    compute_metrics,
+    group_by,
+    per_task_table,
+)
 from firebreak.evals.runner import RunResult
 from firebreak.evals.statistics import BOOTSTRAP_RESAMPLES
 
@@ -49,10 +55,27 @@ def git_commit() -> str:
 
     A report that cannot be traced to a commit cannot be reproduced, and a
     missing commit is worth recording as missing rather than omitting.
+
+    Marked `-dirty` when tracked files differ from the commit, because that is
+    exactly when the stamp is a lie: the numbers came from code that is not at
+    that commit and nobody can re-derive them from it. Five reports were written
+    that way before the suffix existed, which is how it was noticed.
+
+    Tracked files only. Untracked ones are not at the commit either, but they
+    include every bundle, label and report, so counting them would mark every
+    report dirty and the marker would stop meaning anything.
     """
+    commit = _git_output(["rev-parse", "HEAD"])
+    if commit == "unknown":
+        return commit
+    return commit if _tree_matches_head() else f"{commit}-dirty"
+
+
+def _git_output(arguments: list[str]) -> str:
+    """One git command's output, or `unknown` when git cannot be run."""
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+            ["git", *arguments],
             capture_output=True,
             text=True,
             check=True,
@@ -62,6 +85,27 @@ def git_commit() -> str:
     except (subprocess.SubprocessError, OSError):
         return "unknown"
     return result.stdout.strip() or "unknown"
+
+
+def _tree_matches_head() -> bool:
+    """Whether tracked files are unmodified.
+
+    `git diff --quiet HEAD` exits non-zero when they differ, which is the answer
+    rather than an error. Any other failure counts as modified: over-marking a
+    report costs a suffix, and under-marking it claims a reproducibility that was
+    never checked.
+    """
+    try:
+        subprocess.run(
+            ["git", "diff", "--quiet", "HEAD"],
+            capture_output=True,
+            check=True,
+            cwd=REPO_ROOT,
+            timeout=10,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return False
+    return True
 
 
 @dataclass(frozen=True)
@@ -78,6 +122,16 @@ class EvalReport:
     by_family: dict[str, SplitMetrics]
     recorded_scenarios: int = 0
     total_scenarios: int = 0
+    # One score per task per grader, keyed by bundle id, so two runs can be
+    # compared after the fact with a paired bootstrap.
+    #
+    # SPEC.md Section 9.6 asks the JSON to carry per-trial results, and it did
+    # not. Without them a comparison could only be made by running both
+    # configurations in one process, which means no comparison against a stored
+    # baseline and none in CI. Keyed by bundle id rather than positionally,
+    # because two runs can cover different tasks and pairing by position would
+    # silently compare one configuration's task to another's.
+    per_task: dict[str, dict[str, float]] = field(default_factory=dict)
 
     @property
     def quotable(self) -> bool:
@@ -133,6 +187,7 @@ class EvalReport:
             "mode": "bundle",
             "overall": self.overall.as_dict(),
             "by_family": {name: m.as_dict() for name, m in self.by_family.items()},
+            "per_task": {task: dict(scores) for task, scores in sorted(self.per_task.items())},
         }
 
 
@@ -148,6 +203,7 @@ def build_report(result: RunResult, resamples: int = BOOTSTRAP_RESAMPLES) -> Eva
         result.sheets, result.outcomes, result.family_of_bundle(), resamples=resamples
     )
     return EvalReport(
+        per_task=per_task_table(result.sheets),
         configuration=result.configuration,
         split=result.split,
         trials_per_task=result.trials_per_task,
@@ -275,9 +331,16 @@ def report_paths(report: EvalReport, root: Path = REPORTS_DIR) -> tuple[Path, Pa
     Section 9.6 specifies. The commit in the filename is what makes two runs of
     different code distinguishable at a glance in a directory listing, which is
     the moment it matters.
+
+    A dirty run keeps the marker in the filename too. Without it a run from a
+    modified tree and a run from the committed one would write to the same path,
+    and the second would silently replace the first's numbers with different ones
+    under a name that claims they came from the same code.
     """
     day = report.generated_at[:10]
     stem = f"{day}_{report.commit[:12]}"
+    if report.commit.endswith("-dirty"):
+        stem += "-dirty"
     directory = root / report.configuration / report.split
     return directory / f"{stem}.json", directory / f"{stem}.md"
 

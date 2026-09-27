@@ -35,7 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _reporting import describe_path
 from firebreak.lab.bundle import derive_bundle_id
-from firebreak.lab.scenario import ScenarioSpec, Split, load_library
+from firebreak.lab.scenario import FaultKind, ScenarioSpec, Split, load_library
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SPECS_DIR = REPO_ROOT / "scenarios" / "specs"
@@ -43,6 +43,15 @@ BUNDLES_DIR = REPO_ROOT / "bundles"
 PROGRESS_PATH = REPO_ROOT / "reports" / "lab" / "recording_progress.json"
 
 DEFAULT_RUN = "run1"
+
+# Whether the sleep prevention below can do anything. Read into a constant rather
+# than compared inline, because mypy narrows a `sys.platform` comparison to the
+# platform it is checking for: on Linux everything after an inline
+# `if sys.platform != "darwin": return` is statically unreachable, and
+# warn_unreachable then fails the build. That failure reached CI once. A bool
+# carries no literal type, so both branches stay reachable on every platform,
+# which is the truth at runtime.
+ON_MACOS = sys.platform == "darwin"
 
 # Tunable splits first, which is the reverse of the obvious order, and the
 # first real recording is what changed it.
@@ -150,16 +159,27 @@ def already_recorded(spec: ScenarioSpec, run: str) -> bool:
 def ordered_scenarios(splits: tuple[Split, ...] = SPLIT_ORDER) -> list[ScenarioSpec]:
     """Every scenario, in recording priority order.
 
-    Sorted by id within a split so two runs agree about what comes next, which
-    matters for resumability: an interrupted run should continue rather than
-    start somewhere new.
+    Within a split, the no-fault scenarios come first, then everything else by
+    id. Sorted rather than shuffled so two runs agree about what comes next,
+    which is what makes an interrupted run continue rather than start somewhere
+    new.
+
+    **Why no-fault first.** They are the scarce resource, not the numerous one.
+    Validation has three of sixteen and train seven of thirty nine, and the
+    abstention threshold is the only tuned number whose accuracy depends entirely
+    on them: it decides when the system says nothing is wrong, and one healthy
+    recording cannot calibrate that. Measured on the first eight clean
+    recordings, with a single no-fault among them, the shipped threshold abstains
+    on five of seven real faults and no defensible replacement can be fitted.
+    `config/thresholds.yaml` records that measurement. Recording the negatives
+    early is what makes the threshold tunable at all, and a faulted recording is
+    no use for it however many there are.
     """
     library = load_library(SPECS_DIR)
     ordered: list[ScenarioSpec] = []
     for split in splits:
-        ordered.extend(
-            sorted((s for s in library.values() if s.split is split), key=lambda s: s.id)
-        )
+        in_split = [s for s in library.values() if s.split is split]
+        ordered.extend(sorted(in_split, key=lambda s: (s.fault.kind is not FaultKind.NONE, s.id)))
     return ordered
 
 
@@ -198,13 +218,85 @@ def record_one(spec: ScenarioSpec, run: str) -> tuple[bool, str]:
     except subprocess.TimeoutExpired:
         return False, "timed out after 30 minutes"
     if result.returncode != 0:
-        tail = (result.stderr or result.stdout).strip().splitlines()
-        return False, tail[-1] if tail else f"exit code {result.returncode}"
+        return False, _diagnosis(result.stderr, result.stdout, result.returncode)
     return True, ""
+
+
+# How much of a failed recording's output to keep. The first version kept the
+# last line, and the first real failure reported "sending a response." with no
+# indication of which endpoint, which request, or what preceded it. Eighteen
+# minutes of a live stack deserves more than one line of explanation.
+DIAGNOSIS_LINES = 12
+DIAGNOSIS_CHARS = 2000
+
+
+def _diagnosis(stderr: str, stdout: str, returncode: int) -> str:
+    """The most informative tail of a failed recording's output.
+
+    Prefers stderr, falls back to stdout, and keeps several lines rather than
+    one, because the useful part of a traceback or an httpx error is rarely its
+    last line alone.
+    """
+    for stream in (stderr, stdout):
+        lines = [line for line in (stream or "").strip().splitlines() if line.strip()]
+        if lines:
+            return " | ".join(lines[-DIAGNOSIS_LINES:])[:DIAGNOSIS_CHARS]
+    return f"exit code {returncode} with no output"
 
 
 def _inherited_environment() -> dict[str, str]:
     return dict(os.environ)
+
+
+def hold_awake() -> subprocess.Popen[bytes] | None:
+    """Stop the machine sleeping while this runs, on macOS.
+
+    One overnight run lost seven hours and forty three minutes to maintenance
+    sleep. The bundle it produced looked complete: a manifest, four parquet
+    files, a label. It held eighteen minutes of telemetry spread across a seven
+    hour window, because `datetime.now` jumps across a suspension while
+    `time.monotonic` does not, so the thirty minute subprocess timeout here never
+    fired. `firebreak.lab.recorder.check_duration` now refuses such a bundle;
+    this stops it being produced in the first place.
+
+    `caffeinate -w` exits when this process does, so an interrupted run does not
+    leave an assertion held.
+    """
+    if not ON_MACOS:
+        return None
+    try:
+        return subprocess.Popen(
+            ["caffeinate", "-i", "-m", "-s", "-w", str(os.getpid())],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        print(f"could not hold the machine awake ({error}); recordings may be suspended")
+        return None
+
+
+def warn_if_on_battery() -> None:
+    """Say so plainly, because caffeinate cannot prevent sleep on battery.
+
+    `caffeinate -s` is documented as valid only on AC power, and the run that
+    lost seven hours was on battery at 65 percent. A warning is all this can do,
+    but an unattended thirty six hour run deserves one.
+    """
+    if not ON_MACOS:
+        return
+    try:
+        state = subprocess.run(
+            ["pmset", "-g", "batt"], capture_output=True, text=True, timeout=10
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return
+    if "AC Power" in state:
+        return
+    print(
+        "WARNING: running on battery. macOS takes maintenance sleep on battery "
+        "whatever caffeinate asks for, and a suspended recording is discarded. "
+        "Plug in before leaving this unattended."
+    )
 
 
 def main() -> int:
@@ -237,6 +329,9 @@ def main() -> int:
 
     scenarios = ordered_scenarios(splits)
     progress = Progress.load()
+
+    warn_if_on_battery()
+    hold_awake()
 
     outstanding = [s for s in scenarios if not already_recorded(s, arguments.run)]
     done = len(scenarios) - len(outstanding)

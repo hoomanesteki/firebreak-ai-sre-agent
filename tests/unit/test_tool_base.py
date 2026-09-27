@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -16,6 +18,13 @@ from firebreak.tools.base import (
     UnknownToolError,
     summarise_rows,
 )
+from firebreak.tools.evidence import (
+    BackendFingerprint,
+    BackendMode,
+    EvidenceKind,
+    TimeRange,
+    build_record,
+)
 
 
 class ValueInput(BaseModel):
@@ -26,13 +35,34 @@ class ValueInput(BaseModel):
     value: int = Field(ge=0, le=10)
 
 
+FINGERPRINT = BackendFingerprint(mode=BackendMode.BUNDLE, identity="inc_000000000000")
+WINDOW = TimeRange(start=datetime(2025, 1, 1, tzinfo=UTC), end=datetime(2025, 1, 1, 1, tzinfo=UTC))
+
+
 def echo_handler(context: ToolContext, arguments: ValueInput) -> ToolResult:
-    del context
+    record = context.record(
+        build_record(
+            kind=EvidenceKind.METRIC,
+            query="echo",
+            parameters={"value": arguments.value},
+            window=WINDOW,
+            fingerprint=FINGERPRINT,
+            rows=[{"value": arguments.value}],
+        )
+    )
     return ToolResult(
         tool="echo",
         summary=f"echoed {arguments.value}",
-        evidence_id="ev_metric_000000000000",
+        evidence_id=record.id,
         data={"value": arguments.value},
+    )
+
+
+def fabricating_handler(context: ToolContext, arguments: ValueInput) -> ToolResult:
+    """Cites a record it never recorded, which the registry must refuse."""
+    del context, arguments
+    return ToolResult(
+        tool="fabricate", summary="cites nothing real", evidence_id="ev_metric_000000000000"
     )
 
 
@@ -51,6 +81,12 @@ ECHO_SPEC = ToolSpec(
     description="echoes a bounded integer",
     input_model=ValueInput,
     handler=echo_handler,
+)
+FABRICATE_SPEC = ToolSpec(
+    name="fabricate",
+    description="a handler that cites evidence it never recorded",
+    input_model=ValueInput,
+    handler=fabricating_handler,
 )
 MISLABEL_SPEC = ToolSpec(
     name="mislabel",
@@ -204,6 +240,49 @@ def test_call_counts_the_call():
 
     assert context.calls_made("echo") == 2
     assert context.total_calls() == 2
+
+
+def test_call_stamps_the_tool_and_its_arguments_onto_the_evidence():
+    """The exit gate re-runs a record, so a record has to know how to be re-run.
+
+    Stamped by the registry rather than by each tool, because there are fourteen
+    tools and one registry, and the thirteenth tool written would be the one that
+    forgot.
+    """
+    registry = registry_with(ECHO_SPEC)
+    context = ToolContext(backend=object())
+
+    result = registry.call("echo", context, {"value": 3})
+
+    record = context.evidence.require(result.evidence_id)
+    assert record.tool == "echo"
+    assert record.arguments == {"value": 3}
+
+
+def test_call_refuses_a_handler_citing_evidence_it_never_recorded():
+    """A citation nothing recorded is the cheapest fabrication there is, and a
+    tool can make it as easily as a model can."""
+    registry = registry_with(FABRICATE_SPEC)
+    context = ToolContext(backend=object())
+
+    with pytest.raises(ToolError, match="never recorded"):
+        registry.call("fabricate", context, {"value": 1})
+
+
+def test_a_repeated_question_keeps_the_stamp_of_the_call_that_answered_it():
+    """The store deduplicates by id, so the second call cites the first record.
+
+    Restamping it would describe the wrong route to it, which matters when the
+    two calls passed different arguments for the same question.
+    """
+    registry = registry_with(ECHO_SPEC)
+    context = ToolContext(backend=object())
+
+    first = registry.call("echo", context, {"value": 5})
+    second = registry.call("echo", context, {"value": 5})
+
+    assert first.evidence_id == second.evidence_id
+    assert context.evidence.require(first.evidence_id).arguments == {"value": 5}
 
 
 def test_call_raises_when_a_handler_returns_a_result_labelled_with_a_different_tool_name():

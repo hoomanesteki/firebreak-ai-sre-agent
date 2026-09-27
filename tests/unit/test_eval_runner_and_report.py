@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from firebreak.evals import report as report_module
 from firebreak.evals.metrics import compute_metrics
 from firebreak.evals.outcome import InvestigationOutcome
 from firebreak.evals.report import (
@@ -280,3 +281,71 @@ class TestReport:
         second = build_report(validation_run, resamples=200).as_dict()
         del first["generated_at"], second["generated_at"]
         assert first == second
+
+
+class TestTheCommitStampIsHonest:
+    """A report stamped with a commit its numbers did not come from claims a
+    reproducibility nobody checked.
+
+    Five reports were written that way before the suffix existed: the code that
+    produced them was uncommitted, and the stamp named the previous commit.
+    """
+
+    def test_a_clean_tree_gives_a_bare_commit(self, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        monkeypatch.setattr(report_module, "_git_output", lambda _: "a" * 40)
+        monkeypatch.setattr(report_module, "_tree_matches_head", lambda: True)
+        assert report_module.git_commit() == "a" * 40
+
+    def test_a_modified_tree_is_marked_dirty(self, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        monkeypatch.setattr(report_module, "_git_output", lambda _: "a" * 40)
+        monkeypatch.setattr(report_module, "_tree_matches_head", lambda: False)
+        assert report_module.git_commit() == "a" * 40 + "-dirty"
+
+    def test_no_repository_is_unknown_without_a_suffix(self, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        """`unknown-dirty` would suggest a commit exists and was modified."""
+        monkeypatch.setattr(report_module, "_git_output", lambda _: "unknown")
+        monkeypatch.setattr(report_module, "_tree_matches_head", lambda: False)
+        assert report_module.git_commit() == "unknown"
+
+    def test_git_failing_counts_as_modified(self, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        """Over-marking costs a suffix; under-marking claims a reproducibility
+        that was never checked."""
+
+        def explode(*args, **kwargs):  # type: ignore[no-untyped-def]
+            raise OSError("no git here")
+
+        monkeypatch.setattr(report_module.subprocess, "run", explode)
+        assert report_module._tree_matches_head() is False
+
+    def test_the_real_repository_answers_one_way_or_the_other(self) -> None:
+        stamp = report_module.git_commit()
+        assert stamp == "unknown" or len(stamp.removesuffix("-dirty")) == 40
+
+
+def test_a_dirty_run_does_not_overwrite_a_clean_one(tmp_path: Path) -> None:
+    """Same commit, different code, different numbers: they need different names.
+
+    Without the marker in the filename the second run silently replaces the
+    first's numbers under a name claiming they came from the same code.
+    """
+    clean = _minimal_report(commit="a" * 40)
+    dirty = _minimal_report(commit="a" * 40 + "-dirty")
+    clean_json, _ = report_paths(clean, tmp_path)
+    dirty_json, _ = report_paths(dirty, tmp_path)
+    assert clean_json != dirty_json
+    assert dirty_json.name.endswith("-dirty.json")
+
+
+def _minimal_report(commit: str):  # type: ignore[no-untyped-def]
+    from firebreak.evals.report import EvalReport
+
+    return EvalReport(
+        configuration="b0",
+        split="validation",
+        trials_per_task=1,
+        using_recorded_bundles=True,
+        generated_at="2026-09-26T00:00:00+00:00",
+        commit=commit,
+        overall=compute_metrics([], [], trials_per_task=1, resamples=10),
+        by_family={},
+    )

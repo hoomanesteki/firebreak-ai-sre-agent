@@ -35,6 +35,49 @@
 # evidence in the repository that the fixtures are easier than reality.
 abstention:
   minimum_top_anomaly_z: 22.717
+
+  # MEASURED WRONG, AND NOT YET REPLACEABLE. Phase 7.
+  #
+  # The value above was tuned on synthetic fixtures. Measured on the eight clean
+  # validation recordings, seven faulted and one no-fault, it abstains on five of
+  # the seven real faults:
+  #
+  #   faulted top anomaly z: 4.70, 4.85, 20.0, 20.0, 20.0, 7178.63, 11980.0
+  #   no-fault top anomaly z: 9.00
+  #
+  # At 22.717 that is sensitivity 2/7 = 0.286 and specificity 1/1 = 1.0. At the
+  # geometric midpoint of 9.00 and 20.0, which is 13.416, it would be 5/7 = 0.714
+  # and 1/1 = 1.0. So a re-tune more than doubles sensitivity at no measured cost.
+  #
+  # It is not being changed, for three reasons:
+  #
+  # 1. One no-fault recording. Fitting a threshold whose whole job is specificity
+  #    to a single negative example is fitting noise, and this file's rule is that
+  #    no number here is chosen by eye.
+  # 2. Three of the seven positives sit exactly at 20.0, which is the score cap in
+  #    firebreak.triage.anomaly for a zero baseline. The gap a midpoint would sit
+  #    in is as much an artifact of that cap as a property of the data.
+  # 3. It would not fix the real problem. The two faults below the healthy
+  #    recording, at 4.70 and 4.85, are both latency faults. No threshold on top
+  #    anomaly z can catch a latency fault without abstaining on a busy healthy
+  #    system, so this rule needs a second signal, not a better number.
+  #
+  # What unblocks it: more no-fault recordings, which the recording order should
+  # prioritise, and a latency-specific signal. Until then the shipped value is
+  # the fixture-tuned one and it is labelled as such everywhere it appears.
+
+  # How much net support the leading hypothesis needs before the report is
+  # allowed to name it (SPEC.md Section 6.9 check 6). Support is evidence for
+  # minus evidence against, so 2 means two independent findings and no standing
+  # objection, or three findings and one refutation.
+  #
+  # NOT TUNED. This is the same value as the investigation loop's completion
+  # rule, chosen so that the gate agrees with the loop rather than second
+  # guessing it. Tuning it needs runs of the full agent over the validation
+  # split, which needs model credentials, so the tuned value is TBD (produced in
+  # Phase 7 once the agent can be run against validation). Until then this is a
+  # defensible default and is labelled as one.
+  minimum_hypothesis_support: 2
   measured:
     faulted_trials: 147
     no_fault_trials: 30

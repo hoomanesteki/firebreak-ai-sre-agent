@@ -4,8 +4,8 @@
   "counts_by_split": {
     "test_id": 29,
     "test_ood": 30,
-    "train": 41,
-    "validation": 14
+    "train": 39,
+    "validation": 16
   },
   "families_by_split": {
     "test_id": [

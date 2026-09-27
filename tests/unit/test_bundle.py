@@ -18,11 +18,13 @@ from firebreak.lab.bundle import (
     REQUIRED_FILES,
     TOPOLOGY_FILE,
     TRACES_FILE,
+    BundleContinuityError,
     BundleError,
     BundleManifest,
     BundleReader,
     FileRecord,
     TimeWindow,
+    check_continuity,
     derive_bundle_id,
     describe_file,
     iter_bundles,
@@ -424,3 +426,84 @@ def test_manifest_rejects_a_descriptive_bundle_id():
             files=(),
             alert_fired=False,
         )
+
+
+class TestContinuity:
+    """A recording with a stretch of no telemetry did not run as described.
+
+    Measured on the first thirteen real recordings: eight clean bundles had a
+    median gap of 15s and a maximum of 15s. Five suspended bundles had maximum
+    gaps of 315s, 405s, 690s, 720s, 765s and 5010s against the same cadence. The
+    machine had taken maintenance sleep overnight, `datetime.now` jumped across
+    the suspension while `time.monotonic` did not, and every other check in the
+    pipeline passed: the files were intact and the checksums matched.
+    """
+
+    def _metrics(self, tmp_path: Path, stamps: list[int]) -> Path:
+        """A bundle directory holding only a metrics file with these timestamps."""
+        import duckdb
+
+        bundle = tmp_path / "inc_000000000000"
+        bundle.mkdir()
+        rows = ", ".join(f"(to_timestamp({t}), 'payment', 'latency', 1.0)" for t in stamps)
+        with duckdb.connect() as connection:
+            connection.execute(
+                f"copy (select * from (values {rows}) "
+                "t(timestamp, service_name, metric, value)) "
+                f"to '{bundle / METRICS_FILE}' (format parquet)"
+            )
+        return bundle
+
+    def test_a_continuous_recording_passes(self, tmp_path: Path) -> None:
+        bundle = self._metrics(tmp_path, [i * 15 for i in range(73)])
+        assert check_continuity(bundle) == 15.0
+
+    def test_a_suspended_recording_is_refused(self, tmp_path: Path) -> None:
+        """The shape of the real failure: a cadence, then a hole, then a cadence."""
+        stamps = [i * 15 for i in range(20)] + [5010 + i * 15 for i in range(20)]
+        bundle = self._metrics(tmp_path, stamps)
+        with pytest.raises(BundleContinuityError, match="suspended"):
+            check_continuity(bundle)
+
+    def test_the_message_names_the_gap_and_the_cadence(self, tmp_path: Path) -> None:
+        stamps = [i * 15 for i in range(20)] + [5010 + i * 15 for i in range(20)]
+        bundle = self._metrics(tmp_path, stamps)
+        with pytest.raises(BundleContinuityError) as raised:
+            check_continuity(bundle)
+        assert "15s sampling cadence" in str(raised.value)
+
+    def test_one_missed_export_is_not_a_hole(self, tmp_path: Path) -> None:
+        """A tolerated gap, because a collector that misses a cycle is normal."""
+        stamps = [0, 15, 30, 60, 75, 90, 105, 120, 135, 150]
+        bundle = self._metrics(tmp_path, stamps)
+        assert check_continuity(bundle) == 30.0
+
+    def test_a_coarse_cadence_gets_the_absolute_floor(self, tmp_path: Path) -> None:
+        """On a 60s cadence a single miss is 120s, which the multiple alone
+        would tolerate but the floor is what makes it explicit."""
+        stamps = [i * 60 for i in range(10)]
+        bundle = self._metrics(tmp_path, stamps)
+        assert check_continuity(bundle) == 60.0
+
+    def test_a_bundle_with_too_few_samples_to_judge_passes(self, tmp_path: Path) -> None:
+        """Two samples have one gap and no cadence to compare it against.
+
+        It reports the gap it measured and makes no judgement: "cannot tell" is
+        not "has a hole", and emptiness is a different check.
+        """
+        bundle = self._metrics(tmp_path, [0, 15])
+        assert check_continuity(bundle) == 15.0
+
+    def test_a_bundle_with_one_sample_has_no_gap_to_report(self, tmp_path: Path) -> None:
+        bundle = self._metrics(tmp_path, [0])
+        assert check_continuity(bundle) == 0.0
+
+    def test_a_bundle_with_no_metrics_file_is_an_error(self, tmp_path: Path) -> None:
+        empty = tmp_path / "inc_000000000001"
+        empty.mkdir()
+        with pytest.raises(BundleError, match=re.escape("no metrics.parquet")):
+            check_continuity(empty)
+
+    def test_the_continuity_error_is_a_bundle_error(self) -> None:
+        """So every caller that already handles a bad bundle handles this one."""
+        assert issubclass(BundleContinuityError, BundleError)

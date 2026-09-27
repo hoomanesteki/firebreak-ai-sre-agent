@@ -1,8 +1,8 @@
 """`firebreak eval`: run a configuration over a split and write the report.
 
-SPEC.md Section 9.6 defines the command. One subcommand today, `run`, because
-one configuration exists; the comparison subcommand arrives with B1 in Phase 6,
-when there is something to compare against.
+SPEC.md Section 9.6 defines the command. `run` measures one configuration on one
+split; `compare` puts two of them side by side with a paired interval, which is
+the only form a claim that one is better can honestly take.
 """
 
 from __future__ import annotations
@@ -14,7 +14,9 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from firebreak.evals.report import build_report, write_report
+from firebreak.evals.compare import ComparisonError, LoadedReport, load_report
+from firebreak.evals.compare import compare as compare_reports
+from firebreak.evals.report import REPORTS_DIR, build_report, write_report
 from firebreak.evals.runner import CONFIGURATIONS, RunnerError, run_configuration
 from firebreak.evals.statistics import BOOTSTRAP_RESAMPLES
 from firebreak.lab.scenario import Split
@@ -100,3 +102,75 @@ def configs() -> None:
     """List the configurations that can be run."""
     for name in sorted(CONFIGURATIONS):
         console.print(name)
+
+
+@eval_app.command("compare")
+def compare(
+    treatment: str = typer.Option(..., "--treatment", help="the configuration being judged"),
+    control: str = typer.Option(..., "--control", help="what to judge it against"),
+    split: str = typer.Option(..., "--split", help="train, validation, test_id, test_ood"),
+    resamples: int = typer.Option(BOOTSTRAP_RESAMPLES, "--resamples", help="bootstrap resamples"),
+) -> None:
+    """Compare two written reports on the tasks both covered.
+
+    Reads the reports rather than re-running, so a comparison can be made against
+    a stored baseline and in CI. Run both configurations first.
+    """
+    try:
+        first = _latest_report(treatment, split)
+        second = _latest_report(control, split)
+        result = compare_reports(first, second, resamples=resamples)
+    except ComparisonError as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(code=2) from error
+
+    table = Table(title=f"{result.treatment} against {result.control} on {result.split}")
+    table.add_column("grader")
+    table.add_column(result.treatment, justify="right")
+    table.add_column(result.control, justify="right")
+    table.add_column("difference [95%]", justify="right")
+    table.add_column("tasks", justify="right")
+    for grader in result.graders:
+        verdict = "" if grader.separates else " (spans zero)"
+        table.add_row(
+            grader.grader,
+            f"{grader.treatment_mean:.3f}",
+            f"{grader.control_mean:.3f}",
+            f"{grader.difference.estimate:+.3f} "
+            f"[{grader.difference.lower:+.3f}, {grader.difference.upper:+.3f}]{verdict}",
+            str(grader.paired_tasks),
+        )
+    console.print(table)
+    console.print(f"{result.tasks_in_common} task(s) in common")
+    if result.treatment_only or result.control_only:
+        console.print(
+            f"{len(result.treatment_only)} task(s) only {result.treatment} covered, "
+            f"{len(result.control_only)} only {result.control}; those are excluded"
+        )
+    if not any(g.separates for g in result.graders):
+        console.print(
+            "No grader separates these two configurations on this data. That is a "
+            "result about the sample size as much as about the systems."
+        )
+
+
+def _latest_report(configuration: str, split: str) -> LoadedReport:
+    """The most recently written report for one configuration and split.
+
+    By modification time rather than by filename. The filename carries a date and
+    a commit, and two runs on the same day sort by commit hash, which has nothing
+    to do with which came last.
+    """
+    try:
+        chosen = Split(split)
+    except ValueError as error:
+        raise ComparisonError(
+            f"unknown split {split!r}; known: {', '.join(s.value for s in Split)}"
+        ) from error
+    directory = REPORTS_DIR / configuration / chosen.value
+    if not directory.is_dir():
+        raise ComparisonError(f"no reports for {configuration} on {chosen.value}; run it first")
+    written = sorted(directory.glob("*.json"), key=lambda path: path.stat().st_mtime)
+    if not written:
+        raise ComparisonError(f"no reports for {configuration} on {chosen.value}; run it first")
+    return load_report(written[-1])
