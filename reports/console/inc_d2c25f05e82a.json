@@ -1,0 +1,602 @@
+{
+  "bundle_id": "inc_d2c25f05e82a",
+  "claims": [
+    {
+      "at": null,
+      "claim_type": "mechanism",
+      "evidence_ids": [
+        "ev_metric_ff22951ed025",
+        "ev_log_88b66e5cc01a",
+        "ev_trace_bc50d91cfbbf",
+        "ev_change_92def5aa68e7",
+        "ev_topology_6bba84754066"
+      ],
+      "numbers": [],
+      "text": "payment is the most likely root cause, with 5 piece(s) of supporting evidence."
+    },
+    {
+      "at": null,
+      "claim_type": "mechanism",
+      "evidence_ids": [
+        "ev_metric_ff22951ed025"
+      ],
+      "numbers": [],
+      "text": "metrics_analyst found signal for payment in 1 evidence record(s)."
+    },
+    {
+      "at": null,
+      "claim_type": "mechanism",
+      "evidence_ids": [
+        "ev_log_88b66e5cc01a"
+      ],
+      "numbers": [],
+      "text": "logs_analyst found signal for payment in 1 evidence record(s)."
+    },
+    {
+      "at": null,
+      "claim_type": "mechanism",
+      "evidence_ids": [
+        "ev_trace_bc50d91cfbbf"
+      ],
+      "numbers": [],
+      "text": "traces_analyst found signal for payment in 1 evidence record(s)."
+    },
+    {
+      "at": null,
+      "claim_type": "mechanism",
+      "evidence_ids": [
+        "ev_change_92def5aa68e7",
+        "ev_topology_6bba84754066"
+      ],
+      "numbers": [],
+      "text": "change_analyst found signal for payment in 2 evidence record(s)."
+    }
+  ],
+  "confidence": "medium",
+  "evidence": {
+    "ev_change_92def5aa68e7": {
+      "arguments": {
+        "services": [],
+        "window": {
+          "end": "2025-01-01T00:18:00+00:00",
+          "start": "2025-01-01T00:00:00+00:00"
+        }
+      },
+      "facts": [
+        {
+          "field": "changes",
+          "subject": null,
+          "unit": "count",
+          "value": 2.0
+        }
+      ],
+      "fingerprint": {
+        "format_version": 2,
+        "identity": "inc_d2c25f05e82a",
+        "mode": "bundle"
+      },
+      "id": "ev_change_92def5aa68e7",
+      "kind": "change",
+      "parameters": {
+        "services": []
+      },
+      "query": "recent_changes",
+      "result_sha256": "b8e731c6911312a49027ec489aad9dc895b64832148d22e7c268733b0fdc4399",
+      "row_count": 2,
+      "rows": [
+        {
+          "at": "2025-01-01T00:00:29.363295+00:00",
+          "detail": "updated rate limit configuration",
+          "kind": "config_change",
+          "service": "product-catalog"
+        },
+        {
+          "at": "2025-01-01T00:00:42.135329+00:00",
+          "detail": "scheduled container restart",
+          "kind": "restart",
+          "service": "shipping"
+        }
+      ],
+      "tool": "recent_changes",
+      "truncated": false,
+      "window": {
+        "end": "2025-01-01T00:18:00Z",
+        "start": "2025-01-01T00:00:00Z"
+      }
+    },
+    "ev_log_88b66e5cc01a": {
+      "arguments": {
+        "service": "payment",
+        "window": {
+          "end": "2025-01-01T00:18:00+00:00",
+          "start": "2025-01-01T00:06:00+00:00"
+        }
+      },
+      "facts": [
+        {
+          "field": "distinct_templates",
+          "subject": null,
+          "unit": "count",
+          "value": 7.0
+        },
+        {
+          "field": "top_template_count",
+          "subject": null,
+          "unit": "count",
+          "value": 5.0
+        }
+      ],
+      "fingerprint": {
+        "format_version": 2,
+        "identity": "inc_d2c25f05e82a",
+        "mode": "bundle"
+      },
+      "id": "ev_log_88b66e5cc01a",
+      "kind": "log",
+      "parameters": {
+        "service": "payment"
+      },
+      "query": "top_error_signatures",
+      "result_sha256": "d53329dc57facb8ecaf9e81cef1e8fb06126828177d32a791ceb0e822ba70d6f",
+      "row_count": 7,
+      "rows": [
+        {
+          "count": 5,
+          "first_seen": "2025-01-01T00:09:25.956Z",
+          "template": "payment connection to <ip>:<num> refused after <num> attempts"
+        },
+        {
+          "count": 3,
+          "first_seen": "2025-01-01T00:06:07.884Z",
+          "template": "payment deadline exceeded processing <uuid> after <num>ms"
+        },
+        {
+          "count": 2,
+          "first_seen": "2025-01-01T00:06:03.513Z",
+          "template": "payment handled GET /cart <num> in <num>ms request_id=<hex>"
+        },
+        {
+          "count": 1,
+          "first_seen": "2025-01-01T00:14:33.278Z",
+          "template": "payment handled GET /api/products <num> in <num>ms request_id=<hex>"
+        },
+        {
+          "count": 1,
+          "first_seen": "2025-01-01T00:08:32.984Z",
+          "template": "payment upstream call to cart failed after <num>ms request_id=<hex>"
+        },
+        {
+          "count": 1,
+          "first_seen": "2025-01-01T00:08:58.463Z",
+          "template": "payment upstream call to frontend failed after <num>ms request_id=<hex>"
+        },
+        {
+          "count": 1,
+          "first_seen": "2025-01-01T00:09:42.638Z",
+          "template": "payment upstream call to recommendation failed after <num>ms request_id=<hex>"
+        }
+      ],
+      "tool": "top_error_signatures",
+      "truncated": false,
+      "window": {
+        "end": "2025-01-01T00:18:00Z",
+        "start": "2025-01-01T00:06:00Z"
+      }
+    },
+    "ev_memory_5ce23e9a5d81": {
+      "arguments": {
+        "limit": 3,
+        "services": [
+          "payment",
+          "checkout",
+          "frontend"
+        ],
+        "symptoms": "payment anomaly 49.5; checkout anomaly 38.5; frontend anomaly 44.4"
+      },
+      "facts": [
+        {
+          "field": "matches",
+          "subject": null,
+          "unit": "count",
+          "value": 0.0
+        },
+        {
+          "field": "closest_similarity",
+          "subject": null,
+          "unit": "ratio",
+          "value": 0.0
+        }
+      ],
+      "fingerprint": {
+        "format_version": 2,
+        "identity": "inc_d2c25f05e82a",
+        "mode": "bundle"
+      },
+      "id": "ev_memory_5ce23e9a5d81",
+      "kind": "memory",
+      "parameters": {
+        "limit": 3,
+        "services": [
+          "payment",
+          "checkout",
+          "frontend"
+        ],
+        "symptoms": "payment anomaly 49.5; checkout anomaly 38.5; frontend anomaly 44.4"
+      },
+      "query": "similar_incidents",
+      "result_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "row_count": 0,
+      "rows": [],
+      "tool": "similar_incidents",
+      "truncated": false,
+      "window": {
+        "end": "1970-01-01T00:00:00Z",
+        "start": "1970-01-01T00:00:00Z"
+      }
+    },
+    "ev_metric_ff22951ed025": {
+      "arguments": {
+        "baseline": {
+          "end": "2025-01-01T00:05:30+00:00",
+          "start": "2025-01-01T00:00:00+00:00"
+        },
+        "minimum_score": 0.0,
+        "services": [],
+        "window": {
+          "end": "2025-01-01T00:18:00+00:00",
+          "start": "2025-01-01T00:06:00+00:00"
+        }
+      },
+      "facts": [
+        {
+          "field": "anomaly_score",
+          "subject": "payment",
+          "unit": "z",
+          "value": 49.4586
+        },
+        {
+          "field": "anomaly_score",
+          "subject": "frontend",
+          "unit": "z",
+          "value": 44.4456
+        },
+        {
+          "field": "anomaly_score",
+          "subject": "frontend",
+          "unit": "z",
+          "value": 43.4994
+        },
+        {
+          "field": "anomaly_score",
+          "subject": "payment",
+          "unit": "z",
+          "value": 39.4185
+        },
+        {
+          "field": "anomaly_score",
+          "subject": "checkout",
+          "unit": "z",
+          "value": 38.4845
+        },
+        {
+          "field": "anomaly_score",
+          "subject": "checkout",
+          "unit": "z",
+          "value": 35.8296
+        },
+        {
+          "field": "anomaly_score",
+          "subject": "frontend",
+          "unit": "z",
+          "value": 35.367
+        },
+        {
+          "field": "anomaly_score",
+          "subject": "payment",
+          "unit": "z",
+          "value": 29.9814
+        }
+      ],
+      "fingerprint": {
+        "format_version": 2,
+        "identity": "inc_d2c25f05e82a",
+        "mode": "bundle"
+      },
+      "id": "ev_metric_ff22951ed025",
+      "kind": "metric",
+      "parameters": {
+        "baseline": "2025-01-01T00:00:00+00:00/2025-01-01T00:05:30+00:00",
+        "minimum_score": 0.0,
+        "services": []
+      },
+      "query": "list_anomalies",
+      "result_sha256": "3526f2680d02429d5cb93a5cfc83ea19a95460e6545647f13b51644be1e9b7be",
+      "row_count": 8,
+      "rows": [
+        {
+          "baseline": 0.1244,
+          "incident": 3.1716,
+          "metric": "traces_span_metrics_calls_total",
+          "score": 49.4586,
+          "service": "payment"
+        },
+        {
+          "baseline": 0.1294,
+          "incident": 3.3686,
+          "metric": "traces_span_metrics_calls_total",
+          "score": 44.4456,
+          "service": "frontend"
+        },
+        {
+          "baseline": 178.411,
+          "incident": 1379.708,
+          "metric": "traces_span_metrics_duration_p95_milliseconds",
+          "score": 43.4994,
+          "service": "frontend"
+        },
+        {
+          "baseline": 183.678,
+          "incident": 1335.684,
+          "metric": "traces_span_metrics_duration_p95_milliseconds",
+          "score": 39.4185,
+          "service": "payment"
+        },
+        {
+          "baseline": 194.105,
+          "incident": 1314.593,
+          "metric": "traces_span_metrics_duration_p95_milliseconds",
+          "score": 38.4845,
+          "service": "checkout"
+        },
+        {
+          "baseline": 0.1481,
+          "incident": 3.358,
+          "metric": "traces_span_metrics_calls_total",
+          "score": 35.8296,
+          "service": "checkout"
+        },
+        {
+          "baseline": 45.032,
+          "incident": 240.248,
+          "metric": "traces_span_metrics_duration_p50_milliseconds",
+          "score": 35.367,
+          "service": "frontend"
+        },
+        {
+          "baseline": 47.061,
+          "incident": 253.4,
+          "metric": "traces_span_metrics_duration_p50_milliseconds",
+          "score": 29.9814,
+          "service": "payment"
+        }
+      ],
+      "tool": "list_anomalies",
+      "truncated": false,
+      "window": {
+        "end": "2025-01-01T00:18:00Z",
+        "start": "2025-01-01T00:06:00Z"
+      }
+    },
+    "ev_topology_6bba84754066": {
+      "arguments": {
+        "service": "payment"
+      },
+      "facts": [
+        {
+          "field": "reached",
+          "subject": "payment",
+          "unit": "count",
+          "value": 2.0
+        }
+      ],
+      "fingerprint": {
+        "format_version": 2,
+        "identity": "inc_d2c25f05e82a",
+        "mode": "bundle"
+      },
+      "id": "ev_topology_6bba84754066",
+      "kind": "topology",
+      "parameters": {
+        "service": "payment"
+      },
+      "query": "blast_radius",
+      "result_sha256": "01d2dd55728af0f516bd8cf18b325dd6c2404d5dbb58c729d9433644223d7e6c",
+      "row_count": 2,
+      "rows": [
+        {
+          "service": "checkout"
+        },
+        {
+          "service": "frontend"
+        }
+      ],
+      "tool": "blast_radius",
+      "truncated": false,
+      "window": {
+        "end": "1970-01-01T00:00:00Z",
+        "start": "1970-01-01T00:00:00Z"
+      }
+    },
+    "ev_trace_bc50d91cfbbf": {
+      "arguments": {
+        "limit": 50,
+        "min_duration_ms": null,
+        "services": [
+          "payment"
+        ],
+        "status": null,
+        "window": {
+          "end": "2025-01-01T00:18:00+00:00",
+          "start": "2025-01-01T00:06:00+00:00"
+        }
+      },
+      "facts": [
+        {
+          "field": "matches",
+          "subject": null,
+          "unit": "count",
+          "value": 10.0
+        }
+      ],
+      "fingerprint": {
+        "format_version": 2,
+        "identity": "inc_d2c25f05e82a",
+        "mode": "bundle"
+      },
+      "id": "ev_trace_bc50d91cfbbf",
+      "kind": "trace",
+      "parameters": {
+        "limit": 50,
+        "min_duration_ms": null,
+        "services": [
+          "payment"
+        ],
+        "status": null
+      },
+      "query": "find_traces",
+      "result_sha256": "97f2e3db123eff356dc5abc023d32953713886cbe4b2a480ad294b011c001e1a",
+      "row_count": 10,
+      "rows": [
+        {
+          "critical_path": "frontend:frontend.handle -> checkout:checkout.handle -> payment:payment.handle (463ms slowest: payment)",
+          "duration_ms": 129.59,
+          "error": false,
+          "trace_id": "dae445508201e2bd73ab48767734d7c1"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> checkout:checkout.handle -> payment:payment.handle (457ms slowest: payment)",
+          "duration_ms": 209.48,
+          "error": true,
+          "trace_id": "ef19f3871f662f0b25489de799fc4c53"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> checkout:checkout.handle -> payment:payment.handle (418ms slowest: payment)",
+          "duration_ms": 137.82,
+          "error": false,
+          "trace_id": "b91adc4dfd1ffe8794ed581c0cd72b2b"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> checkout:checkout.handle -> payment:payment.handle (386ms slowest: payment)",
+          "duration_ms": 107.39,
+          "error": true,
+          "trace_id": "5b507fdc0d5385d2dc72f57f3422dc67"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> checkout:checkout.handle -> payment:payment.handle (377ms slowest: payment)",
+          "duration_ms": 302.0,
+          "error": true,
+          "trace_id": "250d9d0a5261bb1fc59d5725282b4370"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> checkout:checkout.handle -> payment:payment.handle (341ms slowest: payment)",
+          "duration_ms": 147.47,
+          "error": true,
+          "trace_id": "a20cb89460303f4505f3b66c6fd08d91"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> checkout:checkout.handle -> payment:payment.handle (339ms slowest: payment)",
+          "duration_ms": 151.17,
+          "error": true,
+          "trace_id": "1a4822a1d33f8fab4b215375c9deb1ad"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> checkout:checkout.handle -> payment:payment.handle (336ms slowest: payment)",
+          "duration_ms": 137.99,
+          "error": true,
+          "trace_id": "ac45a7a5ed48d09d4878e0a9fd846420"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> checkout:checkout.handle -> payment:payment.handle (306ms slowest: payment)",
+          "duration_ms": 203.75,
+          "error": true,
+          "trace_id": "94ba8f05944ea029e246699224c760c7"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> checkout:checkout.handle -> payment:payment.handle (430ms slowest: checkout)",
+          "duration_ms": 277.66,
+          "error": false,
+          "trace_id": "586f1a06784c02401a3ebb01999fb71e"
+        }
+      ],
+      "tool": "find_traces",
+      "truncated": false,
+      "window": {
+        "end": "2025-01-01T00:18:00Z",
+        "start": "2025-01-01T00:06:00Z"
+      }
+    }
+  },
+  "gate": {
+    "checks": [
+      {
+        "check": "coverage",
+        "detail": "all 5 claim(s) cite known evidence",
+        "failed_claims": [],
+        "passed": true
+      },
+      {
+        "check": "re_execution",
+        "detail": "all 5 citation(s) re-ran identically",
+        "failed_claims": [],
+        "passed": true
+      },
+      {
+        "check": "numbers",
+        "detail": "all 0 cited number(s) match",
+        "failed_claims": [],
+        "passed": true
+      },
+      {
+        "check": "consistency",
+        "detail": "the report agrees with the notebook and the timestamps",
+        "failed_claims": [],
+        "passed": true
+      },
+      {
+        "check": "confidence_sanity",
+        "detail": "confidence 0.60 is not above 0.8",
+        "failed_claims": [],
+        "passed": true
+      },
+      {
+        "check": "abstention",
+        "detail": "support 5 meets the threshold 2",
+        "failed_claims": [],
+        "passed": true
+      }
+    ],
+    "passed": true,
+    "removed_claims": 0,
+    "repaired": false
+  },
+  "hypotheses": [
+    {
+      "contested": false,
+      "id": "h1",
+      "service": "payment",
+      "statement": "payment is the root cause: it ranked 1 of 5 on the dependency graph with a worst metric anomaly of 49.5 robust deviations.",
+      "support": 5
+    },
+    {
+      "contested": false,
+      "id": "h2",
+      "service": "checkout",
+      "statement": "checkout is the root cause: it ranked 2 of 5 on the dependency graph with a worst metric anomaly of 38.5 robust deviations.",
+      "support": 0
+    },
+    {
+      "contested": false,
+      "id": "h3",
+      "service": "frontend",
+      "statement": "frontend is the root cause: it ranked 3 of 5 on the dependency graph with a worst metric anomaly of 44.4 robust deviations.",
+      "support": 0
+    }
+  ],
+  "notes": [],
+  "notes_run": [],
+  "root_cause_service": "payment",
+  "rounds": 1,
+  "stopped_because": "complete",
+  "tool_calls": 5,
+  "wall_clock_seconds": 0.19898741703946143
+}

@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block content %}
+{% if report %}
+<div class="panel">
+  <h2>Conclusion</h2>
+  <p class="caption">
+    What the investigation named, and how sure it said it was. Confidence is a stated
+    probability and is scored for calibration, so a confident wrong answer costs more
+    than an unconfident one.
+  </p>
+  <table>
+    <tbody>
+      <tr>
+        <th>Root cause</th>
+        <td>
+          {% if report.root_cause_service %}
+            <strong>{{ report.root_cause_service }}</strong>
+          {% else %}
+            <span class="tag warn">insufficient evidence</span>
+          {% endif %}
+        </td>
+      </tr>
+      <tr><th>Confidence</th><td>{{ report.confidence or "not stated" }}</td></tr>
+      <tr><th>Stopped because</th><td><code>{{ report.stopped_because or "complete" }}</code></td></tr>
+      <tr>
+        <th>Exit gate</th>
+        <td>
+          {% if report.gate and report.gate.passed %}
+            <span class="tag ok">all six checks passed</span>
+          {% else %}
+            <span class="tag bad">failed</span>
+          {% endif %}
+          {% if report.gate and report.gate.removed_claims %}
+            <span class="tag warn">{{ report.gate.removed_claims }} statement(s) removed</span>
+          {% endif %}
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  {% if report.notes %}
+  <p class="caption" style="margin-top:.9rem">
+    {% for note in report.notes %}{{ note }} {% endfor %}
+  </p>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <h2>Claims</h2>
+  <p class="caption">
+    Every sentence, with the evidence it rests on. The links open the exact query, window
+    and rows that were recorded. A report whose claims cannot be opened is a report that
+    asks to be believed, which is the thing this project exists not to do.
+  </p>
+  {% if report.claims %}
+  <table>
+    <thead><tr><th>Claim</th><th>Type</th><th>Evidence</th></tr></thead>
+    <tbody>
+    {% for claim in report.claims %}
+      <tr>
+        <td>{{ claim.text }}</td>
+        <td><span class="tag">{{ claim.claim_type }}</span></td>
+        <td>
+          {% for reference in claim.evidence_ids %}
+            <a href="/evidence/{{ bundle_id }}/{{ reference }}"><code>{{ reference }}</code></a><br>
+          {% else %}
+            <span class="tag bad">cites nothing</span>
+          {% endfor %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="caption">
+    No claims. Either the investigation abstained, in which case the note above says why,
+    or the exit gate removed every statement it could not verify.
+  </p>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <h2>Gate results</h2>
+  <p class="caption">
+    The six checks between a written report and a published one. Shown in full rather than
+    as a verdict, because which check failed is what tells a reader what to distrust.
+  </p>
+  {% if report.gate and report.gate.checks %}
+  <table>
+    <thead><tr><th>Check</th><th>Result</th><th>Detail</th></tr></thead>
+    <tbody>
+    {% for check in report.gate.checks %}
+      <tr>
+        <td><code>{{ check.check }}</code></td>
+        <td>
+          {% if check.passed %}<span class="tag ok">ok</span>
+          {% else %}<span class="tag bad">failed</span>{% endif %}
+        </td>
+        <td>{{ check.detail }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="caption">No gate results were stored with this report.</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

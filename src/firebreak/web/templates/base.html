@@ -1,0 +1,114 @@
+{#
+  The shell every Console page sits in.
+
+  SPEC.md Section 6.13 asks for one accent colour, dark mode, and self-hosted fonts.
+  The fonts are not vendored yet and the stack falls back to system faces, which is
+  recorded in the phase report rather than hidden behind a web request: a page that
+  fetched a font from a CDN would break the offline demo, which is the one thing this
+  Console has to work for.
+
+  No build step and no framework, as the spec requires. The CSS is inline in one place
+  rather than a separate file, because a Console this small gains nothing from a second
+  request and loses the property that a single file is the whole style.
+#}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }} | Firebreak</title>
+<style>
+  :root {
+    --bg: #14161a;
+    --panel: #1b1e24;
+    --line: #2b2f37;
+    --text: #e6e8ec;
+    --muted: #9aa1ad;
+    --accent: #ff7a45;
+    --ok: #5fb37a;
+    --warn: #d9a441;
+    --bad: #d96a6a;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: "Sora", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--sans); font-size: 15px; line-height: 1.55;
+  }
+  header { border-bottom: 1px solid var(--line); padding: 1rem 1.5rem; }
+  header a.brand { color: var(--text); font-weight: 600; text-decoration: none; }
+  header a.brand span { color: var(--accent); }
+  nav { display: flex; gap: 1.25rem; margin-top: .6rem; flex-wrap: wrap; }
+  nav a { color: var(--muted); text-decoration: none; font-size: .9rem; }
+  nav a:hover, nav a.on { color: var(--accent); }
+  main { padding: 1.5rem; max-width: 1100px; }
+  h1 { font-size: 1.4rem; margin: 0 0 .35rem; }
+  p.lead { color: var(--muted); margin: 0 0 1.5rem; max-width: 70ch; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 1rem 1.15rem; margin-bottom: 1rem;
+  }
+  .panel h2 { font-size: 1rem; margin: 0 0 .25rem; }
+  .panel p.caption { color: var(--muted); font-size: .85rem; margin: 0 0 .9rem; }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; font-size: .82rem; }
+  td.num, th.num { text-align: right; font-family: var(--mono); }
+  code, .mono { font-family: var(--mono); font-size: .85em; }
+  a { color: var(--accent); }
+  .tag {
+    display: inline-block; padding: .1rem .45rem; border-radius: 4px;
+    font-size: .75rem; font-family: var(--mono); border: 1px solid var(--line);
+    color: var(--muted);
+  }
+  .tag.ok { color: var(--ok); border-color: var(--ok); }
+  .tag.warn { color: var(--warn); border-color: var(--warn); }
+  .tag.bad { color: var(--bad); border-color: var(--bad); }
+  .empty { border-left: 3px solid var(--warn); padding-left: 1rem; }
+  .empty h2 { color: var(--warn); }
+  .empty dl { margin: .5rem 0 0; }
+  .empty dt { color: var(--muted); font-size: .8rem; margin-top: .6rem; }
+  .empty dd { margin: .1rem 0 0; }
+  details { margin-top: .5rem; }
+  summary { cursor: pointer; color: var(--muted); font-size: .85rem; }
+  pre {
+    background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+    padding: .75rem; overflow-x: auto; font-family: var(--mono); font-size: .8rem;
+  }
+  footer { color: var(--muted); font-size: .8rem; padding: 1.5rem; border-top: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="/">fire<span>break</span></a>
+  <nav>
+    <a href="/">Incidents</a>
+    <a href="/evaluation">Evaluation</a>
+    <a href="/approvals">Approvals</a>
+    <a href="/feedback">Feedback</a>
+  </nav>
+</header>
+<main>
+  <h1>{{ title }}</h1>
+  <p class="lead">{{ lead }}</p>
+  {% if missing %}
+    {# Every page renders this the same way, so an empty Console explains itself
+       rather than showing a blank table. Empty is the normal state here: eight
+       bundles of a hundred and fourteen, and no credentials. #}
+    <div class="panel empty">
+      <h2>{{ missing.what }}</h2>
+      <dl>
+        <dt>Why</dt><dd>{{ missing.why }}</dd>
+        <dt>What would fill it</dt><dd><code>{{ missing.how }}</code></dd>
+      </dl>
+    </div>
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+<footer>
+  Every number on these pages came from a file something else wrote. Nothing here
+  computes its own accuracy, so the Console and the reports cannot disagree.
+</footer>
+</body>
+</html>

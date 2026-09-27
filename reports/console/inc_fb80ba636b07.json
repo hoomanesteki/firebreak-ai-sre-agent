@@ -1,0 +1,613 @@
+{
+  "bundle_id": "inc_fb80ba636b07",
+  "claims": [
+    {
+      "at": null,
+      "claim_type": "mechanism",
+      "evidence_ids": [
+        "ev_metric_9dad47a0dc6d",
+        "ev_log_0417d5f3748c",
+        "ev_trace_a7191109c929",
+        "ev_change_969036603b4b",
+        "ev_topology_bd4852bff334"
+      ],
+      "numbers": [],
+      "text": "shipping is the most likely root cause, with 5 piece(s) of supporting evidence."
+    },
+    {
+      "at": null,
+      "claim_type": "mechanism",
+      "evidence_ids": [
+        "ev_metric_9dad47a0dc6d"
+      ],
+      "numbers": [],
+      "text": "metrics_analyst found signal for shipping in 1 evidence record(s)."
+    },
+    {
+      "at": null,
+      "claim_type": "mechanism",
+      "evidence_ids": [
+        "ev_log_0417d5f3748c"
+      ],
+      "numbers": [],
+      "text": "logs_analyst found signal for shipping in 1 evidence record(s)."
+    },
+    {
+      "at": null,
+      "claim_type": "mechanism",
+      "evidence_ids": [
+        "ev_trace_a7191109c929"
+      ],
+      "numbers": [],
+      "text": "traces_analyst found signal for shipping in 1 evidence record(s)."
+    },
+    {
+      "at": null,
+      "claim_type": "mechanism",
+      "evidence_ids": [
+        "ev_change_969036603b4b",
+        "ev_topology_bd4852bff334"
+      ],
+      "numbers": [],
+      "text": "change_analyst found signal for shipping in 2 evidence record(s)."
+    }
+  ],
+  "confidence": "medium",
+  "evidence": {
+    "ev_change_969036603b4b": {
+      "arguments": {
+        "services": [],
+        "window": {
+          "end": "2025-01-01T00:18:00+00:00",
+          "start": "2025-01-01T00:00:00+00:00"
+        }
+      },
+      "facts": [
+        {
+          "field": "changes",
+          "subject": null,
+          "unit": "count",
+          "value": 3.0
+        }
+      ],
+      "fingerprint": {
+        "format_version": 2,
+        "identity": "inc_fb80ba636b07",
+        "mode": "bundle"
+      },
+      "id": "ev_change_969036603b4b",
+      "kind": "change",
+      "parameters": {
+        "services": []
+      },
+      "query": "recent_changes",
+      "result_sha256": "45a23d0be8b5a931978074bcc0460828e23bb464896753025d17971754dae232",
+      "row_count": 3,
+      "rows": [
+        {
+          "at": "2025-01-01T00:00:04.988101+00:00",
+          "detail": "updated rate limit configuration",
+          "kind": "config_change",
+          "service": "recommendation"
+        },
+        {
+          "at": "2025-01-01T00:00:44.682168+00:00",
+          "detail": "scheduled container restart",
+          "kind": "restart",
+          "service": "cart"
+        },
+        {
+          "at": "2025-01-01T00:03:30.652380+00:00",
+          "detail": "deployed a new build of frontend",
+          "kind": "deploy",
+          "service": "frontend"
+        }
+      ],
+      "tool": "recent_changes",
+      "truncated": false,
+      "window": {
+        "end": "2025-01-01T00:18:00Z",
+        "start": "2025-01-01T00:00:00Z"
+      }
+    },
+    "ev_log_0417d5f3748c": {
+      "arguments": {
+        "service": "shipping",
+        "window": {
+          "end": "2025-01-01T00:18:00+00:00",
+          "start": "2025-01-01T00:06:00+00:00"
+        }
+      },
+      "facts": [
+        {
+          "field": "distinct_templates",
+          "subject": null,
+          "unit": "count",
+          "value": 8.0
+        },
+        {
+          "field": "top_template_count",
+          "subject": null,
+          "unit": "count",
+          "value": 5.0
+        }
+      ],
+      "fingerprint": {
+        "format_version": 2,
+        "identity": "inc_fb80ba636b07",
+        "mode": "bundle"
+      },
+      "id": "ev_log_0417d5f3748c",
+      "kind": "log",
+      "parameters": {
+        "service": "shipping"
+      },
+      "query": "top_error_signatures",
+      "result_sha256": "f1ea7be3f21a4a8fb7d20cd1d8c58e735b999e9f11eabd2282fbbee39d075578",
+      "row_count": 8,
+      "rows": [
+        {
+          "count": 5,
+          "first_seen": "2025-01-01T00:07:19.536Z",
+          "template": "shipping connection to <ip>:<num> refused after <num> attempts"
+        },
+        {
+          "count": 5,
+          "first_seen": "2025-01-01T00:09:55.241Z",
+          "template": "shipping deadline exceeded processing <uuid> after <num>ms"
+        },
+        {
+          "count": 2,
+          "first_seen": "2025-01-01T00:10:25.329Z",
+          "template": "shipping handled GET /cart <num> in <num>ms request_id=<hex>"
+        },
+        {
+          "count": 2,
+          "first_seen": "2025-01-01T00:07:27.654Z",
+          "template": "shipping upstream call to payment failed after <num>ms request_id=<hex>"
+        },
+        {
+          "count": 1,
+          "first_seen": "2025-01-01T00:09:33.124Z",
+          "template": "shipping handled GET / <num> in <num>ms request_id=<hex>"
+        },
+        {
+          "count": 1,
+          "first_seen": "2025-01-01T00:10:04.158Z",
+          "template": "shipping handled GET /api/orders <num> in <num>ms request_id=<hex>"
+        },
+        {
+          "count": 1,
+          "first_seen": "2025-01-01T00:12:52.455Z",
+          "template": "shipping handled GET /checkout <num> in <num>ms request_id=<hex>"
+        },
+        {
+          "count": 1,
+          "first_seen": "2025-01-01T00:14:56.862Z",
+          "template": "shipping upstream call to recommendation failed after <num>ms request_id=<hex>"
+        }
+      ],
+      "tool": "top_error_signatures",
+      "truncated": false,
+      "window": {
+        "end": "2025-01-01T00:18:00Z",
+        "start": "2025-01-01T00:06:00Z"
+      }
+    },
+    "ev_memory_70bfbb8f17f0": {
+      "arguments": {
+        "limit": 3,
+        "services": [
+          "shipping",
+          "frontend",
+          "product-catalog"
+        ],
+        "symptoms": "shipping anomaly 33.6; frontend anomaly 38.5; product-catalog anomaly 0.4"
+      },
+      "facts": [
+        {
+          "field": "matches",
+          "subject": null,
+          "unit": "count",
+          "value": 0.0
+        },
+        {
+          "field": "closest_similarity",
+          "subject": null,
+          "unit": "ratio",
+          "value": 0.0
+        }
+      ],
+      "fingerprint": {
+        "format_version": 2,
+        "identity": "inc_fb80ba636b07",
+        "mode": "bundle"
+      },
+      "id": "ev_memory_70bfbb8f17f0",
+      "kind": "memory",
+      "parameters": {
+        "limit": 3,
+        "services": [
+          "shipping",
+          "frontend",
+          "product-catalog"
+        ],
+        "symptoms": "shipping anomaly 33.6; frontend anomaly 38.5; product-catalog anomaly 0.4"
+      },
+      "query": "similar_incidents",
+      "result_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "row_count": 0,
+      "rows": [],
+      "tool": "similar_incidents",
+      "truncated": false,
+      "window": {
+        "end": "1970-01-01T00:00:00Z",
+        "start": "1970-01-01T00:00:00Z"
+      }
+    },
+    "ev_metric_9dad47a0dc6d": {
+      "arguments": {
+        "baseline": {
+          "end": "2025-01-01T00:05:30+00:00",
+          "start": "2025-01-01T00:00:00+00:00"
+        },
+        "minimum_score": 0.0,
+        "services": [],
+        "window": {
+          "end": "2025-01-01T00:18:00+00:00",
+          "start": "2025-01-01T00:06:00+00:00"
+        }
+      },
+      "facts": [
+        {
+          "field": "anomaly_score",
+          "subject": "frontend",
+          "unit": "z",
+          "value": 38.479
+        },
+        {
+          "field": "anomaly_score",
+          "subject": "frontend",
+          "unit": "z",
+          "value": 37.5178
+        },
+        {
+          "field": "anomaly_score",
+          "subject": "shipping",
+          "unit": "z",
+          "value": 33.5991
+        },
+        {
+          "field": "anomaly_score",
+          "subject": "frontend",
+          "unit": "z",
+          "value": 31.2605
+        },
+        {
+          "field": "anomaly_score",
+          "subject": "shipping",
+          "unit": "z",
+          "value": 25.9282
+        },
+        {
+          "field": "anomaly_score",
+          "subject": "shipping",
+          "unit": "z",
+          "value": 25.8567
+        },
+        {
+          "field": "anomaly_score",
+          "subject": "payment",
+          "unit": "z",
+          "value": 1.0508
+        },
+        {
+          "field": "anomaly_score",
+          "subject": "checkout",
+          "unit": "z",
+          "value": 0.8984
+        }
+      ],
+      "fingerprint": {
+        "format_version": 2,
+        "identity": "inc_fb80ba636b07",
+        "mode": "bundle"
+      },
+      "id": "ev_metric_9dad47a0dc6d",
+      "kind": "metric",
+      "parameters": {
+        "baseline": "2025-01-01T00:00:00+00:00/2025-01-01T00:05:30+00:00",
+        "minimum_score": 0.0,
+        "services": []
+      },
+      "query": "list_anomalies",
+      "result_sha256": "fbb6769ba7c4e51c1f668d53a11bda6689788e62c8af10455cc5dc6343eab1f4",
+      "row_count": 8,
+      "rows": [
+        {
+          "baseline": 0.1024,
+          "incident": 3.2403,
+          "metric": "traces_span_metrics_calls_total",
+          "score": 38.479,
+          "service": "frontend"
+        },
+        {
+          "baseline": 46.693,
+          "incident": 230.363,
+          "metric": "traces_span_metrics_duration_p50_milliseconds",
+          "score": 37.5178,
+          "service": "frontend"
+        },
+        {
+          "baseline": 185.654,
+          "incident": 1366.096,
+          "metric": "traces_span_metrics_duration_p95_milliseconds",
+          "score": 33.5991,
+          "service": "shipping"
+        },
+        {
+          "baseline": 184.109,
+          "incident": 1303.244,
+          "metric": "traces_span_metrics_duration_p95_milliseconds",
+          "score": 31.2605,
+          "service": "frontend"
+        },
+        {
+          "baseline": 0.1304,
+          "incident": 3.2865,
+          "metric": "traces_span_metrics_calls_total",
+          "score": 25.9282,
+          "service": "shipping"
+        },
+        {
+          "baseline": 47.534,
+          "incident": 244.078,
+          "metric": "traces_span_metrics_duration_p50_milliseconds",
+          "score": 25.8567,
+          "service": "shipping"
+        },
+        {
+          "baseline": 0.071,
+          "incident": 0.1367,
+          "metric": "traces_span_metrics_calls_total",
+          "score": 1.0508,
+          "service": "payment"
+        },
+        {
+          "baseline": 44.539,
+          "incident": 48.656,
+          "metric": "traces_span_metrics_duration_p50_milliseconds",
+          "score": 0.8984,
+          "service": "checkout"
+        }
+      ],
+      "tool": "list_anomalies",
+      "truncated": false,
+      "window": {
+        "end": "2025-01-01T00:18:00Z",
+        "start": "2025-01-01T00:06:00Z"
+      }
+    },
+    "ev_topology_bd4852bff334": {
+      "arguments": {
+        "service": "shipping"
+      },
+      "facts": [
+        {
+          "field": "reached",
+          "subject": "shipping",
+          "unit": "count",
+          "value": 2.0
+        }
+      ],
+      "fingerprint": {
+        "format_version": 2,
+        "identity": "inc_fb80ba636b07",
+        "mode": "bundle"
+      },
+      "id": "ev_topology_bd4852bff334",
+      "kind": "topology",
+      "parameters": {
+        "service": "shipping"
+      },
+      "query": "blast_radius",
+      "result_sha256": "01d2dd55728af0f516bd8cf18b325dd6c2404d5dbb58c729d9433644223d7e6c",
+      "row_count": 2,
+      "rows": [
+        {
+          "service": "checkout"
+        },
+        {
+          "service": "frontend"
+        }
+      ],
+      "tool": "blast_radius",
+      "truncated": false,
+      "window": {
+        "end": "1970-01-01T00:00:00Z",
+        "start": "1970-01-01T00:00:00Z"
+      }
+    },
+    "ev_trace_a7191109c929": {
+      "arguments": {
+        "limit": 50,
+        "min_duration_ms": null,
+        "services": [
+          "shipping"
+        ],
+        "status": null,
+        "window": {
+          "end": "2025-01-01T00:18:00+00:00",
+          "start": "2025-01-01T00:06:00+00:00"
+        }
+      },
+      "facts": [
+        {
+          "field": "matches",
+          "subject": null,
+          "unit": "count",
+          "value": 10.0
+        }
+      ],
+      "fingerprint": {
+        "format_version": 2,
+        "identity": "inc_fb80ba636b07",
+        "mode": "bundle"
+      },
+      "id": "ev_trace_a7191109c929",
+      "kind": "trace",
+      "parameters": {
+        "limit": 50,
+        "min_duration_ms": null,
+        "services": [
+          "shipping"
+        ],
+        "status": null
+      },
+      "query": "find_traces",
+      "result_sha256": "d4ab2831592c7711be972944ae0b42c84fdc4e3a8b3a8fce4217860a4aec329d",
+      "row_count": 10,
+      "rows": [
+        {
+          "critical_path": "frontend:frontend.handle -> shipping:shipping.handle (448ms slowest: shipping)",
+          "duration_ms": 256.64,
+          "error": false,
+          "trace_id": "b99e8c2caf5eb4919c1c6a5e4581ccd9"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> shipping:shipping.handle (446ms slowest: shipping)",
+          "duration_ms": 254.71,
+          "error": true,
+          "trace_id": "a0bd016bbda334aeea31df803b8f801c"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> shipping:shipping.handle (421ms slowest: shipping)",
+          "duration_ms": 105.7,
+          "error": true,
+          "trace_id": "50f3ed7e9cf6c6b4e5f9db579cdca314"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> shipping:shipping.handle (416ms slowest: shipping)",
+          "duration_ms": 188.07,
+          "error": true,
+          "trace_id": "7f914fe871227cb2ee283c1ea8f51ac5"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> shipping:shipping.handle (389ms slowest: shipping)",
+          "duration_ms": 192.91,
+          "error": true,
+          "trace_id": "67f8388ba8e61cb5374ee8d7567b159a"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> shipping:shipping.handle (372ms slowest: shipping)",
+          "duration_ms": 263.28,
+          "error": false,
+          "trace_id": "8ea4dd511b35069c70f4abbfa695bcef"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> shipping:shipping.handle (370ms slowest: shipping)",
+          "duration_ms": 198.12,
+          "error": false,
+          "trace_id": "f6a00758cb1386532129d338b4251188"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> shipping:shipping.handle (416ms slowest: frontend)",
+          "duration_ms": 415.97,
+          "error": true,
+          "trace_id": "30e1f52d997fb91691d6cedc678df63e"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> shipping:shipping.handle (421ms slowest: frontend)",
+          "duration_ms": 421.23,
+          "error": false,
+          "trace_id": "9e36023b680ca2162c737c6b86642bc6"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> shipping:shipping.handle (343ms slowest: shipping)",
+          "duration_ms": 140.56,
+          "error": false,
+          "trace_id": "cb6cbfeabde6ff62188e059b65075ea7"
+        }
+      ],
+      "tool": "find_traces",
+      "truncated": false,
+      "window": {
+        "end": "2025-01-01T00:18:00Z",
+        "start": "2025-01-01T00:06:00Z"
+      }
+    }
+  },
+  "gate": {
+    "checks": [
+      {
+        "check": "coverage",
+        "detail": "all 5 claim(s) cite known evidence",
+        "failed_claims": [],
+        "passed": true
+      },
+      {
+        "check": "re_execution",
+        "detail": "all 5 citation(s) re-ran identically",
+        "failed_claims": [],
+        "passed": true
+      },
+      {
+        "check": "numbers",
+        "detail": "all 0 cited number(s) match",
+        "failed_claims": [],
+        "passed": true
+      },
+      {
+        "check": "consistency",
+        "detail": "the report agrees with the notebook and the timestamps",
+        "failed_claims": [],
+        "passed": true
+      },
+      {
+        "check": "confidence_sanity",
+        "detail": "confidence 0.60 is not above 0.8",
+        "failed_claims": [],
+        "passed": true
+      },
+      {
+        "check": "abstention",
+        "detail": "support 5 meets the threshold 2",
+        "failed_claims": [],
+        "passed": true
+      }
+    ],
+    "passed": true,
+    "removed_claims": 0,
+    "repaired": false
+  },
+  "hypotheses": [
+    {
+      "contested": false,
+      "id": "h1",
+      "service": "shipping",
+      "statement": "shipping is the root cause: it ranked 1 of 5 on the dependency graph with a worst metric anomaly of 33.6 robust deviations.",
+      "support": 5
+    },
+    {
+      "contested": false,
+      "id": "h2",
+      "service": "frontend",
+      "statement": "frontend is the root cause: it ranked 2 of 5 on the dependency graph with a worst metric anomaly of 38.5 robust deviations.",
+      "support": 0
+    },
+    {
+      "contested": false,
+      "id": "h3",
+      "service": "product-catalog",
+      "statement": "product-catalog is the root cause: it ranked 3 of 5 on the dependency graph with a worst metric anomaly of 0.4 robust deviations.",
+      "support": 0
+    }
+  ],
+  "notes": [],
+  "notes_run": [],
+  "root_cause_service": "shipping",
+  "rounds": 1,
+  "stopped_because": "complete",
+  "tool_calls": 5,
+  "wall_clock_seconds": 0.20216179208364338
+}

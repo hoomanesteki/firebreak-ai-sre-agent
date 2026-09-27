@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block content %}
+{% if showcase %}
+<div class="panel">
+  <h2>Showcase</h2>
+  <p class="caption">
+    Ten incidents chosen to cover the failure modes rather than the wins. Each replays
+    offline from recorded model answers, so these run with no credentials and no network.
+    Two of them have no fault at all, where abstaining is the right answer.
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>Incident</th><th>Scenario</th><th>Said</th>
+        <th class="num">Claims</th><th>Gate</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for incident in showcase %}
+      <tr>
+        <td><a href="/report/{{ incident.bundle_id }}"><code>{{ incident.bundle_id }}</code></a></td>
+        <td>
+          {{ incident.scenario_id }}
+          <details><summary>why in the showcase</summary>{{ incident.reason }}</details>
+        </td>
+        <td>
+          {% if incident.abstained %}
+            <span class="tag warn">abstained</span>
+          {% else %}
+            {{ incident.named }}
+          {% endif %}
+        </td>
+        <td class="num">{{ incident.claims }}</td>
+        <td>
+          {% if incident.gate_passed %}
+            <span class="tag ok">passed</span>
+          {% else %}
+            <span class="tag bad">failed</span>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="panel">
+  <h2>Recorded library</h2>
+  <p class="caption">
+    Bundles on this machine, by their opaque ids. The ids are opaque on purpose: a
+    directory named for its fault would state the answer, and resolving them through the
+    labels would put ground truth on a web page.
+  </p>
+  {% if recorded %}
+  <table>
+    <thead><tr><th>Incident</th><th></th></tr></thead>
+    <tbody>
+    {% for incident in recorded %}
+      <tr>
+        <td><code>{{ incident.bundle_id }}</code></td>
+        <td><a href="/live/{{ incident.bundle_id }}">timeline</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="caption">
+    None on this machine. The library is git-ignored at 2.7 MB per bundle, so a fresh
+    clone has none and the showcase above is what runs.
+  </p>
+  {% endif %}
+</div>
+{% endblock %}

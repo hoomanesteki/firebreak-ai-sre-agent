@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block content %}
+{% for name, data in reports.items() %}
+<div class="panel">
+  <h2>{{ name }}</h2>
+  <p class="caption">
+    {{ data.data_source }},
+    {{ data.recorded_scenarios }} of {{ data.total_scenarios }} scenarios in this split.
+    {% if data.quotable_as_a_result %}
+      <span class="tag ok">quotable as a result</span>
+    {% else %}
+      <span class="tag warn">not quotable as a result</span>
+    {% endif %}
+  </p>
+  {% for caveat in data.caveats %}
+    <p class="caption">{{ caveat }}</p>
+  {% endfor %}
+  <table>
+    <thead>
+      <tr>
+        <th>Grader</th><th class="num">Accuracy</th>
+        <th class="num">95% interval</th><th class="num">Applicable</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for grader, summary in data.overall.graders.items() %}
+      <tr>
+        <td><code>{{ grader }}</code></td>
+        <td class="num">
+          {% if summary.accuracy is none %}not claimed
+          {% else %}{{ "%.3f"|format(summary.accuracy) }}{% endif %}
+        </td>
+        <td class="num">
+          {% if summary.interval %}
+            {{ "%.2f"|format(summary.interval.lower) }} to {{ "%.2f"|format(summary.interval.upper) }}
+          {% endif %}
+        </td>
+        <td class="num">{{ summary.applicable }} of {{ summary.trials }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <details>
+    <summary>Cost and reliability</summary>
+    <table>
+      <tbody>
+        <tr>
+          <th>Median cost per investigation</th>
+          <td class="num">
+            {% if data.overall.cost.total_tokens_in or data.overall.cost.total_tokens_out %}
+              {{ "%.6f"|format(data.overall.cost.median_usd) }} USD
+            {% else %}
+              not measured
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Mean tool calls</th>
+          <td class="num">{{ "%.1f"|format(data.overall.cost.mean_tool_calls) }}</td>
+        </tr>
+        <tr>
+          <th>Median wall clock</th>
+          <td class="num">{{ "%.2f"|format(data.overall.cost.p50_seconds) }} s</td>
+        </tr>
+        <tr><th>Trials</th><td class="num">{{ data.overall.trials }}</td></tr>
+        <tr><th>Tasks</th><td class="num">{{ data.overall.tasks }}</td></tr>
+      </tbody>
+    </table>
+    <p class="caption">
+      A cost of zero tokens means no model ran, so the cost column reads "not measured"
+      rather than free. A stub completion reports zero deliberately: inventing a token
+      count would put fiction into the cost column of every run CI makes.
+    </p>
+  </details>
+  <p class="caption" style="margin-top:.75rem">
+    Produced at {{ data.generated_at }} from commit <code>{{ data.commit }}</code>.
+    A commit ending in <code>-dirty</code> means the working tree differed from it, so
+    those numbers cannot be re-derived from that commit alone.
+  </p>
+</div>
+{% endfor %}
+{% endblock %}

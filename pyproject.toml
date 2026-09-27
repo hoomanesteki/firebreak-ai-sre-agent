@@ -37,6 +37,7 @@ dev = [
     "types-pyyaml>=6.0",
     "scikit-learn>=1.6",
     "scipy>=1.15",
+    "uvicorn>=0.34",
 ]
 
 # Kept out of `dev` because of a real conflict, not for tidiness. drain3 pins

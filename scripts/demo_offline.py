@@ -37,6 +37,7 @@ from firebreak.agent.graph import investigate  # noqa: E402
 from firebreak.agent.llm import LlmClient, LlmError  # noqa: E402
 from firebreak.demo.showcase import build_showcase  # noqa: E402
 from firebreak.settings import LlmMode  # noqa: E402
+from firebreak.web.store import write_console_report  # noqa: E402
 
 CASSETTES_DIR = REPO_ROOT / "recordings" / "cassettes"
 
@@ -130,6 +131,11 @@ def main() -> int:
                     "`make cassettes`."
                 )
                 continue
+
+            # Stored where the Console can read it. The demo is the only thing that
+            # produces a report on a fresh clone, so without this every Console page would
+            # be empty even after a successful demo.
+            write_console_report(result)
 
             replayed += 1
             differences = []

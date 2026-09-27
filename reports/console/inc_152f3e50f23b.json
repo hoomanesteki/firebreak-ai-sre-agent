@@ -1,0 +1,612 @@
+{
+  "bundle_id": "inc_152f3e50f23b",
+  "claims": [
+    {
+      "at": null,
+      "claim_type": "mechanism",
+      "evidence_ids": [
+        "ev_metric_af3a54c22b78",
+        "ev_log_3da67ef05f00",
+        "ev_trace_232f6a362c71",
+        "ev_change_1c9e53f7562c",
+        "ev_topology_2ef693933c41"
+      ],
+      "numbers": [],
+      "text": "cart is the most likely root cause, with 5 piece(s) of supporting evidence."
+    },
+    {
+      "at": null,
+      "claim_type": "mechanism",
+      "evidence_ids": [
+        "ev_metric_af3a54c22b78"
+      ],
+      "numbers": [],
+      "text": "metrics_analyst found signal for cart in 1 evidence record(s)."
+    },
+    {
+      "at": null,
+      "claim_type": "mechanism",
+      "evidence_ids": [
+        "ev_log_3da67ef05f00"
+      ],
+      "numbers": [],
+      "text": "logs_analyst found signal for cart in 1 evidence record(s)."
+    },
+    {
+      "at": null,
+      "claim_type": "mechanism",
+      "evidence_ids": [
+        "ev_trace_232f6a362c71"
+      ],
+      "numbers": [],
+      "text": "traces_analyst found signal for cart in 1 evidence record(s)."
+    },
+    {
+      "at": null,
+      "claim_type": "mechanism",
+      "evidence_ids": [
+        "ev_change_1c9e53f7562c",
+        "ev_topology_2ef693933c41"
+      ],
+      "numbers": [],
+      "text": "change_analyst found signal for cart in 2 evidence record(s)."
+    }
+  ],
+  "confidence": "medium",
+  "evidence": {
+    "ev_change_1c9e53f7562c": {
+      "arguments": {
+        "services": [],
+        "window": {
+          "end": "2025-01-01T00:18:00+00:00",
+          "start": "2025-01-01T00:00:00+00:00"
+        }
+      },
+      "facts": [
+        {
+          "field": "changes",
+          "subject": null,
+          "unit": "count",
+          "value": 2.0
+        }
+      ],
+      "fingerprint": {
+        "format_version": 2,
+        "identity": "inc_152f3e50f23b",
+        "mode": "bundle"
+      },
+      "id": "ev_change_1c9e53f7562c",
+      "kind": "change",
+      "parameters": {
+        "services": []
+      },
+      "query": "recent_changes",
+      "result_sha256": "1ca35c683accfeb551eb6901cde8b6560804edd1a1b77408197574da61c48f45",
+      "row_count": 2,
+      "rows": [
+        {
+          "at": "2025-01-01T00:00:00.993689+00:00",
+          "detail": "updated rate limit configuration",
+          "kind": "config_change",
+          "service": "checkout"
+        },
+        {
+          "at": "2025-01-01T00:00:57.942124+00:00",
+          "detail": "scheduled container restart",
+          "kind": "restart",
+          "service": "payment"
+        }
+      ],
+      "tool": "recent_changes",
+      "truncated": false,
+      "window": {
+        "end": "2025-01-01T00:18:00Z",
+        "start": "2025-01-01T00:00:00Z"
+      }
+    },
+    "ev_log_3da67ef05f00": {
+      "arguments": {
+        "service": "cart",
+        "window": {
+          "end": "2025-01-01T00:18:00+00:00",
+          "start": "2025-01-01T00:06:00+00:00"
+        }
+      },
+      "facts": [
+        {
+          "field": "distinct_templates",
+          "subject": null,
+          "unit": "count",
+          "value": 9.0
+        },
+        {
+          "field": "top_template_count",
+          "subject": null,
+          "unit": "count",
+          "value": 5.0
+        }
+      ],
+      "fingerprint": {
+        "format_version": 2,
+        "identity": "inc_152f3e50f23b",
+        "mode": "bundle"
+      },
+      "id": "ev_log_3da67ef05f00",
+      "kind": "log",
+      "parameters": {
+        "service": "cart"
+      },
+      "query": "top_error_signatures",
+      "result_sha256": "7e03a42e432108b4871580e2b89bde445503145c93109fea2b74708331b1895f",
+      "row_count": 9,
+      "rows": [
+        {
+          "count": 5,
+          "first_seen": "2025-01-01T00:07:19.183Z",
+          "template": "cart deadline exceeded processing <uuid> after <num>ms"
+        },
+        {
+          "count": 4,
+          "first_seen": "2025-01-01T00:06:55.502Z",
+          "template": "cart connection to <ip>:<num> refused after <num> attempts"
+        },
+        {
+          "count": 3,
+          "first_seen": "2025-01-01T00:09:42.692Z",
+          "template": "cart upstream call to payment failed after <num>ms request_id=<hex>"
+        },
+        {
+          "count": 2,
+          "first_seen": "2025-01-01T00:08:17.634Z",
+          "template": "cart handled GET / <num> in <num>ms request_id=<hex>"
+        },
+        {
+          "count": 2,
+          "first_seen": "2025-01-01T00:11:43.992Z",
+          "template": "cart handled GET /cart <num> in <num>ms request_id=<hex>"
+        },
+        {
+          "count": 2,
+          "first_seen": "2025-01-01T00:09:56.250Z",
+          "template": "cart upstream call to shipping failed after <num>ms request_id=<hex>"
+        },
+        {
+          "count": 1,
+          "first_seen": "2025-01-01T00:07:35.150Z",
+          "template": "cart handled GET /checkout <num> in <num>ms request_id=<hex>"
+        },
+        {
+          "count": 1,
+          "first_seen": "2025-01-01T00:08:41.099Z",
+          "template": "cart upstream call to checkout failed after <num>ms request_id=<hex>"
+        },
+        {
+          "count": 1,
+          "first_seen": "2025-01-01T00:06:59.160Z",
+          "template": "cart upstream call to frontend failed after <num>ms request_id=<hex>"
+        }
+      ],
+      "tool": "top_error_signatures",
+      "truncated": false,
+      "window": {
+        "end": "2025-01-01T00:18:00Z",
+        "start": "2025-01-01T00:06:00Z"
+      }
+    },
+    "ev_memory_accdefeaa820": {
+      "arguments": {
+        "limit": 3,
+        "services": [
+          "cart",
+          "frontend",
+          "product-catalog"
+        ],
+        "symptoms": "cart anomaly 35.4; frontend anomaly 42.6; product-catalog anomaly 0.9"
+      },
+      "facts": [
+        {
+          "field": "matches",
+          "subject": null,
+          "unit": "count",
+          "value": 0.0
+        },
+        {
+          "field": "closest_similarity",
+          "subject": null,
+          "unit": "ratio",
+          "value": 0.0
+        }
+      ],
+      "fingerprint": {
+        "format_version": 2,
+        "identity": "inc_152f3e50f23b",
+        "mode": "bundle"
+      },
+      "id": "ev_memory_accdefeaa820",
+      "kind": "memory",
+      "parameters": {
+        "limit": 3,
+        "services": [
+          "cart",
+          "frontend",
+          "product-catalog"
+        ],
+        "symptoms": "cart anomaly 35.4; frontend anomaly 42.6; product-catalog anomaly 0.9"
+      },
+      "query": "similar_incidents",
+      "result_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "row_count": 0,
+      "rows": [],
+      "tool": "similar_incidents",
+      "truncated": false,
+      "window": {
+        "end": "1970-01-01T00:00:00Z",
+        "start": "1970-01-01T00:00:00Z"
+      }
+    },
+    "ev_metric_af3a54c22b78": {
+      "arguments": {
+        "baseline": {
+          "end": "2025-01-01T00:05:30+00:00",
+          "start": "2025-01-01T00:00:00+00:00"
+        },
+        "minimum_score": 0.0,
+        "services": [],
+        "window": {
+          "end": "2025-01-01T00:18:00+00:00",
+          "start": "2025-01-01T00:06:00+00:00"
+        }
+      },
+      "facts": [
+        {
+          "field": "anomaly_score",
+          "subject": "frontend",
+          "unit": "z",
+          "value": 42.6233
+        },
+        {
+          "field": "anomaly_score",
+          "subject": "frontend",
+          "unit": "z",
+          "value": 36.8467
+        },
+        {
+          "field": "anomaly_score",
+          "subject": "cart",
+          "unit": "z",
+          "value": 35.3976
+        },
+        {
+          "field": "anomaly_score",
+          "subject": "cart",
+          "unit": "z",
+          "value": 32.1978
+        },
+        {
+          "field": "anomaly_score",
+          "subject": "cart",
+          "unit": "z",
+          "value": 29.6222
+        },
+        {
+          "field": "anomaly_score",
+          "subject": "frontend",
+          "unit": "z",
+          "value": 26.8843
+        },
+        {
+          "field": "anomaly_score",
+          "subject": "checkout",
+          "unit": "z",
+          "value": 0.9404
+        },
+        {
+          "field": "anomaly_score",
+          "subject": "product-catalog",
+          "unit": "z",
+          "value": 0.9004
+        }
+      ],
+      "fingerprint": {
+        "format_version": 2,
+        "identity": "inc_152f3e50f23b",
+        "mode": "bundle"
+      },
+      "id": "ev_metric_af3a54c22b78",
+      "kind": "metric",
+      "parameters": {
+        "baseline": "2025-01-01T00:00:00+00:00/2025-01-01T00:05:30+00:00",
+        "minimum_score": 0.0,
+        "services": []
+      },
+      "query": "list_anomalies",
+      "result_sha256": "28769567b93cb088652a9faf8467160fbfdd96caf6933ce0fd036b36e0260c42",
+      "row_count": 8,
+      "rows": [
+        {
+          "baseline": 46.805,
+          "incident": 252.373,
+          "metric": "traces_span_metrics_duration_p50_milliseconds",
+          "score": 42.6233,
+          "service": "frontend"
+        },
+        {
+          "baseline": 192.124,
+          "incident": 1322.561,
+          "metric": "traces_span_metrics_duration_p95_milliseconds",
+          "score": 36.8467,
+          "service": "frontend"
+        },
+        {
+          "baseline": 182.341,
+          "incident": 1331.977,
+          "metric": "traces_span_metrics_duration_p95_milliseconds",
+          "score": 35.3976,
+          "service": "cart"
+        },
+        {
+          "baseline": 0.1122,
+          "incident": 3.3004,
+          "metric": "traces_span_metrics_calls_total",
+          "score": 32.1978,
+          "service": "cart"
+        },
+        {
+          "baseline": 46.061,
+          "incident": 252.958,
+          "metric": "traces_span_metrics_duration_p50_milliseconds",
+          "score": 29.6222,
+          "service": "cart"
+        },
+        {
+          "baseline": 0.1226,
+          "incident": 3.5997,
+          "metric": "traces_span_metrics_calls_total",
+          "score": 26.8843,
+          "service": "frontend"
+        },
+        {
+          "baseline": 169.645,
+          "incident": 191.371,
+          "metric": "traces_span_metrics_duration_p95_milliseconds",
+          "score": 0.9404,
+          "service": "checkout"
+        },
+        {
+          "baseline": 0.0599,
+          "incident": 0.1227,
+          "metric": "traces_span_metrics_calls_total",
+          "score": 0.9004,
+          "service": "product-catalog"
+        }
+      ],
+      "tool": "list_anomalies",
+      "truncated": false,
+      "window": {
+        "end": "2025-01-01T00:18:00Z",
+        "start": "2025-01-01T00:06:00Z"
+      }
+    },
+    "ev_topology_2ef693933c41": {
+      "arguments": {
+        "service": "cart"
+      },
+      "facts": [
+        {
+          "field": "reached",
+          "subject": "cart",
+          "unit": "count",
+          "value": 2.0
+        }
+      ],
+      "fingerprint": {
+        "format_version": 2,
+        "identity": "inc_152f3e50f23b",
+        "mode": "bundle"
+      },
+      "id": "ev_topology_2ef693933c41",
+      "kind": "topology",
+      "parameters": {
+        "service": "cart"
+      },
+      "query": "blast_radius",
+      "result_sha256": "01d2dd55728af0f516bd8cf18b325dd6c2404d5dbb58c729d9433644223d7e6c",
+      "row_count": 2,
+      "rows": [
+        {
+          "service": "checkout"
+        },
+        {
+          "service": "frontend"
+        }
+      ],
+      "tool": "blast_radius",
+      "truncated": false,
+      "window": {
+        "end": "1970-01-01T00:00:00Z",
+        "start": "1970-01-01T00:00:00Z"
+      }
+    },
+    "ev_trace_232f6a362c71": {
+      "arguments": {
+        "limit": 50,
+        "min_duration_ms": null,
+        "services": [
+          "cart"
+        ],
+        "status": null,
+        "window": {
+          "end": "2025-01-01T00:18:00+00:00",
+          "start": "2025-01-01T00:06:00+00:00"
+        }
+      },
+      "facts": [
+        {
+          "field": "matches",
+          "subject": null,
+          "unit": "count",
+          "value": 10.0
+        }
+      ],
+      "fingerprint": {
+        "format_version": 2,
+        "identity": "inc_152f3e50f23b",
+        "mode": "bundle"
+      },
+      "id": "ev_trace_232f6a362c71",
+      "kind": "trace",
+      "parameters": {
+        "limit": 50,
+        "min_duration_ms": null,
+        "services": [
+          "cart"
+        ],
+        "status": null
+      },
+      "query": "find_traces",
+      "result_sha256": "3e958c1a0008607124d3ab6844ca7256bbfb183c0a30f9f96d13e611f1067677",
+      "row_count": 10,
+      "rows": [
+        {
+          "critical_path": "frontend:frontend.handle -> cart:cart.handle (448ms slowest: cart)",
+          "duration_ms": 256.64,
+          "error": false,
+          "trace_id": "b99e8c2caf5eb4919c1c6a5e4581ccd9"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> cart:cart.handle (446ms slowest: cart)",
+          "duration_ms": 254.71,
+          "error": true,
+          "trace_id": "a0bd016bbda334aeea31df803b8f801c"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> cart:cart.handle (445ms slowest: cart)",
+          "duration_ms": 125.8,
+          "error": true,
+          "trace_id": "80ee8257c372c097af4a3a72141d6d90"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> cart:cart.handle (426ms slowest: cart)",
+          "duration_ms": 343.1,
+          "error": true,
+          "trace_id": "be389957f9c10133c2fa9bf0cf0b65c7"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> cart:cart.handle (416ms slowest: cart)",
+          "duration_ms": 188.07,
+          "error": true,
+          "trace_id": "7f914fe871227cb2ee283c1ea8f51ac5"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> cart:cart.handle (400ms slowest: cart)",
+          "duration_ms": 254.57,
+          "error": false,
+          "trace_id": "b9cc95204e5b3beb1b296d5ba66de333"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> cart:cart.handle (389ms slowest: cart)",
+          "duration_ms": 192.91,
+          "error": true,
+          "trace_id": "67f8388ba8e61cb5374ee8d7567b159a"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> cart:cart.handle (372ms slowest: cart)",
+          "duration_ms": 263.28,
+          "error": false,
+          "trace_id": "8ea4dd511b35069c70f4abbfa695bcef"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> cart:cart.handle (370ms slowest: cart)",
+          "duration_ms": 198.12,
+          "error": false,
+          "trace_id": "f6a00758cb1386532129d338b4251188"
+        },
+        {
+          "critical_path": "frontend:frontend.handle -> cart:cart.handle (368ms slowest: cart)",
+          "duration_ms": 144.52,
+          "error": false,
+          "trace_id": "70c5e8a3155dbd75c8098bb12c27bbc5"
+        }
+      ],
+      "tool": "find_traces",
+      "truncated": false,
+      "window": {
+        "end": "2025-01-01T00:18:00Z",
+        "start": "2025-01-01T00:06:00Z"
+      }
+    }
+  },
+  "gate": {
+    "checks": [
+      {
+        "check": "coverage",
+        "detail": "all 5 claim(s) cite known evidence",
+        "failed_claims": [],
+        "passed": true
+      },
+      {
+        "check": "re_execution",
+        "detail": "all 5 citation(s) re-ran identically",
+        "failed_claims": [],
+        "passed": true
+      },
+      {
+        "check": "numbers",
+        "detail": "all 0 cited number(s) match",
+        "failed_claims": [],
+        "passed": true
+      },
+      {
+        "check": "consistency",
+        "detail": "the report agrees with the notebook and the timestamps",
+        "failed_claims": [],
+        "passed": true
+      },
+      {
+        "check": "confidence_sanity",
+        "detail": "confidence 0.60 is not above 0.8",
+        "failed_claims": [],
+        "passed": true
+      },
+      {
+        "check": "abstention",
+        "detail": "support 5 meets the threshold 2",
+        "failed_claims": [],
+        "passed": true
+      }
+    ],
+    "passed": true,
+    "removed_claims": 0,
+    "repaired": false
+  },
+  "hypotheses": [
+    {
+      "contested": false,
+      "id": "h1",
+      "service": "cart",
+      "statement": "cart is the root cause: it ranked 1 of 5 on the dependency graph with a worst metric anomaly of 35.4 robust deviations.",
+      "support": 5
+    },
+    {
+      "contested": false,
+      "id": "h2",
+      "service": "frontend",
+      "statement": "frontend is the root cause: it ranked 2 of 5 on the dependency graph with a worst metric anomaly of 42.6 robust deviations.",
+      "support": 0
+    },
+    {
+      "contested": false,
+      "id": "h3",
+      "service": "product-catalog",
+      "statement": "product-catalog is the root cause: it ranked 3 of 5 on the dependency graph with a worst metric anomaly of 0.9 robust deviations.",
+      "support": 0
+    }
+  ],
+  "notes": [],
+  "notes_run": [],
+  "root_cause_service": "cart",
+  "rounds": 1,
+  "stopped_because": "complete",
+  "tool_calls": 5,
+  "wall_clock_seconds": 0.1980184999993071
+}

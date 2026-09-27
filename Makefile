@@ -4,7 +4,7 @@ SHELL := /bin/bash
 
 .PHONY: help setup verify lint format types test test-cov hygiene leakage clean unhide \
         live live-config live-down live-logs lab-flags lab-library lab-bundles lab-package lab-verify lab-smoke lab-webhook lab-record lab-record-library \
-        graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates eval-b0 eval eval-compare eval-gate eval-regression cost-table optimize prompts cassettes demo-offline demo spec-check ci-status
+        graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates eval-b0 eval eval-compare eval-gate eval-regression cost-table optimize prompts cassettes demo-offline demo console spec-check ci-status
 
 help:  ## Show the available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -250,6 +250,9 @@ endif
 prompts:  ## List the prompts in use with their hashes
 	PYTHONPATH=src uv run python -c "from firebreak.prompts import stamps; \
 		[print(f'{n:11s} {s}') for n, s in stamps().items()]"
+
+console:  ## Serve the Console on http://127.0.0.1:8080
+	PYTHONPATH=src uv run python -m firebreak.web.serve
 
 cassettes:  ## Record replay cassettes for the showcase incidents
 	PYTHONPATH=src uv run python scripts/record_cassettes.py --limit $(or $(LIMIT),10)
