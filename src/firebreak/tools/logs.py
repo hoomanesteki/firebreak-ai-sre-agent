@@ -22,6 +22,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 
 from firebreak.backends.base import MAX_ROWS, LogRecord
+from firebreak.security.injection import redact, sanitise_rows
 from firebreak.signals import ERROR_SEVERITIES, Severity
 from firebreak.tools.base import ToolContext, ToolResult, ToolSpec
 from firebreak.tools.evidence import (
@@ -124,11 +125,22 @@ def search_logs(context: ToolContext, arguments: SearchLogsInput) -> ToolResult:
         if rows
         else "no matching log lines in this window"
     )
+    # The evidence record above holds the raw lines and the redacted ones go to the
+    # agent. SPEC.md Section 6.10 has the approval service show a human the raw
+    # evidence, and check 2 re-runs a record and compares hashes, so redacting what
+    # is recorded would both hide what a service actually logged and make every
+    # re-run depend on the classifier's current patterns.
+    shown, withheld = sanitise_rows(rows[:20])
+    if withheld:
+        summary = (
+            f"{summary} ({withheld} line(s) withheld: they contained what looks like "
+            "an instruction rather than telemetry)"
+        )
     return ToolResult(
         tool="search_logs",
         summary=summary[:600],
         evidence_id=record_.id,
-        data={"logs": rows[:20], "match_count": len(rows)},
+        data={"logs": shown, "match_count": len(rows), "withheld": withheld},
         truncated=record_.truncated,
     )
 
@@ -166,17 +178,25 @@ def top_error_signatures(context: ToolContext, arguments: TopErrorSignaturesInpu
             facts=facts,
         )
     )
+    # A masked template can still carry an instruction: masking replaces numbers and
+    # ids, not verbs. The first version of this tool summarised the top template
+    # verbatim, which would have put an injected line straight into a prompt with a
+    # frequency count attached to make it look important.
+    shown, withheld = sanitise_rows(rows, fields=("template",))
+    top_template = redact(ranked[0][0]) if ranked else ""
     summary = (
         f"{len(ranked)} distinct templates from {len(error_records)} error or fatal lines; "
-        f"top: '{ranked[0][0]}' x{ranked[0][1]}"
+        f"top: '{top_template}' x{ranked[0][1]}"
         if ranked
         else "no error or fatal log lines in this window"
     )
+    if withheld:
+        summary = f"{summary} ({withheld} template(s) withheld as suspicious)"
     return ToolResult(
         tool="top_error_signatures",
         summary=summary[:600],
         evidence_id=record_.id,
-        data={"templates": rows},
+        data={"templates": shown, "withheld": withheld},
     )
 
 
