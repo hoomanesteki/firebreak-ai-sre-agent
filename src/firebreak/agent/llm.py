@@ -97,6 +97,19 @@ class LlmClient:
     )
     recordings_dir: Path | None = None
     calls: list[str] = field(default_factory=list)
+    # Forces every call to one tier, which is ablations A3 (all-strong, no
+    # cascade) and A4 (all-small) in SPEC.md Section 9.5.
+    #
+    # Here rather than at each call site because this is the object that routes a
+    # call to a model, so one substitution covers the graph, the baselines and
+    # anything added later. Putting it on the nodes would mean every new node
+    # could forget it, and an ablation that silently did not ablate would produce
+    # a cost comparison between two identical systems.
+    #
+    # `judge` is never overridden onto: it runs offline, and a runtime call
+    # reaching it would let the graded system spend the grader's budget.
+    tier_override: Tier | None = None
+    tiers_requested: list[Tier] = field(default_factory=list)
 
     def complete(
         self,
@@ -112,6 +125,8 @@ class LlmClient:
         a prompt can be rewritten without invalidating either.
         """
         self.calls.append(purpose)
+        self.tiers_requested.append(tier)
+        tier = self.effective_tier(tier)
         if self.mode is LlmMode.STUB:
             return self._stub(purpose, payload, schema, tier)
         if self.mode is LlmMode.REPLAY:
@@ -120,6 +135,19 @@ class LlmClient:
             f"{self.mode.value} mode needs a configured endpoint; set LLM_BASE_URL and "
             "LLM_API_KEY, or run in stub mode"
         )
+
+    def effective_tier(self, requested: Tier) -> Tier:
+        """The tier a call actually runs at, after any ablation override.
+
+        Recorded separately from `tiers_requested` so a transcript can show both
+        what the graph asked for and what it got. An ablation that only reported
+        the override would make the cascade's own decisions invisible.
+        """
+        if self.tier_override is None:
+            return requested
+        if requested is Tier.JUDGE:
+            return requested
+        return self.tier_override
 
     def _stub(
         self, purpose: str, payload: dict[str, Any], schema: type[ModelT], tier: Tier

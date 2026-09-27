@@ -38,7 +38,7 @@ from firebreak.agent.state import (
     Status,
 )
 from firebreak.tools.base import ToolContext, ToolError, ToolRegistry
-from firebreak.tools.registry import SPECIALIST_TOOLS
+from firebreak.tools.registry import GRAPH_TOOLS, SPECIALIST_TOOLS
 
 # How many candidates from triage become hypotheses. SPEC.md Section 6.5 hands
 # the agent a short ranked list; turning all of it into hypotheses would spend
@@ -103,6 +103,11 @@ class NodeContext:
     registry: ToolRegistry
     tools: ToolContext
     notes: list[str] = field(default_factory=list)
+    # Ablation A2, SPEC.md Section 9.5: FB without the knowledge graph means no
+    # ranking and no dependency tools. Removing only the ranking would leave a
+    # weaker A2 that still reads the graph, and the row would stop answering the
+    # question it exists for.
+    allow_graph_tools: bool = True
 
 
 def entry_gate(state: InvestigationState) -> InvestigationState:
@@ -206,7 +211,7 @@ def run_specialist(
     evidence cannot be constructed, and inventing one would put an uncited
     opinion into the notebook where the reporter would treat it as a fact.
     """
-    allowed = SPECIALIST_TOOLS.get(specialist, ())
+    allowed = tools_for(specialist, allow_graph=context.allow_graph_tools)
     brief = state.brief_for(specialist, hypothesis, question, allowed)
     gathered = _gather(state, context, brief)
     if not gathered:
@@ -232,6 +237,19 @@ def run_specialist(
         confidence=answer.confidence,
         evidence_ids=tuple(evidence_id for evidence_id, _ in gathered),
     )
+
+
+def tools_for(specialist: str, allow_graph: bool = True) -> tuple[str, ...]:
+    """What one specialist may call, after any ablation.
+
+    Declared here rather than filtered at each call site, so A2 removes the
+    dependency tools from every specialist that has them in one place. The change
+    analyst is the only one that does today, and the one that would be forgotten.
+    """
+    allowed = SPECIALIST_TOOLS.get(specialist, ())
+    if allow_graph:
+        return allowed
+    return tuple(name for name in allowed if name not in GRAPH_TOOLS)
 
 
 def _gather(state: InvestigationState, context: NodeContext, brief: Brief) -> list[tuple[str, str]]:
@@ -275,6 +293,12 @@ def _gather(state: InvestigationState, context: NodeContext, brief: Brief) -> li
 
     gathered: list[tuple[str, str]] = []
     for tool_name, arguments in plans.get(brief.specialist, []):
+        if tool_name in GRAPH_TOOLS and tool_name not in brief.allowed_tools:
+            # Ablation A2 removed it. Skipped rather than raising, because the
+            # plan is shared by every configuration and a missing tool here is a
+            # deliberate absence rather than a bug in the plan.
+            context.notes.append(f"{brief.specialist} has no {tool_name} in this configuration")
+            continue
         if tool_name not in brief.allowed_tools:
             # A specialist asking for a tool outside its allowlist is a bug in
             # this plan, not something to route around silently.

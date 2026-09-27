@@ -45,14 +45,14 @@ from firebreak.backends.bundle_duckdb import BundleBackend
 from firebreak.lab.bundle import BundleReader
 from firebreak.settings import LlmMode
 from firebreak.tools.base import ToolContext, ToolError, ToolRegistry
-from firebreak.tools.registry import build_registry
+from firebreak.tools.registry import GRAPH_TOOLS, build_registry
 from firebreak.triage.pipeline import choose_windows
 from firebreak.triage.thresholds import load_thresholds
 
-# Every tool except the ones that read the dependency graph. Named here rather
-# than derived by subtracting from ALL_TOOLS, so that adding a graph tool later
-# does not silently hand it to this baseline.
-GRAPH_TOOLS = ("service_dependencies", "blast_radius")
+# Every tool except the ones that read the dependency graph. The list lives in
+# `firebreak.tools.registry` next to the specialist allowlists, because ablation
+# A2 removes the same tools and two copies is how B1 and A2 would quietly become
+# the same configuration.
 
 # How much of the transcript the model sees. A single agent with no notebook has
 # nothing but its transcript, so trimming it is what makes long runs possible at

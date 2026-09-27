@@ -32,7 +32,7 @@ from typing import Any
 from firebreak.agent.budget import BudgetLimits, BudgetState, StopReason
 from firebreak.agent.floor import FloorReason, build_floor_report
 from firebreak.agent.gates import GateOutcome, run_exit_gate
-from firebreak.agent.llm import LlmClient, LlmError
+from firebreak.agent.llm import LlmClient, LlmError, Tier
 from firebreak.agent.nodes import (
     MIN_SUPPORT_TO_CONCLUDE,
     NodeContext,
@@ -192,6 +192,45 @@ def stub_handlers() -> dict[str, Any]:
     }
 
 
+@dataclass(frozen=True)
+class AgentOptions:
+    """Which parts of Firebreak are switched on.
+
+    One object rather than a keyword per ablation. SPEC.md Section 9.5 has six
+    ablations and three of them are switches on this graph, with two more coming
+    in Phase 10, so the alternative is a function signature nobody reads to the
+    end.
+
+    Every ablation is a switch on the one implementation rather than a separate
+    graph. Two graphs differing in a critic would drift in something else, and the
+    comparison would then measure the drift.
+    """
+
+    # A1: FB without the critic. What independent critique is worth [R8].
+    use_critic: bool = True
+    # A2: FB without the knowledge graph. No dependency ranking and no dependency
+    # tools, so the question it answers is the graph's whole contribution.
+    use_graph: bool = True
+    # A3 and A4: every call at one tier, so the cascade's cost and quality effect
+    # can be read against the two extremes.
+    tier_override: Tier | None = None
+
+    @property
+    def name(self) -> str:
+        """A short label for a transcript or a report.
+
+        Named from the switches rather than passed in, so a configuration cannot
+        be labelled as something it is not.
+        """
+        if self.tier_override is not None:
+            return f"all-{self.tier_override.value}"
+        if not self.use_critic:
+            return "no-critic"
+        if not self.use_graph:
+            return "no-graph"
+        return "full"
+
+
 @dataclass
 class InvestigationResult:
     """What one run of the graph produced."""
@@ -213,7 +252,7 @@ def investigate(
     llm: LlmClient | None = None,
     limits: BudgetLimits | None = None,
     verify: bool = False,
-    use_critic: bool = True,
+    options: AgentOptions | None = None,
 ) -> InvestigationResult:
     """Run one investigation over one recorded bundle.
 
@@ -222,9 +261,17 @@ def investigate(
     deterministic floor all reach the graph the same way.
     """
     started = time.monotonic()
+    chosen = options or AgentOptions()
     client = llm or LlmClient(mode=LlmMode.STUB, stub_handlers=stub_handlers())
+    if chosen.tier_override is not None:
+        # Set on the client the caller passed rather than on a copy of it. A copy
+        # applied the ablation to an object the caller could not see, so a caller
+        # inspecting its own client saw no override and would conclude the
+        # ablation had not applied. A caller passing both a client and a tier
+        # override is asking for exactly this.
+        client.tier_override = chosen.tier_override
 
-    triage = triage_bundle(bundle_dir, verify=verify)
+    triage = triage_bundle(bundle_dir, verify=verify, use_graph=chosen.use_graph)
     reader = BundleReader(bundle_dir, verify=False)
 
     state = InvestigationState(
@@ -240,7 +287,12 @@ def investigate(
 
     with BundleBackend(reader) as backend:
         tools = ToolContext(backend=backend)
-        context = NodeContext(llm=client, registry=build_registry(ALL_TOOLS), tools=tools)
+        context = NodeContext(
+            llm=client,
+            registry=build_registry(ALL_TOOLS),
+            tools=tools,
+            allow_graph_tools=chosen.use_graph,
+        )
 
         state = entry_gate(state)
         if state.status is Status.FAILED:
@@ -251,7 +303,7 @@ def investigate(
             return _finish(state, _abstention_report(state), StopReason.COMPLETE, started, context)
 
         try:
-            return _investigate_with_models(state, context, started, use_critic)
+            return _investigate_with_models(state, context, started, chosen.use_critic)
         except LlmError as error:
             # SPEC.md Section 6.7's deterministic floor. Every model failing is a
             # bad day, not a bug, and an on-call engineer still gets a ranked list

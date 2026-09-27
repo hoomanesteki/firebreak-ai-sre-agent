@@ -207,12 +207,49 @@ def run_b2(bundle_dir: Path) -> tuple[InvestigationOutcome, set[str]]:
     return _react_outcome(investigate_react(bundle_dir, verify=False, gate=True))
 
 
-def run_a1(bundle_dir: Path) -> tuple[InvestigationOutcome, set[str]]:
-    """Ablation A1: the full system with the critic switched off."""
-    from firebreak.agent.graph import investigate
+def _ablation(**switches: object) -> Configuration:
+    """One ablation of FB, as a configuration the runner can call.
 
-    return _fb_outcome(investigate(bundle_dir, verify=False, use_critic=False))
+    Built from `AgentOptions` rather than from a copy of the graph, so an ablation
+    differs from FB in exactly the switch it names and in nothing else. Two graphs
+    differing in a critic would drift in something else, and the comparison would
+    then measure the drift.
+    """
 
+    def run(bundle_dir: Path) -> tuple[InvestigationOutcome, set[str]]:
+        from firebreak.agent.graph import AgentOptions, investigate
+
+        options = AgentOptions(**switches)  # type: ignore[arg-type]
+        return _fb_outcome(investigate(bundle_dir, verify=False, options=options))
+
+    return run
+
+
+# SPEC.md Section 9.5's ablations, each a switch on the one implementation.
+run_a1 = _ablation(use_critic=False)
+run_a2 = _ablation(use_graph=False)
+
+
+def _tier_ablation(tier_name: str) -> Configuration:
+    """A3 and A4: every call at one tier, so the cascade can be priced.
+
+    The tier is resolved inside rather than imported at module scope, for the same
+    reason every configuration imports the agent lazily: `collect_tasks` and the
+    graders stay usable without pulling the whole graph and its model client in.
+    """
+
+    def run(bundle_dir: Path) -> tuple[InvestigationOutcome, set[str]]:
+        from firebreak.agent.graph import AgentOptions, investigate
+        from firebreak.agent.llm import Tier
+
+        options = AgentOptions(tier_override=Tier(tier_name))
+        return _fb_outcome(investigate(bundle_dir, verify=False, options=options))
+
+    return run
+
+
+run_a3 = _tier_ablation("strong")
+run_a4 = _tier_ablation("small")
 
 CONFIGURATIONS: dict[str, Configuration] = {
     "b0": run_b0,
@@ -220,6 +257,9 @@ CONFIGURATIONS: dict[str, Configuration] = {
     "b2": run_b2,
     "fb-v1": run_fb_v1,
     "a1": run_a1,
+    "a2": run_a2,
+    "a3": run_a3,
+    "a4": run_a4,
 }
 
 
