@@ -1,0 +1,80 @@
+# Model tiers, the cascade that moves between them, and what each one costs.
+#
+# SPEC.md Section 6.7. Three tiers, each an ordered list: the first entry is
+# tried, and the next is the fallback when it fails. A tier with no models is
+# usable only in stub or replay mode, which is the state this file ships in.
+#
+# NO MODELS ARE LISTED, AND THAT IS DELIBERATE.
+#
+# SPEC.md's own table says "owner chooses; verify names", and this repository's
+# rules forbid inventing model ids or prices. A plausible id and a plausible
+# price are worse than an empty list: the id fails at the first call with a
+# confusing error, and the price silently multiplies every cost figure in every
+# report by a number nobody sourced. So the lists are empty and the loader
+# refuses to run a real model until they are filled.
+#
+# To fill one in you need, per model: the exact id from the provider's own
+# documentation, the price per million input and output tokens, and the URL the
+# price came from. The loader rejects a price with no source, which is how
+# SPEC.md Section 17 Phase 8's "prices with sources" becomes a rule rather than
+# an intention.
+
+version: 1
+
+tiers:
+  # Specialists, summarising tool results, extraction. The cheap tier, and the
+  # one the cascade escalates away from.
+  small:
+    models: []
+
+  # Commander, critic, reporter. The reporter always uses this tier and the
+  # critic uses a different provider or family here when one is configured,
+  # because a critic sharing a family with the writer agrees with it [R8].
+  strong:
+    models: []
+
+  # Offline evaluation only, and from a different family than strong where
+  # possible. Never used at runtime: a judge that scored the system it is part
+  # of would be marking its own work.
+  judge:
+    models: []
+
+# When a specialist call moves from small to strong. SPEC.md Section 6.7.
+cascade:
+  # A schema failure is repaired once by showing the model its own error. The
+  # second failure escalates rather than retrying, because retrying a schema
+  # error at the same tier is how a budget disappears into a model that cannot
+  # produce the shape.
+  escalate_after_schema_failures: 2
+
+  # A specialist reporting less confidence than this is asking for a better
+  # model. NOT TUNED: SPEC.md Section 6.7 says this threshold is tuned on
+  # validation, and tuning it needs runs of the full agent against validation in
+  # api mode, which needs credentials. 0.3 is `Confidence.LOW.as_probability`,
+  # so the rule currently reads "escalate when a specialist says low", which is
+  # defensible and is labelled as untuned rather than measured.
+  escalate_below_confidence: 0.3
+
+  # Two specialists disagreeing about the same hypothesis is the case a stronger
+  # model is most likely to settle, and the case where being wrong is most
+  # expensive.
+  escalate_on_contradiction: true
+
+# Retries and provider fallback. SPEC.md Section 6.7 and [R27].
+fallback:
+  # Exponential backoff with full jitter, which [R27] recommends over equal
+  # jitter: full jitter spreads a thundering herd of retries best.
+  max_attempts_per_model: 3
+  base_delay_seconds: 0.5
+  max_delay_seconds: 20.0
+
+  # Retried: a timeout, a 429, and any 5xx. Never a schema error, which
+  # escalates instead, and never a 4xx other than 429, which will fail the same
+  # way however many times it is sent.
+  retry_on_status: [429, 500, 502, 503, 504]
+  retry_on_timeout: true
+
+  # When every model in a tier has failed, Firebreak publishes the B0 triage
+  # report labelled as automated triage only. An on-call engineer always gets
+  # something useful.
+  deterministic_floor: true

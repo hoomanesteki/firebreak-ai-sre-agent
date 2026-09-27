@@ -328,6 +328,37 @@ class Notebook(BaseModel):
         ranked = self.ranked()
         return ranked[0] if ranked else None
 
+    @classmethod
+    def from_report(cls, report: Report) -> Notebook:
+        """The notebook a report implies, for a configuration that has none.
+
+        The exit gate's checks 4 and 6 both read a notebook. Two configurations
+        produce a report without one: baseline B1, which is a single agent with a
+        transcript, and the deterministic floor, which is B0 with no agent at all.
+        Handing the gate an empty notebook would make check 6 abstain every time,
+        since a leader that does not exist has no support, so both would score
+        zero and measure nothing.
+
+        So the report is translated: one hypothesis naming the service it named,
+        supported by the distinct evidence its claims cite. Check 4 then agrees by
+        construction, which is honest for a report that is its own reasoning, and
+        check 6 answers a real question about how much evidence was cited.
+
+        Stated plainly because it is a judgement rather than a derivation.
+        """
+        if report.root_cause_service is None:
+            return cls()
+        return cls(
+            hypotheses=(
+                Hypothesis(
+                    id="h1",
+                    service=report.root_cause_service,
+                    statement=f"{report.root_cause_service} is the root cause",
+                    supporting_evidence=tuple(report.cited_evidence),
+                ),
+            )
+        )
+
 
 class InvestigationState(BaseModel):
     """Everything one investigation knows.

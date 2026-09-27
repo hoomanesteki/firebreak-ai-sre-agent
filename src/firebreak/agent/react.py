@@ -40,7 +40,7 @@ from firebreak.agent.budget import BudgetLimits, BudgetState, StopReason
 from firebreak.agent.gates import GateOutcome, run_exit_gate
 from firebreak.agent.llm import LlmClient, LlmError, Tier
 from firebreak.agent.reexecute import re_execute
-from firebreak.agent.state import Claim, Confidence, Hypothesis, Notebook, Report
+from firebreak.agent.state import Claim, Confidence, Notebook, Report
 from firebreak.backends.bundle_duckdb import BundleBackend
 from firebreak.lab.bundle import BundleReader
 from firebreak.settings import LlmMode
@@ -102,36 +102,11 @@ class ReactResult:
 def notebook_from(report: Report) -> Notebook:
     """The notebook B2's gate needs, built from what B1 actually produced.
 
-    Checks 4 and 6 both read a notebook, and a single agent has none: it has a
-    transcript and a report. Handing the gate an empty notebook would make check
-    6 abstain on every incident, since a leader that does not exist has no
-    support, so B2 would score zero and measure nothing.
-
-    So the report is translated: one hypothesis naming the service it named,
-    supported by the distinct evidence its claims cite. That is a faithful
-    reading of what the gate asks. Check 4 asks whether the report agrees with
-    the reasoning behind it, and for B1 the report is the reasoning, so it agrees
-    by construction and the check is vacuous for this configuration. Check 6 asks
-    how much evidence supports the named service, which is a real question about
-    a B1 report and is answered here from its citations.
-
-    Stated plainly because it is a judgement, not a derivation: B2's abstention
-    rate is a claim about how much evidence B1 cited, not about a hypothesis
-    board B1 never had.
+    Delegates to `Notebook.from_report`, which the deterministic floor needs for
+    the same reason. Kept as a name here because B2's behaviour is what it
+    documents, and because a second implementation is how the two would drift.
     """
-    if report.root_cause_service is None:
-        return Notebook()
-    supporting = tuple(report.cited_evidence)
-    return Notebook(
-        hypotheses=(
-            Hypothesis(
-                id="h1",
-                service=report.root_cause_service,
-                statement=f"{report.root_cause_service} is the root cause",
-                supporting_evidence=supporting,
-            ),
-        )
-    )
+    return Notebook.from_report(report)
 
 
 def react_tools(registry: ToolRegistry) -> tuple[str, ...]:

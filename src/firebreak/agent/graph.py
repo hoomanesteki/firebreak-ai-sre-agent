@@ -30,8 +30,9 @@ from pathlib import Path
 from typing import Any
 
 from firebreak.agent.budget import BudgetLimits, BudgetState, StopReason
+from firebreak.agent.floor import FloorReason, build_floor_report
 from firebreak.agent.gates import GateOutcome, run_exit_gate
-from firebreak.agent.llm import LlmClient
+from firebreak.agent.llm import LlmClient, LlmError
 from firebreak.agent.nodes import (
     MIN_SUPPORT_TO_CONCLUDE,
     NodeContext,
@@ -49,6 +50,7 @@ from firebreak.agent.state import (
     Alert,
     Finding,
     InvestigationState,
+    Notebook,
     Report,
     Status,
 )
@@ -248,36 +250,70 @@ def investigate(
         if state.status is Status.ABSTAINED:
             return _finish(state, _abstention_report(state), StopReason.COMPLETE, started, context)
 
-        stop: StopReason | None = None
-        while stop is None:
-            plan = commander(state, context)
-            findings: list[Finding] = []
-            for specialist, hypothesis_id, question in plan.assignments:
-                hypothesis = state.notebook.by_id(hypothesis_id)
-                if hypothesis is None:
-                    context.notes.append(f"commander named unknown hypothesis {hypothesis_id}")
-                    continue
-                finding = run_specialist(state, context, specialist, hypothesis, question)
-                if finding is not None:
-                    findings.append(finding)
+        try:
+            return _investigate_with_models(state, context, started, use_critic)
+        except LlmError as error:
+            # SPEC.md Section 6.7's deterministic floor. Every model failing is a
+            # bad day, not a bug, and an on-call engineer still gets a ranked list
+            # with re-runnable evidence. A stack trace here is how a tool stops
+            # being opened.
+            context.notes.append(f"falling back to deterministic triage: {error}")
+            floor = build_floor_report(bundle_dir, FloorReason.MODELS_UNAVAILABLE, verify=False)
+            failed = state.model_copy(update={"stopped_because": StopReason.COMPLETE})
+            return _finish(
+                failed,
+                floor.report,
+                StopReason.COMPLETE,
+                started,
+                context,
+                evidence=dict(floor.b0.evidence),
+                notebook=Notebook.from_report(floor.report),
+            )
 
-            state = hypothesis_board(state, findings)
-            state = state.model_copy(update={"evidence": _collected(context)})
 
-            # Ablation A1, SPEC.md Section 9.5: FB without the critic, to find
-            # out what independent critique is worth [R8]. A switch rather than a
-            # separate graph, so the two configurations cannot drift apart in
-            # anything but the critic.
-            if use_critic:
-                objection = critic(state, context)
-                if objection is not None:
-                    state = state.model_copy(update={"critiques": (*state.critiques, objection)})
+def _investigate_with_models(
+    state: InvestigationState,
+    context: NodeContext,
+    started: float,
+    use_critic: bool,
+) -> InvestigationResult:
+    """The part of an investigation that needs a model to answer.
 
-            state.budget.end_round(len(state.evidence))
-            stop = should_continue(state)
+    Split out so `investigate` has one place to catch a model failure and publish
+    the deterministic floor instead. Inlined, the try block would have to wrap the
+    backend context too, and the floor would then be built with nothing open to
+    re-run its evidence against.
+    """
+    stop: StopReason | None = None
+    while stop is None:
+        plan = commander(state, context)
+        findings: list[Finding] = []
+        for specialist, hypothesis_id, question in plan.assignments:
+            hypothesis = state.notebook.by_id(hypothesis_id)
+            if hypothesis is None:
+                context.notes.append(f"commander named unknown hypothesis {hypothesis_id}")
+                continue
+            finding = run_specialist(state, context, specialist, hypothesis, question)
+            if finding is not None:
+                findings.append(finding)
 
-        state = state.model_copy(update={"status": Status.REPORTING, "stopped_because": stop})
-        return _finish(state, reporter(state, context), stop, started, context)
+        state = hypothesis_board(state, findings)
+        state = state.model_copy(update={"evidence": _collected(context)})
+
+        # Ablation A1, SPEC.md Section 9.5: FB without the critic, to find out
+        # what independent critique is worth [R8]. A switch rather than a separate
+        # graph, so the two configurations cannot drift apart in anything but the
+        # critic.
+        if use_critic:
+            objection = critic(state, context)
+            if objection is not None:
+                state = state.model_copy(update={"critiques": (*state.critiques, objection)})
+
+        state.budget.end_round(len(state.evidence))
+        stop = should_continue(state)
+
+    state = state.model_copy(update={"status": Status.REPORTING, "stopped_because": stop})
+    return _finish(state, reporter(state, context), stop, started, context)
 
 
 def _collected(context: NodeContext) -> dict[str, Any]:
@@ -321,6 +357,8 @@ def _finish(
     stop: StopReason,
     started: float,
     context: NodeContext,
+    evidence: dict[str, Any] | None = None,
+    notebook: Notebook | None = None,
 ) -> InvestigationResult:
     """Run the exit gate and return the published report.
 
@@ -330,27 +368,42 @@ def _finish(
     short-circuit paths returned reports nothing had checked.
     """
     written = report or Report(incident_id=state.incident_id, root_cause_service=None)
-    evidence = _collected(context)
+    # The floor passes B0's evidence store, because the floor's claims cite B0's
+    # records and the graph gathered none. Defaulting to the graph's store would
+    # make the gate strip every claim in a floor report for citing nothing it
+    # knows, which is the opposite of what the floor is for.
+    gathered = evidence if evidence is not None else _collected(context)
 
     # Re-run each cited record against the same backend, through a fresh tool
     # context so verification does not spend the investigation's per-tool caps.
     rerun = re_execute(
         context.registry,
         ToolContext(backend=context.tools.backend),
-        evidence,
+        gathered,
         written.cited_evidence,
     )
     context.notes.extend(rerun.notes)
 
+    # The floor passes the notebook its own report implies, and passes it
+    # explicitly rather than being detected here. The graph's notebook is not
+    # empty on that path: `seed_hypotheses` filled it from triage with hypotheses
+    # no specialist ever supported, so the gate's abstention check saw support of
+    # zero and stripped the named service, which is the one thing the floor exists
+    # to deliver. Guessing from whether the notebook looked empty would have got
+    # that wrong silently, which is why the caller says.
     outcome = run_exit_gate(
-        written, state.notebook, evidence, rerun.records, min_support=_min_support(context)
+        written,
+        notebook if notebook is not None else state.notebook,
+        gathered,
+        rerun.records,
+        min_support=_min_support(context),
     )
     final = outcome.report
     if outcome.notice is not None:
         final = final.model_copy(update={"notes": (*final.notes, outcome.notice)})
     status = Status.ABSTAINED if final.abstained else Status.COMPLETE
     return InvestigationResult(
-        state=state.model_copy(update={"report": final, "status": status, "evidence": evidence}),
+        state=state.model_copy(update={"report": final, "status": status, "evidence": gathered}),
         report=final,
         stopped_because=stop,
         rounds=state.budget.rounds,
