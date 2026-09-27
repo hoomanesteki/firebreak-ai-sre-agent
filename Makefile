@@ -4,7 +4,7 @@ SHELL := /bin/bash
 
 .PHONY: help setup verify lint format types test test-cov hygiene leakage clean unhide \
         live live-config live-down live-logs lab-flags lab-library lab-bundles lab-package lab-verify lab-smoke lab-webhook lab-record lab-record-library \
-        graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates eval-b0 eval eval-compare eval-gate eval-regression cost-table optimize prompts spec-check ci-status
+        graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates eval-b0 eval eval-compare eval-gate eval-regression cost-table optimize prompts cassettes demo-offline demo spec-check ci-status
 
 help:  ## Show the available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -35,7 +35,7 @@ unhide:
 		chflags nohidden .venv/lib/python*/site-packages/*.pth 2>/dev/null || true; \
 	fi
 
-verify: unhide lint types test hygiene leakage spec-check  ## Run every check the review gate expects
+verify: unhide lint types test hygiene leakage spec-check demo-offline  ## Run every check the review gate expects
 
 lint:  ## Lint and check formatting
 	uv run ruff check .
@@ -250,6 +250,17 @@ endif
 prompts:  ## List the prompts in use with their hashes
 	PYTHONPATH=src uv run python -c "from firebreak.prompts import stamps; \
 		[print(f'{n:11s} {s}') for n, s in stamps().items()]"
+
+cassettes:  ## Record replay cassettes for the showcase incidents
+	PYTHONPATH=src uv run python scripts/record_cassettes.py --limit $(or $(LIMIT),10)
+
+demo-offline:  ## Replay a recorded investigation with no model and no network
+	PYTHONPATH=src uv run python scripts/demo_offline.py
+
+demo: live-config  ## Run an investigation against the live stack
+	@echo "The live demo needs the stack up (make live) and model credentials."
+	@echo "Without credentials the deterministic floor publishes B0's triage, labelled."
+	PYTHONPATH=src uv run python -m firebreak.cli.app lab verify
 
 cost-table:  ## Cost versus accuracy for all-strong, all-small and the cascade
 	PYTHONPATH=src uv run python scripts/cost_accuracy_table.py --split $(or $(SPLIT),validation)

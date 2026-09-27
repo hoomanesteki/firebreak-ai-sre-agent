@@ -208,3 +208,47 @@ class TestTheToolCannotSeeHeldOutMemory:
         assert "held-out" in SIMILAR_INCIDENTS.description
         assert "lead to test" in SIMILAR_INCIDENTS.description
         assert "never as evidence" in SIMILAR_INCIDENTS.description
+
+
+class TestTheDemoHandsTheAgentOnlyABundle:
+    """`firebreak.demo` is on the leakage allowlist, and this is the condition it rests on.
+
+    The demo reads scenario specs, which hold `target_service` and `fault_class`, because
+    it has to build bundles from something. That is the same thing the lab does. The entry
+    in `config/leakage.yaml` says it is safe because the demo hands the agent a bundle
+    directory and nothing else, and these tests are what keeps that true.
+    """
+
+    def test_the_showcase_passes_only_a_path_to_investigate(self) -> None:
+        """A spec, a label or a target service passed onward would make the allowlist
+        entry wrong."""
+        source = (REPO_ROOT / "scripts" / "demo_offline.py").read_text(encoding="utf-8")
+        assert "investigate(bundle" in source
+        for leak in ("target_service", "fault_class", "incident.spec.target", "spec.fault"):
+            assert leak not in source, f"demo_offline.py mentions {leak}"
+
+    def test_the_recorder_passes_only_a_path_too(self) -> None:
+        source = (REPO_ROOT / "scripts" / "record_cassettes.py").read_text(encoding="utf-8")
+        assert "investigate(bundle" in source
+        for leak in ("target_service", "fault_class"):
+            assert leak not in source, f"record_cassettes.py mentions {leak}"
+
+    def test_the_cassette_manifest_carries_no_answer(self) -> None:
+        """The manifest is committed, so an answer in it would be ground truth in the
+        repository outside `labels/`. It records the scenario id, which names the fault in
+        the same way a bundle directory named for its fault would, and that is why the
+        bundle ids are opaque and the manifest is keyed by them.
+        """
+        import json
+
+        manifest_path = REPO_ROOT / "recordings" / "cassettes" / "manifest.json"
+        if not manifest_path.is_file():
+            pytest.skip("no cassettes recorded")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        for entry in manifest["incidents"].values():
+            assert "target_service" not in entry
+            assert "fault_class" not in entry
+            # `root_cause_service` here is what the system *said*, not what was true, and
+            # the distinction is the whole point: it is an output being checked for
+            # reproducibility rather than an answer being supplied.
+            assert "root_cause_service" in entry

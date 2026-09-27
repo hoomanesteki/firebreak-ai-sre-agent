@@ -1,0 +1,64 @@
+{
+  "answer": {
+    "claims": [
+      {
+        "at": null,
+        "claim_type": "mechanism",
+        "evidence_ids": [
+          "ev_metric_9dad47a0dc6d",
+          "ev_log_0417d5f3748c",
+          "ev_trace_a7191109c929",
+          "ev_change_969036603b4b",
+          "ev_topology_bd4852bff334"
+        ],
+        "numbers": [],
+        "text": "shipping is the most likely root cause, with 5 piece(s) of supporting evidence."
+      },
+      {
+        "at": null,
+        "claim_type": "mechanism",
+        "evidence_ids": [
+          "ev_metric_9dad47a0dc6d"
+        ],
+        "numbers": [],
+        "text": "metrics_analyst found signal for shipping in 1 evidence record(s)."
+      },
+      {
+        "at": null,
+        "claim_type": "mechanism",
+        "evidence_ids": [
+          "ev_log_0417d5f3748c"
+        ],
+        "numbers": [],
+        "text": "logs_analyst found signal for shipping in 1 evidence record(s)."
+      },
+      {
+        "at": null,
+        "claim_type": "mechanism",
+        "evidence_ids": [
+          "ev_trace_a7191109c929"
+        ],
+        "numbers": [],
+        "text": "traces_analyst found signal for shipping in 1 evidence record(s)."
+      },
+      {
+        "at": null,
+        "claim_type": "mechanism",
+        "evidence_ids": [
+          "ev_change_969036603b4b",
+          "ev_topology_bd4852bff334"
+        ],
+        "numbers": [],
+        "text": "change_analyst found signal for shipping in 2 evidence record(s)."
+      }
+    ],
+    "confidence": "medium",
+    "root_cause_service": "shipping"
+  },
+  "model": "stub",
+  "purpose": "reporter",
+  "tier": "strong",
+  "tokens_in": 0,
+  "tokens_out": 0,
+  "usd": 0.0
+}
