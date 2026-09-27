@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from firebreak.agent.budget import BudgetLimits, StopReason
-from firebreak.agent.graph import investigate
+from firebreak.agent.graph import AgentOptions, investigate
 from firebreak.agent.llm import LlmClient
 from firebreak.agent.react import (
     GRAPH_TOOLS,
@@ -245,11 +245,11 @@ class TestA1IsFbWithoutTheCritic:
         which would make A1 answer a question nobody asked.
         """
         llm = LlmClient(mode=LlmMode.STUB, stub_handlers=_stub_handlers())
-        investigate(bundle, llm=llm, use_critic=False)
+        investigate(bundle, llm=llm, options=AgentOptions(use_critic=False))
         assert "critic" not in llm.calls
 
     def test_a1_still_produces_a_report(self, bundle: Path) -> None:
-        result = investigate(bundle, use_critic=False)
+        result = investigate(bundle, options=AgentOptions(use_critic=False))
         assert result.report is not None
         assert result.gate is not None
 

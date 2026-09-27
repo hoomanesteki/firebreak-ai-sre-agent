@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import StrEnum
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -55,8 +55,26 @@ class Settings(BaseSettings):
     recordings_dir: Path = Field(default=REPO_ROOT / "recordings")
     config_dir: Path = Field(default=REPO_ROOT / "config")
 
-    llm_base_url: str | None = None
-    llm_api_key: str | None = None
+    # Both the documented name and the prefixed one are accepted, documented
+    # name first.
+    #
+    # SPEC.md Section 6.7 writes `LLM_BASE_URL` and `LLM_API_KEY`, unprefixed,
+    # because that is what an OpenAI-compatible gateway expects and what the
+    # owner's Tollgate uses. This class prefixes everything with FIREBREAK_, so
+    # setting the documented variable did nothing and the process silently stayed
+    # in stub mode. Nothing would have reported it: stub mode is a valid mode.
+    #
+    # This is the seventh time in this project that two places agreed on a concept
+    # and disagreed on its name. The remedy is the same every time: accept the
+    # documented spelling, and assert in a test that the documented spelling works.
+    llm_base_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("LLM_BASE_URL", "FIREBREAK_LLM_BASE_URL"),
+    )
+    llm_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("LLM_API_KEY", "FIREBREAK_LLM_API_KEY"),
+    )
 
     # Neo4j. The password is a local development credential and not a
     # secret: `ops/compose.core.yml` sets the same value, and the graph

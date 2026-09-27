@@ -128,6 +128,12 @@ SPECIALIST_TOOLS: dict[str, tuple[str, ...]] = {
     ),
 }
 
+# The tools that read the dependency graph. Declared here, next to the
+# allowlists, because two places needed the same list: ablation A2 removes them
+# from the specialists, and baseline B1 never had them. Two copies of a tool list
+# is how B1 and A2 would quietly become the same configuration.
+GRAPH_TOOLS: tuple[str, ...] = ("service_dependencies", "blast_radius")
+
 # runbook_search is deliberately in no specialist's list. A specialist
 # analyses one signal and reports what it found; reading the owning team's
 # written procedure is a step taken once a candidate is agreed, which makes

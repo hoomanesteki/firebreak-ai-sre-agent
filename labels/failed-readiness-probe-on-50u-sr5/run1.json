@@ -1,0 +1,17 @@
+{
+  "scenario_id": "failed-readiness-probe-on-50u-sr5",
+  "run_id": "run1",
+  "bundle_id": "inc_e68fef497434",
+  "split": "validation",
+  "target_service": "cart",
+  "fault_class": "health_check_failure",
+  "fault_flag": "failedReadinessProbe",
+  "fault_variant": "on",
+  "fault_onset": "2026-09-25T14:35:19.950970Z",
+  "fault_cleared": "2026-09-25T14:45:21.026693Z",
+  "distractors": [],
+  "alert_fired": false,
+  "alert_fired_at": null,
+  "canary": "fbcanary-6613d066346d19aa228ebd4cd04318c9",
+  "notes": null
+}

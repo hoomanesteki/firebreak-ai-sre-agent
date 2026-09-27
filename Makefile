@@ -4,7 +4,7 @@ SHELL := /bin/bash
 
 .PHONY: help setup verify lint format types test test-cov hygiene leakage clean unhide \
         live live-config live-down live-logs lab-flags lab-library lab-bundles lab-package lab-verify lab-smoke lab-webhook lab-record lab-record-library \
-        graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates eval-b0 eval eval-compare spec-check ci-status
+        graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates eval-b0 eval eval-compare eval-gate eval-regression cost-table spec-check ci-status
 
 help:  ## Show the available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -223,6 +223,25 @@ ifndef SPLIT
 	$(error SPLIT is required, one of train validation test_id test_ood)
 endif
 	$(FIREBREAK) eval compare --treatment $(TREATMENT) --control $(CONTROL) --split $(SPLIT)
+
+eval-gate:  ## Apply the non-inferiority gate: make eval-gate CANDIDATE=fb-v1 BASELINE=b0 SPLIT=validation
+ifndef CANDIDATE
+	$(error CANDIDATE is required, the configuration being judged)
+endif
+ifndef BASELINE
+	$(error BASELINE is required, what it must not be worse than)
+endif
+ifndef SPLIT
+	$(error SPLIT is required, one of train validation test_id test_ood)
+endif
+	$(FIREBREAK) eval gate --candidate $(CANDIDATE) --baseline $(BASELINE) --split $(SPLIT) \
+		--trials $(or $(TRIALS),3)
+
+eval-regression:  ## Run the stub subset twice and prove the harness is deterministic
+	PYTHONPATH=src uv run python scripts/eval_regression.py --tasks $(or $(TASKS),30)
+
+cost-table:  ## Cost versus accuracy for all-strong, all-small and the cascade
+	PYTHONPATH=src uv run python scripts/cost_accuracy_table.py --split $(or $(SPLIT),validation)
 
 spec-check:  ## Check the repository against SPEC.md's own tables
 	PYTHONPATH=src uv run python scripts/check_spec_conformance.py

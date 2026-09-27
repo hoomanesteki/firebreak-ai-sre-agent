@@ -1,0 +1,25 @@
+{
+  "scenario_id": "no-fault-flood-homepage-sr2-5u",
+  "run_id": "run1",
+  "bundle_id": "inc_bdb88cdeee47",
+  "split": "validation",
+  "target_service": null,
+  "fault_class": "none",
+  "fault_flag": null,
+  "fault_variant": null,
+  "fault_onset": null,
+  "fault_cleared": "2026-09-25T17:10:04.886940Z",
+  "distractors": [
+    {
+      "kind": "harmless_flag",
+      "service": "frontend",
+      "applied_at": "2026-09-25T16:34:56.676743Z",
+      "flag": "loadGeneratorFloodHomepage",
+      "variant": "on"
+    }
+  ],
+  "alert_fired": false,
+  "alert_fired_at": null,
+  "canary": "fbcanary-5677323d538ed56c6421f520347f5223",
+  "notes": "Demand spike only: loadGeneratorFloodHomepage=on floods the frontend with load generator traffic. No service fault is injected; the correct answer is no fault."
+}

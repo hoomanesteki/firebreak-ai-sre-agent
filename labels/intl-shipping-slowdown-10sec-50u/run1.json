@@ -1,0 +1,17 @@
+{
+  "scenario_id": "intl-shipping-slowdown-10sec-50u",
+  "run_id": "run1",
+  "bundle_id": "inc_9dcad9ef4aa1",
+  "split": "validation",
+  "target_service": "shipping",
+  "fault_class": "latency",
+  "fault_flag": "intlShippingSlowdown",
+  "fault_variant": "10sec",
+  "fault_onset": "2026-09-25T15:17:28.945324Z",
+  "fault_cleared": "2026-09-25T15:39:01.735893Z",
+  "distractors": [],
+  "alert_fired": false,
+  "alert_fired_at": null,
+  "canary": "fbcanary-c57c69e5021f2644ce17645455eea464",
+  "notes": null
+}

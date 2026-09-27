@@ -246,6 +246,7 @@ def triage_bundle(
     top_candidates: int = TOP_CANDIDATES,
     verify: bool = True,
     thresholds: Thresholds | None = None,
+    use_graph: bool = True,
     **ranking_options: float | bool,
 ) -> TriageResult:
     """Run the whole deterministic pipeline over one recorded bundle.
@@ -254,6 +255,13 @@ def triage_bundle(
     one at a time, which is how the ablation harness sweeps parameters
     without keeping a second copy of this function that can drift away from
     the one that ships.
+
+    `use_graph=False` is ablation A2, SPEC.md Section 9.5: the system without its
+    knowledge graph. Implemented by walking a graph with no edges rather than by a
+    second ranking function, because with no edges the random walk has nothing to
+    propagate through and the result reduces to the restart vector, which is the
+    anomaly ranking. That is exactly what "no ranking" means here, and it keeps
+    one ranking implementation rather than two that could disagree.
     """
     tuned = thresholds or load_thresholds()
     options: dict[str, float | bool] = {
@@ -271,11 +279,16 @@ def triage_bundle(
             backend, baseline, incident, threshold=tuned.ranking.onset_threshold_z
         )
 
-    edges = [
-        edge
-        for edge in edges_from_topology(reader.topology())
-        if edge.client not in NOT_UNDER_INVESTIGATION and edge.server not in NOT_UNDER_INVESTIGATION
-    ]
+    edges = (
+        [
+            edge
+            for edge in edges_from_topology(reader.topology())
+            if edge.client not in NOT_UNDER_INVESTIGATION
+            and edge.server not in NOT_UNDER_INVESTIGATION
+        ]
+        if use_graph
+        else []
+    )
     scores = [score for score in scores if score.subject not in NOT_UNDER_INVESTIGATION]
     candidates = rank_candidates(edges, scores, onsets=onsets, **options)  # type: ignore[arg-type]
 
