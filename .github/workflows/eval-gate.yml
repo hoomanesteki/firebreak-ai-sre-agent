@@ -1,0 +1,173 @@
+name: eval-gate
+
+# SPEC.md Section 9.6. Two halves, and the split between them is the point.
+#
+# The deterministic half runs on every pull request that touches the agent, the
+# tools, the prompts or the model configuration. It needs no secrets, costs
+# nothing, and checks the thing a stub run can actually prove: that the harness
+# reproduces itself. A harness that shuffles would make pass^3 measure the
+# shuffling and would widen or narrow every bootstrap interval for no reason a
+# reader could see.
+#
+# The model half runs only when the owner adds the `run-evals` label and the
+# repository has credentials. It spends money, so it is opt in per pull request
+# rather than automatic. Without credentials the job says the model gate was
+# skipped and why, because a silent skip reads as a pass.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "prompts/**"
+      - "config/models.yaml"
+      - "config/agent.yaml"
+      - "config/thresholds.yaml"
+      - "config/eval_gate.yaml"
+      - "src/firebreak/agent/**"
+      - "src/firebreak/tools/**"
+      - "src/firebreak/evals/**"
+      - "src/firebreak/triage/**"
+      - ".github/workflows/eval-gate.yml"
+
+permissions:
+  contents: read
+  # To comment the verdict on the pull request. Nothing here writes code.
+  pull-requests: write
+
+concurrency:
+  group: eval-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  harness-regression:
+    name: stub regression (deterministic)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      - name: Run the subset twice and compare
+        env:
+          PYTHONPATH: src
+        run: uv run python scripts/eval_regression.py --tasks 30
+
+      - name: Report the deterministic gate
+        if: always()
+        run: |
+          {
+            echo "## Stub regression"
+            echo
+            if [ "${{ job.status }}" = "success" ]; then
+              echo "Every configuration reproduced itself exactly over 30 tasks."
+            else
+              echo "The harness did not reproduce itself. See the step log above."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  model-gate:
+    name: model gate (non-inferiority)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Opt in per pull request, because this one spends money.
+    if: contains(github.event.pull_request.labels.*.name, 'run-evals')
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      - name: Say so when there are no credentials
+        id: credentials
+        env:
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+        run: |
+          if [ -z "$LLM_BASE_URL" ] || [ -z "$LLM_API_KEY" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "LLM_BASE_URL or LLM_API_KEY is not set in repository secrets."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run the gate
+        if: steps.credentials.outputs.configured == 'true'
+        env:
+          PYTHONPATH: src
+          FIREBREAK_LLM_MODE: api
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+        run: |
+          uv run python -m firebreak.cli.app eval gate \
+            --candidate fb-v1 --baseline b0 --split validation --trials 3 \
+            --comment reports/eval/gate-comment.md
+
+      - name: Write the skipped notice
+        if: steps.credentials.outputs.configured != 'true'
+        run: |
+          mkdir -p reports/eval
+          {
+            echo "## Eval gate: \`SKIPPED\`"
+            echo
+            echo "The model gate did not run because \`LLM_BASE_URL\` or"
+            echo "\`LLM_API_KEY\` is not set in repository secrets. This is a"
+            echo "skip, not a pass: nothing about model behaviour was checked"
+            echo "on this pull request."
+            echo
+            echo "The deterministic stub regression ran and is reported separately."
+          } > reports/eval/gate-comment.md
+
+      - name: Comment the verdict
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'reports/eval/gate-comment.md';
+            if (!fs.existsSync(path)) {
+              core.info('no verdict file, nothing to comment');
+              return;
+            }
+            const body = fs.readFileSync(path, 'utf8');
+            const marker = '## Eval gate';
+            const existing = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            // Update in place rather than appending. A pull request with fifteen
+            // eval comments is a pull request nobody reads the verdict on.
+            const mine = existing.data.find(
+              (c) => c.user.type === 'Bot' && c.body.startsWith(marker)
+            );
+            if (mine) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: mine.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

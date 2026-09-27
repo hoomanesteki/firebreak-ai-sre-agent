@@ -1,0 +1,25 @@
+{
+  "scenario_id": "double-fault-payment-failure-cart-failure-20u",
+  "run_id": "run1",
+  "bundle_id": "inc_26fdce57b0d0",
+  "split": "validation",
+  "target_service": "payment",
+  "fault_class": "multiple",
+  "fault_flag": "paymentFailure",
+  "fault_variant": "50%",
+  "fault_onset": "2026-09-26T07:48:54.932932Z",
+  "fault_cleared": "2026-09-26T11:08:35.519265Z",
+  "distractors": [
+    {
+      "kind": "harmless_flag",
+      "service": "cart",
+      "applied_at": "2026-09-26T07:48:53.891661Z",
+      "flag": "cartFailure",
+      "variant": "10%"
+    }
+  ],
+  "alert_fired": false,
+  "alert_fired_at": null,
+  "canary": "fbcanary-5e4288618be90508ba6f0d8d96502076",
+  "notes": null
+}

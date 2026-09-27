@@ -1,0 +1,17 @@
+{
+  "scenario_id": "payment-failure-25pct-20u",
+  "run_id": "run1",
+  "bundle_id": "inc_d7d3dd51e373",
+  "split": "validation",
+  "target_service": "payment",
+  "fault_class": "error_injection",
+  "fault_flag": "paymentFailure",
+  "fault_variant": "25%",
+  "fault_onset": "2026-09-25T17:42:07.861037Z",
+  "fault_cleared": "2026-09-25T17:52:08.919954Z",
+  "distractors": [],
+  "alert_fired": false,
+  "alert_fired_at": null,
+  "canary": "fbcanary-d22dc97d8a30ad4b19009a1be83ef019",
+  "notes": null
+}

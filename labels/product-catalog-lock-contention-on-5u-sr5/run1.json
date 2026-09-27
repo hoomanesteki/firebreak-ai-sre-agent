@@ -1,0 +1,17 @@
+{
+  "scenario_id": "product-catalog-lock-contention-on-5u-sr5",
+  "run_id": "run1",
+  "bundle_id": "inc_4b2db40d6cfe",
+  "split": "test_ood",
+  "target_service": "product-catalog",
+  "fault_class": "lock_contention",
+  "fault_flag": "productCatalogLockContention",
+  "fault_variant": "on",
+  "fault_onset": "2026-09-25T12:16:57.492655Z",
+  "fault_cleared": "2026-09-25T12:37:03.532845Z",
+  "distractors": [],
+  "alert_fired": false,
+  "alert_fired_at": null,
+  "canary": "fbcanary-744c11bbf63a55673c090f74c9405936",
+  "notes": null
+}

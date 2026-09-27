@@ -16,6 +16,7 @@ from rich.table import Table
 
 from firebreak.evals.compare import ComparisonError, LoadedReport, load_report
 from firebreak.evals.compare import compare as compare_reports
+from firebreak.evals.gate import GateResult, Side, evaluate_gate
 from firebreak.evals.report import REPORTS_DIR, build_report, write_report
 from firebreak.evals.runner import CONFIGURATIONS, RunnerError, run_configuration
 from firebreak.evals.statistics import BOOTSTRAP_RESAMPLES
@@ -174,3 +175,110 @@ def _latest_report(configuration: str, split: str) -> LoadedReport:
     if not written:
         raise ComparisonError(f"no reports for {configuration} on {chosen.value}; run it first")
     return load_report(written[-1])
+
+
+@eval_app.command("gate")
+def gate(
+    candidate: str = typer.Option(..., "--candidate", help="the configuration being judged"),
+    baseline: str = typer.Option(..., "--baseline", help="what it must not be worse than"),
+    split: str = typer.Option(..., "--split", help="train, validation, test_id, test_ood"),
+    trials: int = typer.Option(1, "--trials", help="trials per task"),
+    limit: int = typer.Option(0, "--limit", help="only the first N tasks"),
+    comment: Path = typer.Option(
+        None, "--comment", help="write a Markdown verdict here, for a CI comment"
+    ),
+) -> None:
+    """Run both configurations and apply the non-inferiority gate.
+
+    SPEC.md Section 9.4. Runs them rather than reading reports, because the gate
+    needs both sides graded on the same tasks in the same run, and two reports
+    written at different times may cover different tasks.
+
+    Exits non-zero on anything but PASS, so CI can gate on it. INCONCLUSIVE exits
+    non-zero too: a gate that passes for lack of evidence is worse than no gate,
+    because it produces a signed statement that nothing was checked.
+    """
+    try:
+        chosen = Split(split)
+    except ValueError:
+        console.print(f"[red]unknown split {split!r}[/red]")
+        raise typer.Exit(code=2) from None
+
+    with tempfile.TemporaryDirectory(prefix="firebreak-gate-") as workspace:
+        try:
+            sides = {
+                name: run_configuration(
+                    name, chosen, Path(workspace), trials_per_task=trials, limit=limit
+                )
+                for name in (candidate, baseline)
+            }
+        except RunnerError as error:
+            console.print(f"[red]{error}[/red]")
+            raise typer.Exit(code=2) from error
+
+    result = evaluate_gate(
+        Side(
+            sheets=tuple(sides[candidate].sheets),
+            outcomes=tuple(sides[candidate].outcomes),
+        ),
+        Side(
+            sheets=tuple(sides[baseline].sheets),
+            outcomes=tuple(sides[baseline].outcomes),
+        ),
+    )
+
+    colour = "green" if result.passed else "red"
+    console.print(f"[{colour}]{result.verdict.value}[/{colour}] {result.summary}")
+    table = Table(title=f"{candidate} against {baseline} on {chosen.value}")
+    table.add_column("metric")
+    table.add_column("difference [95%]", justify="right")
+    table.add_column("margin", justify="right")
+    table.add_column("verdict")
+    for check in result.checks:
+        table.add_row(
+            check.name,
+            f"{check.difference.estimate:+.3f} "
+            f"[{check.difference.lower:+.3f}, {check.difference.upper:+.3f}]",
+            f"{check.margin:.3f}",
+            "ok" if check.passed else "fail",
+        )
+    console.print(table)
+
+    if comment is not None:
+        comment.parent.mkdir(parents=True, exist_ok=True)
+        comment.write_text(_gate_comment(result, candidate, baseline, chosen), encoding="utf-8")
+        console.print(f"wrote {comment}")
+
+    if not result.passed:
+        raise typer.Exit(code=1)
+
+
+def _gate_comment(result: GateResult, candidate: str, baseline: str, split: Split) -> str:
+    """The Markdown a CI job posts on a pull request.
+
+    Written to a file rather than posted from here, so the credential that can
+    comment on a pull request stays in the workflow and never enters this process.
+    """
+    lines = [
+        f"## Eval gate: `{result.verdict.value}`",
+        "",
+        f"`{candidate}` against `{baseline}` on `{split.value}`.",
+        "",
+        result.summary,
+        "",
+        "| metric | difference [95%] | margin | verdict |",
+        "|---|---|---|---|",
+    ]
+    for check in result.checks:
+        lines.append(
+            f"| {check.name} | {check.difference.estimate:+.3f} "
+            f"[{check.difference.lower:+.3f}, {check.difference.upper:+.3f}] "
+            f"| {check.margin:.3f} | {'ok' if check.passed else '**fail**'} |"
+        )
+    lines += [
+        "",
+        "The test is on the lower bound of a paired difference, not the point "
+        "estimate: a candidate two points behind with a wide interval has not been "
+        "shown to be worse, and one two points behind with a narrow interval has.",
+    ]
+    return "\n".join(lines) + "\n"

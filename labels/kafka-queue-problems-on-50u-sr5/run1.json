@@ -1,0 +1,17 @@
+{
+  "scenario_id": "kafka-queue-problems-on-50u-sr5",
+  "run_id": "run1",
+  "bundle_id": "inc_db1f0b59802b",
+  "split": "validation",
+  "target_service": "checkout",
+  "fault_class": "queue_lag",
+  "fault_flag": "kafkaQueueProblems",
+  "fault_variant": "on",
+  "fault_onset": "2026-09-25T15:50:15.845637Z",
+  "fault_cleared": "2026-09-25T16:00:16.601083Z",
+  "distractors": [],
+  "alert_fired": false,
+  "alert_fired_at": null,
+  "canary": "fbcanary-2a6411da90b1da3b7a86ddb7c8d38749",
+  "notes": null
+}
