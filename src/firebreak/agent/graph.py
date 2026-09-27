@@ -58,6 +58,7 @@ from firebreak.agent.state import (
 from firebreak.backends.bundle_duckdb import BundleBackend
 from firebreak.lab.bundle import BundleReader
 from firebreak.settings import LlmMode
+from firebreak.telemetry.spans import SpanRecorder, TracingOptions, record_gate
 from firebreak.tools.base import ToolContext
 from firebreak.tools.registry import ALL_TOOLS, build_registry
 from firebreak.triage.pipeline import triage_bundle
@@ -265,6 +266,7 @@ def investigate(
     limits: BudgetLimits | None = None,
     verify: bool = False,
     options: AgentOptions | None = None,
+    tracing: TracingOptions | None = None,
 ) -> InvestigationResult:
     """Run one investigation over one recorded bundle.
 
@@ -297,7 +299,14 @@ def investigate(
         budget=BudgetState(limits=limits or BudgetLimits()),
     )
 
-    with BundleBackend(reader) as backend:
+    recorder = SpanRecorder(
+        options=TracingOptions(
+            enabled=tracing is None or tracing.enabled,
+            include_content=tracing.include_content if tracing else False,
+            configuration=chosen.name,
+        )
+    )
+    with BundleBackend(reader) as backend, recorder.investigation(triage.bundle_id) as root:
         tools = ToolContext(backend=backend)
         context = NodeContext(
             llm=client,
@@ -305,14 +314,19 @@ def investigate(
             tools=tools,
             allow_graph_tools=chosen.use_graph,
             allow_memory=chosen.use_memory,
+            spans=recorder,
         )
+        context.root_span = root
 
-        state = entry_gate(state)
+        with recorder.node("entry_gate"):
+            state = entry_gate(state)
         if state.status is Status.FAILED:
             return _finish(state, state.report, StopReason.COMPLETE, started, context)
 
-        state = seed_hypotheses(state)
-        state = consult_memory(state, context)
+        with recorder.node("seed_hypotheses"):
+            state = seed_hypotheses(state)
+        with recorder.node("consult_memory"):
+            state = consult_memory(state, context)
         if state.status is Status.ABSTAINED:
             return _finish(state, _abstention_report(state), StopReason.COMPLETE, started, context)
 
@@ -352,18 +366,24 @@ def _investigate_with_models(
     """
     stop: StopReason | None = None
     while stop is None:
-        plan = commander(state, context)
+        # A span per node, which is the third of the three kinds SPEC.md Section 17
+        # Phase 11 asks for. Wrapped here rather than inside each node function, so a
+        # node added later is traced by being called rather than by remembering to.
+        with context.spans.node("commander"):
+            plan = commander(state, context)
         findings: list[Finding] = []
         for specialist, hypothesis_id, question in plan.assignments:
             hypothesis = state.notebook.by_id(hypothesis_id)
             if hypothesis is None:
                 context.notes.append(f"commander named unknown hypothesis {hypothesis_id}")
                 continue
-            finding = run_specialist(state, context, specialist, hypothesis, question)
+            with context.spans.node(specialist):
+                finding = run_specialist(state, context, specialist, hypothesis, question)
             if finding is not None:
                 findings.append(finding)
 
-        state = hypothesis_board(state, findings)
+        with context.spans.node("hypothesis_board"):
+            state = hypothesis_board(state, findings)
         state = state.model_copy(update={"evidence": _collected(context)})
 
         # Ablation A1, SPEC.md Section 9.5: FB without the critic, to find out
@@ -371,7 +391,8 @@ def _investigate_with_models(
         # graph, so the two configurations cannot drift apart in anything but the
         # critic.
         if use_critic:
-            objection = critic(state, context)
+            with context.spans.node("critic"):
+                objection = critic(state, context)
             if objection is not None:
                 state = state.model_copy(update={"critiques": (*state.critiques, objection)})
 
@@ -379,7 +400,9 @@ def _investigate_with_models(
         stop = should_continue(state)
 
     state = state.model_copy(update={"status": Status.REPORTING, "stopped_because": stop})
-    return _finish(state, reporter(state, context), stop, started, context)
+    with context.spans.node("reporter"):
+        written = reporter(state, context)
+    return _finish(state, written, stop, started, context)
 
 
 def _collected(context: NodeContext) -> dict[str, Any]:
@@ -428,20 +451,20 @@ def _finish(
 ) -> InvestigationResult:
     """Run the exit gate and return the published report.
 
-    Every route out of `investigate` comes through here, which is what SPEC.md
-    Section 17 Phase 7's "the gate cannot be bypassed" means in code. An earlier
-    version called the gate once, at the end of the main loop, so the two
-    short-circuit paths returned reports nothing had checked.
+    Every route out of `investigate` comes through here, which is what SPEC.md Section 17
+    Phase 7's "the gate cannot be bypassed" means in code. An earlier version called the
+    gate once, at the end of the main loop, so the two short-circuit paths returned
+    reports nothing had checked.
     """
     written = report or Report(incident_id=state.incident_id, root_cause_service=None)
-    # The floor passes B0's evidence store, because the floor's claims cite B0's
-    # records and the graph gathered none. Defaulting to the graph's store would
-    # make the gate strip every claim in a floor report for citing nothing it
-    # knows, which is the opposite of what the floor is for.
+    # The floor passes B0's evidence store, because the floor's claims cite B0's records
+    # and the graph gathered none. Defaulting to the graph's store would make the gate
+    # strip every claim in a floor report for citing nothing it knows, which is the
+    # opposite of what the floor is for.
     gathered = evidence if evidence is not None else _collected(context)
 
-    # Re-run each cited record against the same backend, through a fresh tool
-    # context so verification does not spend the investigation's per-tool caps.
+    # Re-run each cited record against the same backend, through a fresh tool context so
+    # verification does not spend the investigation's per-tool caps.
     rerun = re_execute(
         context.registry,
         ToolContext(backend=context.tools.backend),
@@ -450,23 +473,25 @@ def _finish(
     )
     context.notes.extend(rerun.notes)
 
-    # The floor passes the notebook its own report implies, and passes it
-    # explicitly rather than being detected here. The graph's notebook is not
-    # empty on that path: `seed_hypotheses` filled it from triage with hypotheses
-    # no specialist ever supported, so the gate's abstention check saw support of
-    # zero and stripped the named service, which is the one thing the floor exists
-    # to deliver. Guessing from whether the notebook looked empty would have got
-    # that wrong silently, which is why the caller says.
-    outcome = run_exit_gate(
-        written,
-        notebook if notebook is not None else state.notebook,
-        gathered,
-        rerun.records,
-        min_support=_min_support(context),
-    )
+    # The floor passes the notebook its own report implies, and passes it explicitly
+    # rather than being detected here. The graph's notebook is not empty on that path:
+    # `seed_hypotheses` filled it from triage with hypotheses no specialist ever
+    # supported, so the gate's abstention check saw support of zero and stripped the named
+    # service, which is the one thing the floor exists to deliver. Guessing from whether
+    # the notebook looked empty would have got that wrong silently, which is why the
+    # caller says.
+    with context.spans.node("exit_gate"):
+        outcome = run_exit_gate(
+            written,
+            notebook if notebook is not None else state.notebook,
+            gathered,
+            rerun.records,
+            min_support=_min_support(context),
+        )
     final = outcome.report
     if outcome.notice is not None:
         final = final.model_copy(update={"notes": (*final.notes, outcome.notice)})
+    record_gate(context.root_span, outcome.passed, outcome.removed)
     status = Status.ABSTAINED if final.abstained else Status.COMPLETE
     return InvestigationResult(
         state=state.model_copy(update={"report": final, "status": status, "evidence": gathered}),

@@ -20,7 +20,7 @@ from firebreak.agent.budget import BudgetLimits, StopReason
 from firebreak.agent.gates import run_exit_gate
 from firebreak.agent.graph import SPECIALISTS, investigate, stub_handlers
 from firebreak.agent.llm import LlmClient, LlmError, Tier
-from firebreak.agent.nodes import _gather, entry_gate, seed_hypotheses
+from firebreak.agent.nodes import NodeContext, _gather, entry_gate, seed_hypotheses
 from firebreak.agent.state import (
     Claim,
     Confidence,
@@ -120,9 +120,15 @@ class TestTheSpecialistPlansMatchTheirTools:
             )
             state = InvestigationState(incident_id="inc_000000000000")
             recorder = _Recorder()
-            context = type(
-                "Ctx", (), {"registry": recorder, "tools": None, "notes": [], "llm": None}
-            )()
+            # A real NodeContext with a recording registry, rather than an ad-hoc object
+            # with the fields this test happens to need. The ad-hoc version broke each
+            # time NodeContext grew a field, which is breakage that says nothing about
+            # the behaviour under test.
+            context = NodeContext(
+                llm=LlmClient(mode=LlmMode.STUB),
+                registry=recorder,  # type: ignore[arg-type]
+                tools=None,  # type: ignore[arg-type]
+            )
             with contextlib.suppress(_StopError):
                 _gather(state, context, brief)  # type: ignore[arg-type]
             assert recorder.seen, f"{specialist} planned no tool calls"
