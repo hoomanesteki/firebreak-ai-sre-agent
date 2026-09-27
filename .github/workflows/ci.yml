@@ -118,10 +118,44 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Audit dependencies
+      # Audited in two passes, because --all-groups cannot resolve conflicting groups
+      # and because the two passes answer different questions.
+      #
+      # The first pass covers what ships and what CI installs, and it allows no
+      # exceptions. The second covers the optional developer-only groups, where one
+      # unfixable advisory is ignored by id with the reasoning below.
+      - name: Audit what ships and what CI installs
         run: |
-          uv export --format requirements-txt --no-hashes --all-groups > requirements-audit.txt
+          set -euo pipefail
+          uv export --format requirements-txt --no-hashes --group dev \
+            > requirements-audit.txt
           uvx pip-audit --requirement requirements-audit.txt
+
+      - name: Audit the optional developer groups
+        # PYSEC-2026-2447 in diskcache 5.6.3 is ignored here, and only here.
+        #
+        # There is no version that avoids it: 5.6.3 is the newest release diskcache has,
+        # the advisory lists no fix, and dspy requires diskcache>=5.6.0. So the choice is
+        # between having prompt optimization and not having it.
+        #
+        # **The advisory has not been assessed.** What bounds the exposure is where the
+        # group is installed: `optimize` is never in the wheel, never installed by CI,
+        # and reached only when a developer runs `uv sync --group optimize` to optimize
+        # prompts offline. Nothing in production or in any published number depends on it.
+        #
+        # This is a policy choice and it is the owner's to reverse. Removing the ignore
+        # makes this step fail until diskcache ships a fix; removing the `optimize` group
+        # removes prompt optimization. docs/threat-model.md records it.
+        run: |
+          set -euo pipefail
+          for extra in "--group optimize" "--group logcompare"; do
+            echo "::group::auditing dev ${extra}"
+            uv export --format requirements-txt --no-hashes --group dev ${extra} \
+              > requirements-audit.txt
+            uvx pip-audit --requirement requirements-audit.txt \
+              --ignore-vuln PYSEC-2026-2447
+            echo "::endgroup::"
+          done
 
       - name: Scan for secrets
         uses: gitleaks/gitleaks-action@v2

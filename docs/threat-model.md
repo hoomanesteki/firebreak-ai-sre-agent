@@ -105,6 +105,23 @@ model has been run. That measurement needs credentials.
 in CI, which catches known advisories and committed secrets, and neither is a defence
 against a malicious package that has not been reported.
 
+**One known advisory is currently accepted, by id.** `PYSEC-2026-2447` in
+`diskcache 5.6.3`, which arrives through DSPy and therefore through the `optimize`
+dependency group. There is no version that avoids it: 5.6.3 is the newest release
+diskcache has, the advisory lists no fix, and DSPy requires `diskcache>=5.6.0`.
+
+The advisory has not been assessed. What bounds the exposure is where the group is
+installed: `optimize` is never in the published wheel, never installed by CI, and
+reached only when a developer runs `uv sync --group optimize` to optimize prompts
+offline. Nothing in production and no published number depends on it.
+
+CI audits in two passes because of this. The first covers what ships and what CI
+installs and allows no exceptions; the second covers the optional developer groups with
+this one id ignored. That keeps the exception greppable rather than turning the whole
+audit advisory. It is a policy choice and the owner's to reverse: removing the ignore
+fails the build until diskcache ships a fix, and removing the group removes prompt
+optimization.
+
 ## Operational rules
 
 - No secrets in prompts or in telemetry. The leakage scan checks the first; nothing
