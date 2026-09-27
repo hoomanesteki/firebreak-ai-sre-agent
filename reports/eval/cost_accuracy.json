@@ -1,0 +1,44 @@
+{
+  "split": "validation",
+  "trials_per_task": 1,
+  "any_price_configured": false,
+  "unpriced_models": [],
+  "rows": [
+    {
+      "configuration": "a3",
+      "label": "all-strong",
+      "question": "every call at the strong tier, no cascade",
+      "tasks": 8,
+      "top_1_accuracy": 0.14285714285714285,
+      "top_3_accuracy": 0.5714285714285714,
+      "median_usd": null,
+      "mean_tool_calls": 1.25,
+      "tokens": 0,
+      "cost_is_measured": false
+    },
+    {
+      "configuration": "a4",
+      "label": "all-small",
+      "question": "every call at the small tier, the cheap floor",
+      "tasks": 8,
+      "top_1_accuracy": 0.14285714285714285,
+      "top_3_accuracy": 0.5714285714285714,
+      "median_usd": null,
+      "mean_tool_calls": 1.25,
+      "tokens": 0,
+      "cost_is_measured": false
+    },
+    {
+      "configuration": "fb-v1",
+      "label": "cascade",
+      "question": "the shipped rule-based cascade",
+      "tasks": 8,
+      "top_1_accuracy": 0.14285714285714285,
+      "top_3_accuracy": 0.5714285714285714,
+      "median_usd": null,
+      "mean_tool_calls": 1.25,
+      "tokens": 0,
+      "cost_is_measured": false
+    }
+  ]
+}
