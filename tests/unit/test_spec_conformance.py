@@ -83,7 +83,7 @@ class TestARangeClaimsTheAblationsInside:
 
     def test_a_range_does_not_claim_an_ablation_outside_it(self) -> None:
         tasks = {8: "ablations A2 to A4"}
-        assert ablation_due_phase("A5", tasks) is None
+        assert ablation_due_phase("A6", tasks) is None
 
     def test_something_that_is_not_an_ablation_is_not_range_matched(self) -> None:
         tasks = {8: "ablations A2 to A4"}
@@ -96,25 +96,25 @@ class TestARangeClaimsTheAblationsInside:
 
 class TestLateWorkFailsAndPlannedWorkReports:
     def test_a_configuration_due_in_a_past_phase_is_late(self) -> None:
-        tasks = {3: "build A5 here"}
-        found = check_configurations(_spec_with_configuration("A5"), tasks, phase=7)
+        tasks = {3: "build A6 here"}
+        found = check_configurations(_spec_with_configuration("A6"), tasks, phase=7)
         assert any("Phase 3 was meant to build it" in item for item in found.late)
         assert not found.ok
 
     def test_a_configuration_due_in_a_future_phase_is_planned(self) -> None:
-        tasks = {9: "build A5 here"}
-        found = check_configurations(_spec_with_configuration("A5"), tasks, phase=7)
+        tasks = {9: "build A6 here"}
+        found = check_configurations(_spec_with_configuration("A6"), tasks, phase=7)
         assert found.ok
         assert any("due in Phase 9" in item for item in found.planned)
 
     def test_a_configuration_due_this_phase_is_planned_not_late(self) -> None:
         """The phase in progress has not finished, so its work is not yet late."""
-        tasks = {7: "build A5 here"}
-        found = check_configurations(_spec_with_configuration("A5"), tasks, phase=7)
+        tasks = {7: "build A6 here"}
+        found = check_configurations(_spec_with_configuration("A6"), tasks, phase=7)
         assert found.ok
 
     def test_a_configuration_no_phase_claims_is_late(self) -> None:
-        found = check_configurations(_spec_with_configuration("A5"), {3: "nothing"}, phase=7)
+        found = check_configurations(_spec_with_configuration("A6"), {3: "nothing"}, phase=7)
         assert any("no phase claims it" in item for item in found.late)
 
     def test_an_id_the_checker_has_no_runner_name_for_is_late(self) -> None:

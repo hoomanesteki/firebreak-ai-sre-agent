@@ -37,6 +37,7 @@ from firebreak.agent.nodes import (
     MIN_SUPPORT_TO_CONCLUDE,
     NodeContext,
     commander,
+    consult_memory,
     critic,
     entry_gate,
     hypothesis_board,
@@ -214,6 +215,8 @@ class AgentOptions:
     # A3 and A4: every call at one tier, so the cascade's cost and quality effect
     # can be read against the two extremes.
     tier_override: Tier | None = None
+    # A5: FB without incident memory. What learning from past incidents is worth.
+    use_memory: bool = True
 
     @property
     def name(self) -> str:
@@ -228,6 +231,8 @@ class AgentOptions:
             return "no-critic"
         if not self.use_graph:
             return "no-graph"
+        if not self.use_memory:
+            return "no-memory"
         return "full"
 
 
@@ -292,6 +297,7 @@ def investigate(
             registry=build_registry(ALL_TOOLS),
             tools=tools,
             allow_graph_tools=chosen.use_graph,
+            allow_memory=chosen.use_memory,
         )
 
         state = entry_gate(state)
@@ -299,6 +305,7 @@ def investigate(
             return _finish(state, state.report, StopReason.COMPLETE, started, context)
 
         state = seed_hypotheses(state)
+        state = consult_memory(state, context)
         if state.status is Status.ABSTAINED:
             return _finish(state, _abstention_report(state), StopReason.COMPLETE, started, context)
 

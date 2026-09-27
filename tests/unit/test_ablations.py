@@ -177,3 +177,105 @@ class TestTheRunnerCanRunThemAll:
             outcome, evidence = CONFIGURATIONS[name](bundle)
             assert outcome.bundle_id
             assert evidence, f"{name} gathered no evidence at all"
+
+
+class TestA5RemovesIncidentMemory:
+    """SPEC.md Section 9.5. A switch on the run rather than an emptied memory file, so
+    two configurations can be compared on one machine without moving data about.
+
+    The failure this guards against is the one every ablation shares: a switch that
+    removes nothing produces a comparison between two identical systems and reports it
+    as a finding. So these tests assert that memory changes the board when it is on.
+    """
+
+    def memory_at(self, path: Path) -> None:
+        """Put one entry in memory that the fixture bundle's symptoms will retrieve."""
+        from datetime import UTC, datetime
+
+        from firebreak.memory.store import MemoryStore, entry_from_label
+
+        MemoryStore(path).admit(
+            entry_from_label(
+                incident_id="inc_past",
+                scenario_id="a-past-incident",
+                split="train",
+                target_service="currency",
+                fault_class="error_injection",
+                symptom_summary=(
+                    "payment anomaly high and frontend anomaly high with failed charges downstream"
+                ),
+                confirmed_by="owner",
+                evidence_types=("metric", "log"),
+                services_involved=("payment", "frontend"),
+                confirmed_at=datetime(2026, 1, 1, tzinfo=UTC),
+            )
+        )
+
+    def run_with_memory(self, bundle: Path, path: Path, options: AgentOptions):  # type: ignore[no-untyped-def]
+        from firebreak.memory import store as memory_store
+
+        original = memory_store.MEMORY_PATH
+        memory_store.MEMORY_PATH = path
+        try:
+            return investigate(bundle, options=options)
+        finally:
+            memory_store.MEMORY_PATH = original
+
+    def test_memory_adds_a_hypothesis_when_it_is_on(self, bundle: Path, tmp_path: Path) -> None:
+        path = tmp_path / "memory.jsonl"
+        self.memory_at(path)
+        result = self.run_with_memory(bundle, path, AgentOptions())
+        assert any("incident memory added" in note for note in result.notes)
+        assert "currency" in {h.service for h in result.state.notebook.hypotheses}
+
+    def test_a5_adds_nothing(self, bundle: Path, tmp_path: Path) -> None:
+        path = tmp_path / "memory.jsonl"
+        self.memory_at(path)
+        result = self.run_with_memory(bundle, path, AgentOptions(use_memory=False))
+        assert not any("incident memory" in note for note in result.notes)
+        assert "currency" not in {h.service for h in result.state.notebook.hypotheses}
+
+    def test_the_memory_lookup_is_recorded_as_evidence_when_on(
+        self, bundle: Path, tmp_path: Path
+    ) -> None:
+        """A prior nobody can trace afterwards is worse than no prior."""
+        path = tmp_path / "memory.jsonl"
+        self.memory_at(path)
+        result = self.run_with_memory(bundle, path, AgentOptions())
+        kinds = {record.kind.value for record in result.state.evidence.values()}
+        assert "memory" in kinds
+
+    def test_a5_records_no_memory_evidence(self, bundle: Path, tmp_path: Path) -> None:
+        path = tmp_path / "memory.jsonl"
+        self.memory_at(path)
+        result = self.run_with_memory(bundle, path, AgentOptions(use_memory=False))
+        kinds = {record.kind.value for record in result.state.evidence.values()}
+        assert "memory" not in kinds
+
+    def test_a_memory_hypothesis_arrives_with_no_supporting_evidence(
+        self, bundle: Path, tmp_path: Path
+    ) -> None:
+        """What makes it advisory in practice rather than only in wording: the exit
+        gate's abstention check counts support, so a memory-derived hypothesis cannot
+        carry a report until a specialist confirms it."""
+        path = tmp_path / "memory.jsonl"
+        self.memory_at(path)
+        result = self.run_with_memory(bundle, path, AgentOptions())
+        from_memory = [h for h in result.state.notebook.hypotheses if h.service == "currency"]
+        assert from_memory
+        assert from_memory[0].statement.startswith("A past incident")
+
+    def test_an_empty_memory_changes_nothing(self, bundle: Path, tmp_path: Path) -> None:
+        """A fresh installation has no memory, and that must look like A5 rather than
+        like a failure."""
+        path = tmp_path / "empty.jsonl"
+        with_memory = self.run_with_memory(bundle, path, AgentOptions())
+        without = self.run_with_memory(bundle, path, AgentOptions(use_memory=False))
+        assert {h.service for h in with_memory.state.notebook.hypotheses} == {
+            h.service for h in without.state.notebook.hypotheses
+        }
+
+    def test_a5_is_registered(self) -> None:
+        from firebreak.evals.runner import CONFIGURATIONS
+
+        assert "a5" in CONFIGURATIONS

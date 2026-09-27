@@ -228,6 +228,7 @@ def _ablation(**switches: object) -> Configuration:
 # SPEC.md Section 9.5's ablations, each a switch on the one implementation.
 run_a1 = _ablation(use_critic=False)
 run_a2 = _ablation(use_graph=False)
+run_a5 = _ablation(use_memory=False)
 
 
 def _tier_ablation(tier_name: str) -> Configuration:
@@ -260,6 +261,7 @@ CONFIGURATIONS: dict[str, Configuration] = {
     "a2": run_a2,
     "a3": run_a3,
     "a4": run_a4,
+    "a5": run_a5,
 }
 
 

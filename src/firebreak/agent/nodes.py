@@ -108,6 +108,10 @@ class NodeContext:
     # weaker A2 that still reads the graph, and the row would stop answering the
     # question it exists for.
     allow_graph_tools: bool = True
+    # Ablation A5, SPEC.md Section 9.5: FB without incident memory. A switch here
+    # rather than an empty memory file, so the ablation is a property of the run and
+    # two configurations can be compared on one machine without moving data about.
+    allow_memory: bool = True
 
 
 def entry_gate(state: InvestigationState) -> InvestigationState:
@@ -171,6 +175,76 @@ def seed_hypotheses(state: InvestigationState) -> InvestigationState:
         update={
             "notebook": Notebook(hypotheses=hypotheses),
             "status": Status.INVESTIGATING,
+        }
+    )
+
+
+# How many memory-derived hypotheses may be added. Capped below MAX_HYPOTHESES on
+# purpose: memory is advisory, and a board where past incidents outnumber this
+# incident's own evidence would be a board that investigates the last outage.
+MAX_MEMORY_HYPOTHESES = 2
+
+
+def consult_memory(state: InvestigationState, context: NodeContext) -> InvestigationState:
+    """Add past incidents with similar symptoms as hypotheses to test.
+
+    SPEC.md Section 10.3, and ablation A5 switches it off. Memory entries arrive as
+    hypotheses with no supporting evidence, which is what makes them advisory in
+    practice rather than only in wording: the exit gate's abstention check counts
+    support, so a memory-derived hypothesis cannot carry a report on its own. It has
+    to be confirmed by a specialist against this incident's own data first.
+
+    A service already on the board is not added again. Adding it would give the same
+    service two hypotheses and let a memory entry inflate its apparent support by
+    existing.
+
+    The retrieval goes through the registry like any other tool call, so it is
+    recorded as evidence and the exit gate can re-run it. A memory lookup that left no
+    record would be a prior nobody could trace afterwards.
+    """
+    if not context.allow_memory:
+        return state
+    triage = state.triage
+    if triage is None or not triage.candidates:
+        return state
+
+    symptoms = "; ".join(
+        f"{candidate.service} anomaly {candidate.anomaly_score:.1f}"
+        for candidate in triage.candidates[:MAX_HYPOTHESES]
+    )
+    services = tuple(candidate.service for candidate in triage.candidates[:MAX_HYPOTHESES])
+    try:
+        result = context.registry.call(
+            "similar_incidents",
+            context.tools,
+            {"symptoms": symptoms, "services": list(services)},
+        )
+    except ToolError as error:
+        # A memory lookup that cannot answer is a fact about the memory, not a reason
+        # to stop investigating.
+        context.notes.append(f"incident memory could not be consulted: {error}")
+        return state
+
+    known = {hypothesis.service for hypothesis in state.notebook.hypotheses}
+    added: list[Hypothesis] = []
+    for entry in result.data.get("hypotheses", [])[:MAX_MEMORY_HYPOTHESES]:
+        service = str(entry.get("service", ""))
+        if not service or service in known:
+            continue
+        known.add(service)
+        added.append(
+            Hypothesis(
+                id=f"m{len(added) + 1}",
+                service=service,
+                statement=str(entry.get("statement", "")),
+            )
+        )
+    if not added:
+        return state
+    context.notes.append(f"incident memory added {len(added)} hypothesis(es) to test")
+    return state.model_copy(
+        update={
+            "notebook": Notebook(hypotheses=(*state.notebook.hypotheses, *added)),
         }
     )
 

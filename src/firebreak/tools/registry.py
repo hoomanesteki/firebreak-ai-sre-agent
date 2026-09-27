@@ -30,6 +30,7 @@ from firebreak.tools.base import (
 )
 from firebreak.tools.changes import CHANGE_TOOLS
 from firebreak.tools.logs import LOG_TOOLS
+from firebreak.tools.memory import MEMORY_TOOLS
 from firebreak.tools.metrics import METRIC_TOOLS
 from firebreak.tools.remediation import REMEDIATION_TOOLS
 from firebreak.tools.runbooks import RUNBOOK_TOOLS
@@ -104,6 +105,7 @@ ALL_TOOLS: tuple[ToolSpec, ...] = (
     *RUNBOOK_TOOLS,
     *EVIDENCE_TOOLS,
     *REMEDIATION_TOOLS,
+    *MEMORY_TOOLS,
 )
 
 # What each specialist may call. get_evidence is in every list because a
@@ -146,7 +148,12 @@ GRAPH_TOOLS: tuple[str, ...] = ("service_dependencies", "blast_radius")
 # could propose would be proposing from one signal. It is also the one tool whose
 # output a person reads and acts on, which is a decision for the node that can see
 # the whole board.
-COMMANDER_TOOLS: tuple[str, ...] = ("runbook_search", "propose_remediation", "get_evidence")
+COMMANDER_TOOLS: tuple[str, ...] = (
+    "runbook_search",
+    "propose_remediation",
+    "similar_incidents",
+    "get_evidence",
+)
 
 
 def build_registry(specs: tuple[ToolSpec, ...] = ALL_TOOLS) -> ToolRegistry:
