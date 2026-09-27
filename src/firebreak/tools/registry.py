@@ -31,6 +31,7 @@ from firebreak.tools.base import (
 from firebreak.tools.changes import CHANGE_TOOLS
 from firebreak.tools.logs import LOG_TOOLS
 from firebreak.tools.metrics import METRIC_TOOLS
+from firebreak.tools.remediation import REMEDIATION_TOOLS
 from firebreak.tools.runbooks import RUNBOOK_TOOLS
 from firebreak.tools.topology import TOPOLOGY_TOOLS
 from firebreak.tools.traces import TRACE_TOOLS
@@ -102,6 +103,7 @@ ALL_TOOLS: tuple[ToolSpec, ...] = (
     *CHANGE_TOOLS,
     *RUNBOOK_TOOLS,
     *EVIDENCE_TOOLS,
+    *REMEDIATION_TOOLS,
 )
 
 # What each specialist may call. get_evidence is in every list because a
@@ -139,7 +141,12 @@ GRAPH_TOOLS: tuple[str, ...] = ("service_dependencies", "blast_radius")
 # written procedure is a step taken once a candidate is agreed, which makes
 # it the commander's call. Giving it to every specialist would also mean four
 # of them retrieving the same document and paying for it four times.
-COMMANDER_TOOLS: tuple[str, ...] = ("runbook_search", "get_evidence")
+# propose_remediation is the commander's and nobody else's. SPEC.md Section 6.10
+# puts the proposal after the investigation has concluded, and a specialist that
+# could propose would be proposing from one signal. It is also the one tool whose
+# output a person reads and acts on, which is a decision for the node that can see
+# the whole board.
+COMMANDER_TOOLS: tuple[str, ...] = ("runbook_search", "propose_remediation", "get_evidence")
 
 
 def build_registry(specs: tuple[ToolSpec, ...] = ALL_TOOLS) -> ToolRegistry:
