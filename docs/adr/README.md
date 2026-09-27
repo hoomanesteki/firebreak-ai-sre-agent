@@ -17,3 +17,4 @@ The full list of required records is in SPEC.md Section 14.
 | [0010](0010-exit-gate.md) | Exit gate with re-execution, and abstention as a separate rule | Accepted | 7 |
 | [0011](0011-approval-service-as-sole-writer.md) | The approval service as the only writer, and how recovery is verified | Accepted | 9 |
 | [0012](0012-eval-gate-and-splits.md) | A non-inferiority eval gate, and the split design behind it | Accepted | 8 |
+| [0013](0013-memory-and-prompt-optimization.md) | Incident memory, and GEPA prompt optimization gated by evals | Accepted | 10 |

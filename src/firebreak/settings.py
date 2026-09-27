@@ -81,6 +81,13 @@ class Settings(BaseSettings):
     # holds no ground truth and no customer data. It is listed here rather
     # than hard coded so a deployment can point at its own database without
     # editing code.
+    # Which model GEPA reflects with, per SPEC.md Section 10.4. Configuration rather
+    # than a literal in the optimizer: a model id guessed in code fails at the first
+    # call with a confusing error, and this repository forbids inventing one. The
+    # default is empty, so an unconfigured optimizer reports a baseline and does not
+    # pretend to optimize.
+    optimize_reflection_model: str = ""
+
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
     neo4j_password: str = "firebreak-local"

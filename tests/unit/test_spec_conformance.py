@@ -83,7 +83,7 @@ class TestARangeClaimsTheAblationsInside:
 
     def test_a_range_does_not_claim_an_ablation_outside_it(self) -> None:
         tasks = {8: "ablations A2 to A4"}
-        assert ablation_due_phase("A5", tasks) is None
+        assert ablation_due_phase("A6", tasks) is None
 
     def test_something_that_is_not_an_ablation_is_not_range_matched(self) -> None:
         tasks = {8: "ablations A2 to A4"}
@@ -95,26 +95,37 @@ class TestARangeClaimsTheAblationsInside:
 
 
 class TestLateWorkFailsAndPlannedWorkReports:
+    """Every configuration SPEC.md names is now registered, so these tests empty the
+    registry rather than borrowing a real gap. Relying on one meant the tests broke each
+    time an ablation was built, which is the wrong signal: the checker's own logic did
+    not change."""
+
+    @pytest.fixture(autouse=True)
+    def _empty_registry(self, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        from firebreak.evals import runner
+
+        monkeypatch.setattr(runner, "CONFIGURATIONS", {})
+
     def test_a_configuration_due_in_a_past_phase_is_late(self) -> None:
-        tasks = {3: "build A5 here"}
-        found = check_configurations(_spec_with_configuration("A5"), tasks, phase=7)
+        tasks = {3: "build A6 here"}
+        found = check_configurations(_spec_with_configuration("A6"), tasks, phase=7)
         assert any("Phase 3 was meant to build it" in item for item in found.late)
         assert not found.ok
 
     def test_a_configuration_due_in_a_future_phase_is_planned(self) -> None:
-        tasks = {9: "build A5 here"}
-        found = check_configurations(_spec_with_configuration("A5"), tasks, phase=7)
+        tasks = {9: "build A6 here"}
+        found = check_configurations(_spec_with_configuration("A6"), tasks, phase=7)
         assert found.ok
         assert any("due in Phase 9" in item for item in found.planned)
 
     def test_a_configuration_due_this_phase_is_planned_not_late(self) -> None:
         """The phase in progress has not finished, so its work is not yet late."""
-        tasks = {7: "build A5 here"}
-        found = check_configurations(_spec_with_configuration("A5"), tasks, phase=7)
+        tasks = {7: "build A6 here"}
+        found = check_configurations(_spec_with_configuration("A6"), tasks, phase=7)
         assert found.ok
 
     def test_a_configuration_no_phase_claims_is_late(self) -> None:
-        found = check_configurations(_spec_with_configuration("A5"), {3: "nothing"}, phase=7)
+        found = check_configurations(_spec_with_configuration("A6"), {3: "nothing"}, phase=7)
         assert any("no phase claims it" in item for item in found.late)
 
     def test_an_id_the_checker_has_no_runner_name_for_is_late(self) -> None:
@@ -126,7 +137,12 @@ class TestLateWorkFailsAndPlannedWorkReports:
         found = check_configurations(_spec_with_configuration("B9"), {3: "build B9"}, phase=7)
         assert any("no runner id for" in item for item in found.late)
 
-    def test_the_real_repository_has_nothing_late(self) -> None:
+
+class TestTheRealRepository:
+    """Outside the class above, because that one empties the registry to test the
+    checker's logic and this one needs the real thing."""
+
+    def test_nothing_a_completed_phase_left_out(self) -> None:
         """The assertion that makes this suite worth running in CI."""
         phase = current_phase()
         for found in (

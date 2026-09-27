@@ -1,0 +1,17 @@
+{
+  "node": "critic",
+  "baseline_prompt": "critic/v1@130e8513a3f8",
+  "baseline_score": 0.8277,
+  "candidate_score": 0.8277,
+  "optimizer_ran": false,
+  "improved": false,
+  "verdict": "GEPA did not run, so nothing was optimized and no candidate exists. The baseline score is a real measurement of the current prompt on train; the candidate score is the same number and carries no information. The notes say what is missing.",
+  "rollouts": 0,
+  "train_tasks": 39,
+  "candidate_path": null,
+  "notes": [
+    "no reflection model was configured, so GEPA did not run. The baseline score above is a real measurement of the current prompt on train; the candidate score is the same number and means nothing. Configure a model and run again.",
+    "the candidate prompt body does not reach the model yet: prompts are versioned and hashed, and LlmClient serves stub and replay only, so wiring them in is the same work as implementing api mode"
+  ],
+  "generated_at": "2026-09-27T13:01:45.931816+00:00"
+}

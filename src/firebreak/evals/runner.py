@@ -228,6 +228,7 @@ def _ablation(**switches: object) -> Configuration:
 # SPEC.md Section 9.5's ablations, each a switch on the one implementation.
 run_a1 = _ablation(use_critic=False)
 run_a2 = _ablation(use_graph=False)
+run_a5 = _ablation(use_memory=False)
 
 
 def _tier_ablation(tier_name: str) -> Configuration:
@@ -251,6 +252,33 @@ def _tier_ablation(tier_name: str) -> Configuration:
 run_a3 = _tier_ablation("strong")
 run_a4 = _tier_ablation("small")
 
+
+def run_a6(bundle_dir: Path) -> tuple[InvestigationOutcome, set[str]]:
+    """Ablation A6: FB with prompts optimized by GEPA.
+
+    Refuses to run rather than silently running the hand written prompts. An A6 row
+    identical to the FB row would be read as "optimization did not help", which is a
+    claim about GEPA; the truth is that no optimized prompt exists, which is a claim
+    about this repository. Those must not look the same in a report.
+    """
+    from firebreak.optimize.gepa import OptimizeError
+    from firebreak.prompts import PROMPT_NODES, latest_for
+
+    optimized = [node for node in PROMPT_NODES if latest_for(node).optimized_from]
+    if not optimized:
+        raise OptimizeError(
+            "A6 compares optimized prompts against hand written ones, and no prompt in "
+            "prompts/ carries an optimized_from lineage. Run `make optimize NODE=...` "
+            "with credentials first. Running A6 on the hand written prompts would "
+            "produce a row identical to FB and it would read as a finding about GEPA."
+        )
+    del bundle_dir
+    raise OptimizeError(
+        "A6 needs the optimized prompts threaded into the model calls, which is the "
+        "same work as implementing api mode"
+    )
+
+
 CONFIGURATIONS: dict[str, Configuration] = {
     "b0": run_b0,
     "b1": run_b1,
@@ -260,6 +288,8 @@ CONFIGURATIONS: dict[str, Configuration] = {
     "a2": run_a2,
     "a3": run_a3,
     "a4": run_a4,
+    "a5": run_a5,
+    "a6": run_a6,
 }
 
 

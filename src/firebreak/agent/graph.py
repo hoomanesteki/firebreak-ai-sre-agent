@@ -37,6 +37,7 @@ from firebreak.agent.nodes import (
     MIN_SUPPORT_TO_CONCLUDE,
     NodeContext,
     commander,
+    consult_memory,
     critic,
     entry_gate,
     hypothesis_board,
@@ -214,6 +215,13 @@ class AgentOptions:
     # A3 and A4: every call at one tier, so the cascade's cost and quality effect
     # can be read against the two extremes.
     tier_override: Tier | None = None
+    # A5: FB without incident memory. What learning from past incidents is worth.
+    use_memory: bool = True
+    # A6: FB with prompts optimized by GEPA, per SPEC.md Section 9.5. Names the prompt
+    # version set to run with, so the ablation is "these prompts against those" rather
+    # than a boolean nobody can trace to a file. Empty means the latest of each, which
+    # is what every other configuration runs.
+    prompt_versions: str = ""
 
     @property
     def name(self) -> str:
@@ -228,6 +236,10 @@ class AgentOptions:
             return "no-critic"
         if not self.use_graph:
             return "no-graph"
+        if not self.use_memory:
+            return "no-memory"
+        if self.prompt_versions:
+            return f"prompts-{self.prompt_versions}"
         return "full"
 
 
@@ -292,6 +304,7 @@ def investigate(
             registry=build_registry(ALL_TOOLS),
             tools=tools,
             allow_graph_tools=chosen.use_graph,
+            allow_memory=chosen.use_memory,
         )
 
         state = entry_gate(state)
@@ -299,6 +312,7 @@ def investigate(
             return _finish(state, state.report, StopReason.COMPLETE, started, context)
 
         state = seed_hypotheses(state)
+        state = consult_memory(state, context)
         if state.status is Status.ABSTAINED:
             return _finish(state, _abstention_report(state), StopReason.COMPLETE, started, context)
 
