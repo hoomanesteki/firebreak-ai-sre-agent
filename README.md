@@ -59,17 +59,43 @@ repository.
 | B0 triage accuracy, held-out ID test | not a result: this report is over synthetic fixtures, not recorded incidents | reports/eval/b0/test_id/2026-09-25_edb92d082888.json |
 | Abstention accuracy, held-out ID test | not measured: the held-out splits have no recordings | no report |
 | Cost per investigation | not measured: no model has run, so there is no model result to report | no report |
-<!-- stats:end -->## Quickstart
+<!-- stats:end -->
+
+## Quickstart
+
+No model, no Docker, no network:
 
 ```bash
 git clone git@github.com:hoomanesteki/firebreak-ai-sre-agent.git
 cd firebreak-ai-sre-agent
 make setup
-make verify
+make demo-offline   # replay 10 incidents and check each against its recording
+make console        # the Console on http://127.0.0.1:8080
 ```
 
-`make demo` (offline replay) and `make demo-local` (local models) arrive in
-later phases.
+`make demo-offline` rebuilds each incident from its scenario spec, replays it
+against recorded answers, and fails if any of them stops reproducing. It is
+part of `make verify`, so it is checked on every commit rather than being a
+demo that rots.
+
+It replays stub answers rather than a model, which it prints before its first
+line. That means it shows the whole path working and says nothing about model
+quality, and its per-incident results are much better than the measured ones
+because it runs on fixtures.
+
+With a local model, any OpenAI-compatible endpoint including Ollama:
+
+```bash
+export LLM_BASE_URL=http://localhost:11434/v1
+export LLM_API_KEY=ollama
+make demo-offline   # now exercises the real loop
+```
+
+Without credentials the deterministic floor publishes triage's answer with a
+label saying no AI analysis happened, rather than failing or pretending.
+
+`make demo` runs an investigation against the live stack and needs both Docker
+and credentials.
 
 ### Running the live target system
 
