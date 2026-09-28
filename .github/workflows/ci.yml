@@ -95,6 +95,15 @@ jobs:
           git fetch origin main --depth=50 || true
           uv run python scripts/check_repo_hygiene.py --base-ref origin/main
 
+      - name: Offline demo
+        # CLAUDE.md requires this green from Phase 11. It replays recorded model answers
+        # against frozen bundles and compares the result with what was recorded, so a
+        # failure here means the harness became nondeterministic, which would make every
+        # measurement in every report suspect.
+        env:
+          PYTHONPATH: src
+        run: uv run python scripts/demo_offline.py
+
       - name: Spec conformance
         # Reads SPEC.md's own tables and fails when a completed phase left
         # something out. It found two on the day it was written: an ablation no

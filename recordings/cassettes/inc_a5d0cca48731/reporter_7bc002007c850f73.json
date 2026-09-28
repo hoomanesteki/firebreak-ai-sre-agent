@@ -1,0 +1,64 @@
+{
+  "answer": {
+    "claims": [
+      {
+        "at": null,
+        "claim_type": "mechanism",
+        "evidence_ids": [
+          "ev_metric_0cde118e5c1d",
+          "ev_log_2fdd84fe5699",
+          "ev_trace_d75c57bd365e",
+          "ev_change_356f76128035",
+          "ev_topology_18129b937eaa"
+        ],
+        "numbers": [],
+        "text": "payment is the most likely root cause, with 5 piece(s) of supporting evidence."
+      },
+      {
+        "at": null,
+        "claim_type": "mechanism",
+        "evidence_ids": [
+          "ev_metric_0cde118e5c1d"
+        ],
+        "numbers": [],
+        "text": "metrics_analyst found signal for payment in 1 evidence record(s)."
+      },
+      {
+        "at": null,
+        "claim_type": "mechanism",
+        "evidence_ids": [
+          "ev_log_2fdd84fe5699"
+        ],
+        "numbers": [],
+        "text": "logs_analyst found signal for payment in 1 evidence record(s)."
+      },
+      {
+        "at": null,
+        "claim_type": "mechanism",
+        "evidence_ids": [
+          "ev_trace_d75c57bd365e"
+        ],
+        "numbers": [],
+        "text": "traces_analyst found signal for payment in 1 evidence record(s)."
+      },
+      {
+        "at": null,
+        "claim_type": "mechanism",
+        "evidence_ids": [
+          "ev_change_356f76128035",
+          "ev_topology_18129b937eaa"
+        ],
+        "numbers": [],
+        "text": "change_analyst found signal for payment in 2 evidence record(s)."
+      }
+    ],
+    "confidence": "medium",
+    "root_cause_service": "payment"
+  },
+  "model": "stub",
+  "purpose": "reporter",
+  "tier": "strong",
+  "tokens_in": 0,
+  "tokens_out": 0,
+  "usd": 0.0
+}

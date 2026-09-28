@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block content %}
+{% if report %}
+<div class="panel">
+  <h2>Budget</h2>
+  <p class="caption">
+    What this investigation spent. Rounds, tool calls, tokens and wall clock all have
+    limits, and a run that hit one says so in its report rather than looking finished.
+  </p>
+  <table>
+    <tbody>
+      <tr><th>Rounds</th><td class="num">{{ report.rounds }}</td></tr>
+      <tr><th>Tool calls</th><td class="num">{{ report.tool_calls }}</td></tr>
+      <tr><th>Evidence records</th><td class="num">{{ report.evidence | length }}</td></tr>
+      <tr>
+        <th>Wall clock</th>
+        <td class="num">
+          {% if report.wall_clock_seconds is none %}
+            not meaningful
+          {% else %}
+            {{ "%.2f"|format(report.wall_clock_seconds) }} s
+          {% endif %}
+        </td>
+      </tr>
+      <tr><th>Stopped because</th><td><code>{{ report.stopped_because or "complete" }}</code></td></tr>
+    </tbody>
+  </table>
+  {% if report.replayed %}
+  <p class="caption">
+    This investigation was replayed from recorded model answers, so it has no wall clock.
+    Timing a replay measures how fast this machine reads cassettes off disk, which would
+    look like a figure for how long an investigation takes and is not one.
+  </p>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <h2>Hypotheses</h2>
+  <p class="caption">
+    What the investigation believed and how much evidence stood behind each. Support is
+    evidence for minus evidence against, so a hypothesis with one of each scores zero
+    rather than one half.
+  </p>
+  {% if report.hypotheses %}
+  <table>
+    <thead><tr><th>Service</th><th>Statement</th><th class="num">Support</th></tr></thead>
+    <tbody>
+    {% for hypothesis in report.hypotheses %}
+      <tr>
+        <td>{{ hypothesis.service }}</td>
+        <td>{{ hypothesis.statement }}</td>
+        <td class="num">{{ hypothesis.support }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="caption">None. Triage found nothing unusual enough to investigate.</p>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <h2>What the run noted</h2>
+  <p class="caption">
+    Anything the agent could not do, and why. A tool that found nothing, a memory lookup
+    that failed, a fallback that engaged.
+  </p>
+  {% if report.notes_run %}
+  <ul>{% for note in report.notes_run %}<li>{{ note }}</li>{% endfor %}</ul>
+  {% else %}
+  <p class="caption">Nothing. The run had no problems worth recording.</p>
+  {% endif %}
+  <details>
+    <summary>Why this is a completed timeline rather than a live stream</summary>
+    <p class="caption">
+      SPEC.md Section 6.13 asks for live streaming. Against a frozen bundle an
+      investigation finishes in under a second, so a progress bar would be theatre.
+      Streaming is worth building when a run takes long enough to watch, which means
+      live mode with a real model.
+    </p>
+  </details>
+</div>
+{% endif %}
+{% endblock %}

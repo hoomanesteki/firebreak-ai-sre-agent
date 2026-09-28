@@ -1,0 +1,33 @@
+{
+  "answer": {
+    "assignments": [
+      [
+        "metrics_analyst",
+        "h1",
+        "Does the evidence implicate cart?"
+      ],
+      [
+        "logs_analyst",
+        "h1",
+        "Does the evidence implicate cart?"
+      ],
+      [
+        "traces_analyst",
+        "h1",
+        "Does the evidence implicate cart?"
+      ],
+      [
+        "change_analyst",
+        "h1",
+        "Does the evidence implicate cart?"
+      ]
+    ],
+    "hypotheses": []
+  },
+  "model": "stub",
+  "purpose": "commander",
+  "tier": "strong",
+  "tokens_in": 0,
+  "tokens_out": 0,
+  "usd": 0.0
+}

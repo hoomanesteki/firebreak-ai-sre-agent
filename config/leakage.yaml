@@ -22,6 +22,14 @@ allowed_importers:
   - firebreak.evals
   - firebreak.lab
   - firebreak.cli
+  # The demo builds its showcase bundles from scenario specs, which is the same
+  # thing the lab does and for the same reason: a bundle has to come from
+  # somewhere. It is added here deliberately rather than by loosening the rule,
+  # and it is safe for a specific reason worth stating: the demo hands the agent a
+  # bundle directory and nothing else, exactly as the eval runner does, so the
+  # spec it read never reaches the agent. If anything under firebreak.demo ever
+  # passes a spec, a label or a target service onward, this entry is wrong.
+  - firebreak.demo
 
 # Package prefixes that run as, or on behalf of, the agent under test.
 # A ground truth import from any of these is a blocker, not a warning.

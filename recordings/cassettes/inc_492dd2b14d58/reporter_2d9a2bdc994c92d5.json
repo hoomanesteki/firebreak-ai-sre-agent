@@ -1,0 +1,64 @@
+{
+  "answer": {
+    "claims": [
+      {
+        "at": null,
+        "claim_type": "mechanism",
+        "evidence_ids": [
+          "ev_metric_5e74f329961f",
+          "ev_log_cf26229ecf2e",
+          "ev_trace_cc0363a4c449",
+          "ev_change_a461149c98bd",
+          "ev_topology_9ac58b96efa0"
+        ],
+        "numbers": [],
+        "text": "checkout is the most likely root cause, with 5 piece(s) of supporting evidence."
+      },
+      {
+        "at": null,
+        "claim_type": "mechanism",
+        "evidence_ids": [
+          "ev_metric_5e74f329961f"
+        ],
+        "numbers": [],
+        "text": "metrics_analyst found signal for checkout in 1 evidence record(s)."
+      },
+      {
+        "at": null,
+        "claim_type": "mechanism",
+        "evidence_ids": [
+          "ev_log_cf26229ecf2e"
+        ],
+        "numbers": [],
+        "text": "logs_analyst found signal for checkout in 1 evidence record(s)."
+      },
+      {
+        "at": null,
+        "claim_type": "mechanism",
+        "evidence_ids": [
+          "ev_trace_cc0363a4c449"
+        ],
+        "numbers": [],
+        "text": "traces_analyst found signal for checkout in 1 evidence record(s)."
+      },
+      {
+        "at": null,
+        "claim_type": "mechanism",
+        "evidence_ids": [
+          "ev_change_a461149c98bd",
+          "ev_topology_9ac58b96efa0"
+        ],
+        "numbers": [],
+        "text": "change_analyst found signal for checkout in 2 evidence record(s)."
+      }
+    ],
+    "confidence": "medium",
+    "root_cause_service": "checkout"
+  },
+  "model": "stub",
+  "purpose": "reporter",
+  "tier": "strong",
+  "tokens_in": 0,
+  "tokens_out": 0,
+  "usd": 0.0
+}

@@ -1,0 +1,13 @@
+{
+  "answer": {
+    "convinced": true,
+    "objection": "",
+    "requested_checks": []
+  },
+  "model": "stub",
+  "purpose": "critic",
+  "tier": "strong",
+  "tokens_in": 0,
+  "tokens_out": 0,
+  "usd": 0.0
+}

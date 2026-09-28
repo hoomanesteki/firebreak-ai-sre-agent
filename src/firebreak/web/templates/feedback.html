@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+{% if awaiting %}
+<div class="panel">
+  <h2>Awaiting review</h2>
+  <p class="caption">
+    Reports nobody has judged yet. Three answers: correct, partly, or incorrect. Partly is
+    the useful middle one, because naming the frontend when payment was broken is wrong and
+    not as wrong as naming a service with no connection to it.
+  </p>
+  <table>
+    <thead><tr><th>Incident</th><th>Said</th><th></th></tr></thead>
+    <tbody>
+    {% for incident in awaiting %}
+      <tr>
+        <td><code>{{ incident.bundle_id }}</code></td>
+        <td>
+          {% if incident.abstained %}<span class="tag warn">abstained</span>
+          {% else %}{{ incident.named }}{% endif %}
+        </td>
+        <td><a href="/report/{{ incident.bundle_id }}">read the report</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <details>
+    <summary>Why there is no form here yet</summary>
+    <p class="caption">
+      Feedback is recorded through <code>firebreak.memory.feedback</code>, and the store
+      and its rules exist and are tested. A form is a view over them, and building one
+      before any report has been reviewed would be building a view over nothing. What the
+      form has to enforce is already enforced: a report marked wrong with no correction is
+      refused, because it cannot become an evaluation task.
+    </p>
+  </details>
+</div>
+{% endif %}
+
+{% if given %}
+<div class="panel">
+  <h2>Reviewed</h2>
+  <p class="caption">
+    Feedback already given. Two reviewers disagreeing about one report is kept rather than
+    overwritten, because those are exactly the cases where the output was ambiguous.
+  </p>
+  <table>
+    <thead>
+      <tr><th>Incident</th><th>Verdict</th><th>True cause</th><th>Reviewer</th><th>Note</th></tr>
+    </thead>
+    <tbody>
+    {% for row in given %}
+      <tr>
+        <td><code>{{ row.incident_id }}</code></td>
+        <td>
+          {% if row.verdict == "correct" %}<span class="tag ok">correct</span>
+          {% elif row.verdict == "partly" %}<span class="tag warn">partly</span>
+          {% else %}<span class="tag bad">incorrect</span>{% endif %}
+        </td>
+        <td>{{ row.true_root_cause or "" }}</td>
+        <td>{{ row.reviewer }}</td>
+        <td>{{ row.note }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

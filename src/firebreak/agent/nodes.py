@@ -21,6 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from opentelemetry.trace import Span
 from pydantic import BaseModel, ConfigDict, Field
 
 from firebreak.agent.budget import StopReason
@@ -36,6 +37,11 @@ from firebreak.agent.state import (
     Notebook,
     Report,
     Status,
+)
+from firebreak.telemetry.spans import (
+    SpanRecorder,
+    record_tool_result,
+    record_usage,
 )
 from firebreak.tools.base import ToolContext, ToolError, ToolRegistry
 from firebreak.tools.registry import GRAPH_TOOLS, SPECIALIST_TOOLS
@@ -112,6 +118,13 @@ class NodeContext:
     # rather than an empty memory file, so the ablation is a property of the run and
     # two configurations can be compared on one machine without moving data about.
     allow_memory: bool = True
+    # One recorder per investigation, so every span in a trace shares the same decision
+    # about whether content is included. A per-node recorder would let one node ship
+    # prompts while the rest did not, which is the worst version of a privacy setting.
+    spans: SpanRecorder = field(default_factory=SpanRecorder)
+    # The root span, so `_finish` can record the gate result on the trace rather than
+    # only in the report. None when tracing is off.
+    root_span: Span | None = None
 
 
 def entry_gate(state: InvestigationState) -> InvestigationState:
@@ -267,7 +280,18 @@ def commander(state: InvestigationState, context: NodeContext) -> CommanderPlan:
         "round": state.budget.rounds,
         "leader": leader.id if leader else None,
     }
-    plan, completion = context.llm.complete("commander", payload, CommanderPlan, tier=Tier.STRONG)
+    with context.spans.model_call("commander", Tier.STRONG.value) as span:
+        plan, completion = context.llm.complete(
+            "commander", payload, CommanderPlan, tier=Tier.STRONG
+        )
+        record_usage(
+            span,
+            completion.tokens_in,
+            completion.tokens_out,
+            completion.usd,
+            escalated=completion.escalated,
+            repaired=completion.repaired,
+        )
     state.budget.note_tokens(completion.tokens_in, completion.tokens_out, completion.usd)
     return plan
 
@@ -299,9 +323,18 @@ def run_specialist(
         "service": hypothesis.service,
         "evidence": [{"id": evidence_id, "summary": summary} for evidence_id, summary in gathered],
     }
-    answer, completion = context.llm.complete(
-        "specialist", payload, SpecialistAnswer, tier=Tier.SMALL
-    )
+    with context.spans.model_call("specialist", Tier.SMALL.value) as span:
+        answer, completion = context.llm.complete(
+            "specialist", payload, SpecialistAnswer, tier=Tier.SMALL
+        )
+        record_usage(
+            span,
+            completion.tokens_in,
+            completion.tokens_out,
+            completion.usd,
+            escalated=completion.escalated,
+            repaired=completion.repaired,
+        )
     state.budget.note_tokens(completion.tokens_in, completion.tokens_out, completion.usd)
     return Finding(
         specialist=specialist,
@@ -386,7 +419,20 @@ def _gather(state: InvestigationState, context: NodeContext, brief: Brief) -> li
             continue
         state.budget.note_tool_call(fingerprint)
         try:
-            result = context.registry.call(tool_name, context.tools, arguments)
+            with context.spans.tool_call(tool_name, arguments) as span:
+                result = context.registry.call(tool_name, context.tools, arguments)
+                # The row count comes from the evidence record, not from the result's
+                # `data`. `len(result.data)` counts keys in a summary dict, which looked
+                # like a row count in a dashboard and was not one.
+                record = (
+                    context.tools.evidence.get(result.evidence_id) if result.evidence_id else None
+                )
+                record_tool_result(
+                    span,
+                    record.row_count if record else 0,
+                    result.evidence_id,
+                    result.truncated,
+                )
         except ToolError as error:
             # A tool that cannot answer is a fact about the incident, not a
             # crash. A bundle with no change log is a legitimate recording.

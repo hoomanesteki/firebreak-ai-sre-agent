@@ -1,0 +1,164 @@
+{
+  "incidents": {
+    "inc_152f3e50f23b": {
+      "abstained": false,
+      "cassettes": [
+        "commander_5f9e10848f7282d4",
+        "critic_dc2cd8d9a95f328d",
+        "reporter_eb6c99731b0c8c8f",
+        "specialist_27571e1a7227c19f",
+        "specialist_381f1d69e4032a7f",
+        "specialist_6408e48b9233c4c9",
+        "specialist_9a6cc407ac69df91"
+      ],
+      "claims": 5,
+      "gate_passed": true,
+      "reason": "A health check failure, where the culprit was not in the top three on the real recording.",
+      "root_cause_service": "cart",
+      "scenario_id": "failed-readiness-probe-on-50u-sr5"
+    },
+    "inc_492dd2b14d58": {
+      "abstained": false,
+      "cassettes": [
+        "commander_da499ceba63dee08",
+        "critic_73d9533fca7d8702",
+        "reporter_2d9a2bdc994c92d5",
+        "specialist_3576c677fb49fded",
+        "specialist_7d41b8b0f294849e",
+        "specialist_a838d365aad6aa74",
+        "specialist_f97cd994d80e02af"
+      ],
+      "claims": 5,
+      "gate_passed": true,
+      "reason": "Queue lag, where the broken service and the symptomatic services differ.",
+      "root_cause_service": "checkout",
+      "scenario_id": "kafka-queue-problems-on-50u-sr5"
+    },
+    "inc_4ca70c7df09f": {
+      "abstained": false,
+      "cassettes": [
+        "commander_28ecfed3a9bba21a",
+        "critic_bbabf6b7a257b420",
+        "reporter_cb346d3d8c67ff7a",
+        "specialist_6cdae9d05b7ed241",
+        "specialist_aa293a88f394e63c",
+        "specialist_d73facc7e277725c",
+        "specialist_fc02a0a1e45476dc"
+      ],
+      "claims": 5,
+      "gate_passed": true,
+      "reason": "A latency fault, which on real recordings scores far lower than an error fault and is the case abstention currently gets wrong.",
+      "root_cause_service": "shipping",
+      "scenario_id": "intl-shipping-slowdown-10sec-20u"
+    },
+    "inc_92856323819d": {
+      "abstained": true,
+      "cassettes": [],
+      "claims": 0,
+      "gate_passed": true,
+      "reason": "No fault at all. Abstaining is the right answer and naming anybody is the worst failure this system can have.",
+      "root_cause_service": null,
+      "scenario_id": "no-fault-flood-homepage-sr20-20u"
+    },
+    "inc_9bd8b1af412c": {
+      "abstained": false,
+      "cassettes": [
+        "commander_404c0d0f4e15480d",
+        "critic_d88ca453d915d519",
+        "reporter_1c77077f4698d334",
+        "specialist_0a18c937e00afd6b",
+        "specialist_0a552d8df496abc4",
+        "specialist_9f808b001d203ed9",
+        "specialist_aa3a18d770110eac"
+      ],
+      "claims": 5,
+      "gate_passed": true,
+      "reason": "Two faults at once, where naming one is partly right and the report has to say which.",
+      "root_cause_service": "payment",
+      "scenario_id": "double-fault-payment-failure-cart-failure-20u"
+    },
+    "inc_a5d0cca48731": {
+      "abstained": false,
+      "cassettes": [
+        "commander_4179f2561e857725",
+        "critic_0db70e4676f830f1",
+        "reporter_7bc002007c850f73",
+        "specialist_4338ef55f2845a29",
+        "specialist_8388d856a0879cba",
+        "specialist_bc5d3945e474c5d0",
+        "specialist_d572e128d860511f"
+      ],
+      "claims": 5,
+      "gate_passed": true,
+      "reason": "The same fault at half the rate, which is where a detector's threshold shows.",
+      "root_cause_service": "payment",
+      "scenario_id": "payment-failure-25pct-20u"
+    },
+    "inc_ceeb6b2238f2": {
+      "abstained": true,
+      "cassettes": [],
+      "claims": 0,
+      "gate_passed": true,
+      "reason": "A quieter healthy system, so the demo shows abstention at two load levels rather than one.",
+      "root_cause_service": null,
+      "scenario_id": "no-fault-flood-homepage-sr2-20u"
+    },
+    "inc_d2c25f05e82a": {
+      "abstained": false,
+      "cassettes": [
+        "commander_8505200c03756812",
+        "critic_c1fd875a5b8c6b11",
+        "reporter_10582c5de9ad6b5b",
+        "specialist_28b2488bfaa94e26",
+        "specialist_aa08e1683e384973",
+        "specialist_df1292b9a54c734c",
+        "specialist_f05c815a1b5751b6"
+      ],
+      "claims": 5,
+      "gate_passed": true,
+      "reason": "The clearest case: half of payment's calls fail and the errors are everywhere.",
+      "root_cause_service": "payment",
+      "scenario_id": "payment-failure-50pct-20u"
+    },
+    "inc_f1ba9a75bf88": {
+      "abstained": false,
+      "cassettes": [
+        "commander_d73d579d36c351bc",
+        "critic_d67a1a0cf4d41bca",
+        "reporter_4eb813725adcb7c1",
+        "specialist_2839fb6e64e1847d",
+        "specialist_48b02978aec676d6",
+        "specialist_7cbb594d64ea599b",
+        "specialist_fbee4b04973c16d6"
+      ],
+      "claims": 5,
+      "gate_passed": true,
+      "reason": "A service that is gone rather than failing, which produces a different signal.",
+      "root_cause_service": "payment",
+      "scenario_id": "payment-unreachable-on-50u-sr5"
+    },
+    "inc_fb80ba636b07": {
+      "abstained": false,
+      "cassettes": [
+        "commander_6638299337779356",
+        "critic_8af507820dfb9071",
+        "reporter_7b7986bdd83d6adf",
+        "specialist_981834395e5716e9",
+        "specialist_e5ffb00fc9c80c74",
+        "specialist_e6fe2c21921b249d",
+        "specialist_ec140aa3581161e9"
+      ],
+      "claims": 5,
+      "gate_passed": true,
+      "reason": "A harmless change beside a real fault, which is the case correlation gets wrong.",
+      "root_cause_service": "shipping",
+      "scenario_id": "distractor-intl-shipping-slowdown-5sec-50u"
+    }
+  },
+  "recorded_at": "2026-09-27T18:26:39.789595+00:00",
+  "recorded_from_mode": "stub",
+  "run_id": "showcase",
+  "seed": 11,
+  "showcase_actual": 10,
+  "showcase_target": 10
+}

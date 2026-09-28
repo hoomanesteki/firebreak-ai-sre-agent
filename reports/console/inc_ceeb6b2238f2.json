@@ -1,0 +1,112 @@
+{
+  "bundle_id": "inc_ceeb6b2238f2",
+  "claims": [],
+  "confidence": null,
+  "evidence": {
+    "ev_memory_cac09de8fab7": {
+      "arguments": {
+        "limit": 3,
+        "services": [
+          "checkout",
+          "product-catalog",
+          "recommendation"
+        ],
+        "symptoms": "checkout anomaly 1.0; product-catalog anomaly 0.5; recommendation anomaly 0.9"
+      },
+      "facts": [
+        {
+          "field": "matches",
+          "subject": null,
+          "unit": "count",
+          "value": 0.0
+        },
+        {
+          "field": "closest_similarity",
+          "subject": null,
+          "unit": "ratio",
+          "value": 0.0
+        }
+      ],
+      "fingerprint": {
+        "format_version": 2,
+        "identity": "inc_ceeb6b2238f2",
+        "mode": "bundle"
+      },
+      "id": "ev_memory_cac09de8fab7",
+      "kind": "memory",
+      "parameters": {
+        "limit": 3,
+        "services": [
+          "checkout",
+          "product-catalog",
+          "recommendation"
+        ],
+        "symptoms": "checkout anomaly 1.0; product-catalog anomaly 0.5; recommendation anomaly 0.9"
+      },
+      "query": "similar_incidents",
+      "result_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "row_count": 0,
+      "rows": [],
+      "tool": "similar_incidents",
+      "truncated": false,
+      "window": {
+        "end": "1970-01-01T00:00:00Z",
+        "start": "1970-01-01T00:00:00Z"
+      }
+    }
+  },
+  "gate": {
+    "checks": [
+      {
+        "check": "coverage",
+        "detail": "all 0 claim(s) cite known evidence",
+        "failed_claims": [],
+        "passed": true
+      },
+      {
+        "check": "re_execution",
+        "detail": "nothing cited to re-run",
+        "failed_claims": [],
+        "passed": true
+      },
+      {
+        "check": "numbers",
+        "detail": "all 0 cited number(s) match",
+        "failed_claims": [],
+        "passed": true
+      },
+      {
+        "check": "consistency",
+        "detail": "the report agrees with the notebook and the timestamps",
+        "failed_claims": [],
+        "passed": true
+      },
+      {
+        "check": "confidence_sanity",
+        "detail": "no confidence stated",
+        "failed_claims": [],
+        "passed": true
+      },
+      {
+        "check": "abstention",
+        "detail": "the report already names nobody",
+        "failed_claims": [],
+        "passed": true
+      }
+    ],
+    "passed": true,
+    "removed_claims": 0,
+    "repaired": false
+  },
+  "hypotheses": [],
+  "notes": [
+    "No service was unusual enough to investigate. The largest anomaly anywhere was 1.0 robust deviations, below the 22.7 threshold."
+  ],
+  "notes_run": [],
+  "replayed": true,
+  "root_cause_service": null,
+  "rounds": 0,
+  "stopped_because": "complete",
+  "tool_calls": 0,
+  "wall_clock_seconds": null
+}

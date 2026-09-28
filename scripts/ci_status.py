@@ -18,6 +18,7 @@ and says how long it will wait.
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import subprocess
 import sys
@@ -40,6 +41,12 @@ DEFAULT_TIMEOUT_SECONDS = 900
 # create one after a push, and a tool reporting "no run, all clear" would be
 # worse than useless.
 STARTUP_GRACE_SECONDS = 90
+
+# How many consecutive network failures a watch tolerates before giving up. A watch runs
+# for minutes and one connection reset should not end it: the run is still going and the
+# answer is still coming. Bounded, so a genuinely unreachable API is reported rather than
+# polled for ever.
+MAX_TRANSIENT_FAILURES = 4
 
 
 class CiError(Exception):
@@ -108,7 +115,16 @@ def _get(path: str) -> dict[str, object]:
                 "limit of 60 an hour; wait and try again"
             ) from error
         raise CiError(f"GitHub returned {error.code} for {path}") from error
-    except (urllib.error.URLError, OSError, json.JSONDecodeError) as error:
+    except (
+        urllib.error.URLError,
+        OSError,
+        json.JSONDecodeError,
+        # A truncated response raises IncompleteRead, which inherits from HTTPException
+        # and ValueError and from neither OSError nor URLError. It reached a user as a
+        # traceback once, which is the wrong answer for a transient network fault: the
+        # useful response is to say so and try again.
+        http.client.HTTPException,
+    ) as error:
         raise CiError(f"could not reach the GitHub API: {error}") from error
     if not isinstance(payload, dict):
         raise CiError(f"unexpected response shape from {path}")
@@ -137,18 +153,31 @@ def repository() -> str:
     return body.removesuffix(".git")
 
 
+# Short enough for a person to copy from `git log`, long enough not to match two commits
+# in a repository this size. Git's own default abbreviation is 7.
+SHORTEST_SHA = 7
+
+
 def head_sha() -> str:
     return _git(["rev-parse", "HEAD"], "could not read HEAD")
 
 
 def find_run(repo: str, sha: str) -> RunResult | None:
-    """The most recent run for one commit, or None if none exists yet."""
+    """The most recent run for one commit, or None if none exists yet.
+
+    Matches by prefix, because a short SHA is what a person copies out of `git log` and
+    an exact comparison silently found nothing and reported it as "no run yet". That read
+    exactly like CI not having started, which is the one thing this tool exists to
+    distinguish from a failure.
+    """
     payload = _get(f"/repos/{repo}/actions/runs?per_page=30")
     runs = payload.get("workflow_runs")
     if not isinstance(runs, list):
         raise CiError("the runs endpoint returned no workflow_runs list")
+    if len(sha) < SHORTEST_SHA:
+        raise CiError(f"{sha!r} is too short to identify a commit, give at least {SHORTEST_SHA}")
     for raw in runs:
-        if not isinstance(raw, dict) or raw.get("head_sha") != sha:
+        if not isinstance(raw, dict) or not str(raw.get("head_sha") or "").startswith(sha):
             continue
         conclusion = raw.get("conclusion")
         return RunResult(
@@ -245,12 +274,22 @@ def main() -> int:
 
     deadline = time.monotonic() + arguments.timeout
     waited_for_start = 0.0
+    transient = 0
     while True:
         try:
             found = find_run(repo, sha)
         except CiError as error:
-            print(f"{error}", file=sys.stderr)
-            return 2
+            # A watch tolerates a few network failures, because the run it is watching is
+            # still going and the answer is still coming. A single check does not: there
+            # is nothing to wait for.
+            transient += 1
+            if not arguments.watch or transient > MAX_TRANSIENT_FAILURES:
+                print(f"{error}", file=sys.stderr)
+                return 2
+            print(f"{error}; retrying in {POLL_SECONDS}s", flush=True)
+            time.sleep(POLL_SECONDS)
+            continue
+        transient = 0
 
         if found is None:
             if not arguments.watch or waited_for_start >= STARTUP_GRACE_SECONDS:
@@ -269,8 +308,13 @@ def main() -> int:
         try:
             run = with_jobs(repo, found)
         except CiError as error:
-            print(f"{error}", file=sys.stderr)
-            return 2
+            transient += 1
+            if not arguments.watch or transient > MAX_TRANSIENT_FAILURES:
+                print(f"{error}", file=sys.stderr)
+                return 2
+            print(f"{error}; retrying in {POLL_SECONDS}s", flush=True)
+            time.sleep(POLL_SECONDS)
+            continue
 
         if run.finished:
             print(describe(run))

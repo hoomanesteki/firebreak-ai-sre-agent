@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+{% if records %}
+<div class="panel">
+  <h2>Audit chain</h2>
+  <p class="caption">
+    Every decision, in order, each hashed onto the one before it. Changing or removing any
+    record breaks every hash after it, which makes an edit detectable by anyone who reads
+    the file. That is tamper evidence and not tamper proofing: somebody who can write the
+    file can rewrite the chain from where they changed.
+  </p>
+  <table>
+    <thead>
+      <tr><th class="num">#</th><th>When</th><th>Decision</th><th>Who</th><th>Reason</th></tr>
+    </thead>
+    <tbody>
+    {% for record in records %}
+      <tr>
+        <td class="num">{{ record.sequence }}</td>
+        <td class="mono">{{ record.at }}</td>
+        <td>
+          {% if record.decision == "executed" %}<span class="tag ok">executed</span>
+          {% elif record.decision == "rejected" %}<span class="tag warn">rejected</span>
+          {% elif record.decision == "failed" %}<span class="tag bad">failed</span>
+          {% else %}<span class="tag">{{ record.decision }}</span>{% endif %}
+        </td>
+        <td>{{ record.actor }}</td>
+        <td>{{ record.reason }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# Outside the records block on purpose. The absence of an approve button is most worth
+   explaining when the queue is empty and somebody is looking for one. #}
+<div class="panel">
+  <h2>What this page cannot do</h2>
+  <p class="caption">
+    Approve or reject. The approval service is a separate process holding the only
+    credentials that can change a feature flag or restart a container, and giving this page
+    a button that called it would put the decision and the credential back in one place.
+    That is the arrangement the whole design is built to avoid, and it is asserted by a
+    test that walks the import graph rather than by this paragraph.
+  </p>
+</div>
+{% endblock %}

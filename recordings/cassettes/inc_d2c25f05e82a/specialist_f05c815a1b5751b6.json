@@ -1,0 +1,13 @@
+{
+  "answer": {
+    "confidence": "medium",
+    "summary": "traces_analyst found signal for payment in 1 evidence record(s).",
+    "supports": true
+  },
+  "model": "stub",
+  "purpose": "specialist",
+  "tier": "small",
+  "tokens_in": 0,
+  "tokens_out": 0,
+  "usd": 0.0
+}
