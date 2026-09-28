@@ -1,6 +1,6 @@
 {
-  "commit": "93f17dabad92769140df8ee6864a4024f347ac10-dirty",
-  "generated_at": "2026-09-28T02:15:49.940957+00:00",
+  "commit": "6a4835b45b58f499b061583127b74243aac062b6-dirty",
+  "generated_at": "2026-09-28T03:01:56.668270+00:00",
   "honesty": "A metric is published as a number only when its report says quotable_as_a_result. Everything else is a stated absence with its reason. 5 of 5 metrics are unmeasured.",
   "library": {
     "recordings_note": "Recordings are not in this repository. Bundles average 7.6 MB and bundles/ is git-ignored; they ship as a release asset with checksums.",
@@ -15,7 +15,7 @@
   },
   "local": {
     "bundles_present": true,
-    "note": "Derived from bundles on disk, so it describes the machine that ran the build. Not published on any page and not compared by --check. With no bundles present the staleness check cannot run and says nothing.",
+    "note": "Derived from bundles on disk, so it describes the machine that ran the build. Not published on any page and not compared by --check.",
     "recorded_by_split": {
       "test_id": 0,
       "test_ood": 0,

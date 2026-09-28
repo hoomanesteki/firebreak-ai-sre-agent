@@ -449,15 +449,6 @@ def build() -> dict[str, Any]:
     library = library_counts()
     showcase = showcase_counts()
     unmeasured = [metric.key for metric in metrics if not metric.quotable]
-    stale_reports = {
-        f"{configuration}/{split}": reason
-        for (configuration, split), reason in stale.items()
-        if reason
-    }
-    bundles_present = BUNDLES_DIR.is_dir() and any(
-        (path / "manifest.json").is_file() for path in BUNDLES_DIR.iterdir()
-    )
-
     return {
         "generated_at": datetime.now(UTC).isoformat(),
         "commit": git_commit(),
@@ -466,22 +457,6 @@ def build() -> dict[str, Any]:
         "metrics": {metric.key: metric.as_dict() for metric in metrics},
         "readme_rows": readme_rows(metrics, library, showcase),
         "unmeasured": unmeasured,
-        # Everything derived from bundles on disk lives here and nowhere else. It differs
-        # between machines by definition, so `--check` ignores this key and no page reads
-        # it. Keeping it in the file at all is worth it because the staleness finding is
-        # the only record that a committed report describes bundles that no longer exist.
-        "local": {
-            "bundles_present": bundles_present,
-            "recorded_by_split": dict(sorted(recorded.items())),
-            "stale_reports": stale_reports,
-            "note": (
-                "Derived from bundles on disk, so it describes the machine that ran the "
-                "build. Not published on any page and not compared by --check. With no "
-                "bundles present the staleness check cannot run and says nothing."
-                if bundles_present
-                else "No bundles on this machine, so staleness could not be checked."
-            ),
-        },
         "reports_considered": {
             f"{configuration}/{split}": report.source
             for (configuration, split), report in sorted(reports.items())
@@ -490,6 +465,45 @@ def build() -> dict[str, Any]:
             "A metric is published as a number only when its report says "
             "quotable_as_a_result. Everything else is a stated absence with its reason. "
             f"{len(unmeasured)} of {len(metrics)} metrics are unmeasured."
+        ),
+    }
+
+
+def local_diagnostics() -> dict[str, Any]:
+    """What the bundles on this machine say, kept out of `build()` on purpose.
+
+    Everything here differs between a laptop with recordings and CI with none. It is not
+    published on any page and `--check` ignores it.
+
+    **Why it is a separate function rather than a key inside `build()`.** It was a key, and
+    a test compared `build()` against the committed file while popping only the timestamp
+    and the commit. That test passed on a machine with eight recordings and failed in CI
+    with none, which is precisely the problem the separation was meant to prevent. Keeping
+    `build()` free of machine state makes comparing its output correct by default instead of
+    correct if you remembered.
+
+    It is worth keeping in the file at all because the staleness finding is the only record
+    that a committed report describes bundles that no longer exist.
+    """
+    recorded = recorded_by_split()
+    reports = newest_reports()
+    bundles_present = BUNDLES_DIR.is_dir() and any(
+        (path / "manifest.json").is_file() for path in BUNDLES_DIR.iterdir()
+    )
+    stale_reports = {
+        f"{configuration}/{split}": reason
+        for (configuration, split), report in reports.items()
+        if (reason := stale_reason(report, recorded))
+    }
+    return {
+        "bundles_present": bundles_present,
+        "recorded_by_split": dict(sorted(recorded.items())),
+        "stale_reports": stale_reports,
+        "note": (
+            "Derived from bundles on disk, so it describes the machine that ran the build. "
+            "Not published on any page and not compared by --check."
+            if bundles_present
+            else "No bundles on this machine, so staleness could not be checked."
         ),
     }
 
@@ -506,6 +520,7 @@ def main() -> int:
 
     try:
         stats = build()
+        stats["local"] = local_diagnostics()
     except StatsError as error:
         print(f"site stats: {error}", file=sys.stderr)
         return 1
@@ -517,10 +532,10 @@ def main() -> int:
             return 1
         current = json.loads(arguments.output.read_text(encoding="utf-8"))
         fresh = json.loads(rendered)
-        # `local` is disk-derived and differs between machines; `generated_at` and
-        # `commit` change on every run. Comparing them would make this check fail in CI,
-        # where there are no bundles, and that failure would say the file is stale rather
-        # than that the comparison was wrong.
+        # `local` is disk-derived and differs between machines; `generated_at` and `commit`
+        # change on every run. Both sides, because `main` attaches `local` to what it
+        # renders even in check mode: popping it from one side only made every check report
+        # the file as stale.
         for key in ("generated_at", "commit", "local"):
             current.pop(key, None)
             fresh.pop(key, None)

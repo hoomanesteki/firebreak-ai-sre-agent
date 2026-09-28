@@ -237,6 +237,44 @@ class TestOrderingUsesGeneratedAt:
             stats.newest_reports()
 
 
+class TestBuildCarriesNoMachineState:
+    """The structural version of the bug CI caught.
+
+    `local` used to be a key inside `build()`, and a test compared `build()` against the
+    committed file while popping only the timestamp and commit. It passed on a machine with
+    eight recordings and failed in CI with none. Commenting the exclusion was not enough,
+    because the next comparison would have to remember it too, so the disk-derived part moved
+    out of `build()` entirely. These tests keep it out.
+    """
+
+    def test_build_returns_no_local_section(self) -> None:
+        assert "local" not in stats.build()
+
+    def test_build_is_identical_with_and_without_bundles(self, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        """The property that matters: nothing `build()` returns depends on what is on disk
+        beyond the committed files. Any comparison of its output is then correct by default
+        rather than correct if the author remembered to exclude something."""
+        with_bundles = stats.build()
+        monkeypatch.setattr(stats, "BUNDLES_DIR", REPO_ROOT / "does-not-exist")
+        without = stats.build()
+        for payload in (with_bundles, without):
+            payload.pop("generated_at", None)
+            payload.pop("commit", None)
+        assert with_bundles == without
+
+    def test_the_diagnostics_are_available_separately(self) -> None:
+        local = stats.local_diagnostics()
+        assert set(local) == {"bundles_present", "recorded_by_split", "stale_reports", "note"}
+
+    def test_the_diagnostics_say_so_when_there_are_no_bundles(self, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        """Silence and "nothing is stale" look identical, and only one of them means the
+        check ran."""
+        monkeypatch.setattr(stats, "BUNDLES_DIR", REPO_ROOT / "does-not-exist")
+        local = stats.local_diagnostics()
+        assert local["bundles_present"] is False
+        assert "could not be checked" in local["note"]
+
+
 class TestTheGeneratedFileMatchesTheRepository:
     def test_building_it_produces_the_committed_file(self) -> None:
         """`--check` in CI relies on this being reproducible.
