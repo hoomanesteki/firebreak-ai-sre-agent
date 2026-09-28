@@ -28,6 +28,8 @@ from firebreak.telemetry.spans import (
     ATTR_CONTENT_INCLUDED,
     ATTR_GATE_PASSED,
     ATTR_INCIDENT,
+    ATTR_MODEL_PURPOSE,
+    ATTR_NODE,
     ATTR_PROMPT_HASH,
     SpanRecorder,
     TracingOptions,
@@ -105,6 +107,34 @@ class TestOneInvestigationIsOneTrace:
         assert kinds["node"] > 0
         assert kinds["execute_tool"] > 0
         assert kinds["chat"] > 0
+
+    def test_only_node_spans_carry_the_node_attribute(self, bundle: Path, exporter) -> None:  # type: ignore[no-untyped-def]
+        """`firebreak.node` means a graph node and nothing else.
+
+        The four analyst nodes all send the `specialist` prompt. When the model span put
+        that prompt name in this attribute, a dashboard grouping by node showed a
+        `specialist` row naming no node in the graph, sitting beside the four real analyst
+        rows and looking exactly like a fifth node. Wrong in the direction that looks
+        plausible, which is the kind a dashboard is never audited for.
+        """
+        investigate(bundle)
+        for span in exporter.get_finished_spans():
+            if ATTR_NODE in (span.attributes or {}):
+                assert span.name.startswith("node "), (
+                    f"{span.name} carries {ATTR_NODE}, so grouping by it mixes vocabularies"
+                )
+
+    def test_a_model_span_says_what_it_was_called_for(self, bundle: Path, exporter) -> None:  # type: ignore[no-untyped-def]
+        """Which prompt it sent still has to be on the span, under its own name. Dropping
+        it would fix the collision by losing the information."""
+        investigate(bundle)
+        purposes = {
+            (span.attributes or {}).get(ATTR_MODEL_PURPOSE)
+            for span in exporter.get_finished_spans()
+            if span.name.startswith("chat ")
+        }
+        assert purposes, "no model span recorded a purpose"
+        assert None not in purposes
 
     def test_the_root_names_the_incident_and_the_configuration(
         self, bundle: Path, exporter

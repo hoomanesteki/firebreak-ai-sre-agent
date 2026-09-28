@@ -48,7 +48,14 @@ TRACER_NAME = "firebreak.agent"
 # here in one place, because an attribute name typed twice is a dashboard that silently
 # shows nothing. Anything with a conventional name uses the conventional name instead.
 ATTR_INCIDENT = "firebreak.incident.id"
+# The graph node, and only ever a graph node. A model call names the prompt it used
+# instead, under its own attribute below, because the two are different vocabularies: the
+# four analyst nodes all send the `specialist` prompt, so sharing one attribute put a
+# `specialist` row in any dashboard grouping by node, a label naming no node in the graph
+# and sitting beside the four real ones. The node a model call belongs to is recoverable
+# from its parent span, which the context managers guarantee.
 ATTR_NODE = "firebreak.node"
+ATTR_MODEL_PURPOSE = "firebreak.model.purpose"
 ATTR_CONFIGURATION = "firebreak.configuration"
 ATTR_TOOL_ROWS = "firebreak.tool.rows"
 ATTR_TOOL_EVIDENCE = "firebreak.tool.evidence_id"
@@ -185,6 +192,10 @@ class SpanRecorder:
     ) -> Iterator[Span | None]:
         """One model call.
 
+        `purpose` names the prompt, not the node. Four analyst nodes send the same
+        `specialist` prompt, so this is deliberately the coarser of the two: which node
+        made the call is on the parent span.
+
         `prompt_body` is hashed and discarded unless content is included. The stamp is
         recorded either way, because knowing which prompt version produced a run is the
         thing a report needs and it carries no content.
@@ -194,7 +205,7 @@ class SpanRecorder:
             return
         with tracer().start_as_current_span(f"chat {purpose}", kind=SpanKind.CLIENT) as span:
             span.set_attribute(gen_ai.GEN_AI_OPERATION_NAME, Operation.CHAT.value)
-            span.set_attribute(ATTR_NODE, purpose)
+            span.set_attribute(ATTR_MODEL_PURPOSE, purpose)
             span.set_attribute("firebreak.model.tier", tier)
             if model:
                 span.set_attribute(gen_ai.GEN_AI_REQUEST_MODEL, model)
