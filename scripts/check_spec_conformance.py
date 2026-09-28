@@ -277,7 +277,18 @@ def main() -> int:
     phase = arguments.phase or current_phase()
     tasks = phase_tasks(spec)
 
-    print(f"SPEC.md declares {len(tasks)} phases; Phase {phase} is in progress")
+    # `len(tasks)` counts phases 0 to N, so the last phase number is one less. Past it there
+    # is no phase in progress, and saying "Phase 13 is in progress" of a thirteen-phase spec
+    # invents a phase and makes every later check compare against nothing.
+    last_phase = max(tasks) if tasks else 0
+    if phase > last_phase:
+        print(
+            f"SPEC.md declares {len(tasks)} phases, 0 to {last_phase}; "
+            f"every one has a report, so no phase is in progress"
+        )
+        phase = last_phase
+    else:
+        print(f"SPEC.md declares {len(tasks)} phases; Phase {phase} is in progress")
 
     all_findings = [
         ("configurations", check_configurations(spec, tasks, phase)),
