@@ -1,0 +1,49 @@
+{#
+  One place that renders a metric, so no page can invent its own way of showing one.
+
+  SPEC.md Section 15 asks that each number show its source report and carry a badge for its
+  mode. Both happen here rather than in each page, because a card written by hand on one page
+  is a card that will eventually show a figure without its caveat.
+
+  The important property: `value` is null for anything the stats file says is not publishable,
+  so this macro has no number to print even if a page asked it to. The reason goes in its
+  place, in the report's own words.
+#}
+
+{% macro metric_card(m) %}
+<div class="card">
+  <div class="label">{{ m.label }}</div>
+  {% if m.value is none %}
+  <div class="value absent">{{ m.display }}</div>
+  {% else %}
+  <div class="value">{{ m.display }}</div>
+  {% endif %}
+  <div class="src">
+    <span class="badge {% if m.mode == 'stale' %}stale{% elif m.value is none %}absent{% endif %}">{{ m.mode }}</span>
+    {% if m.source %}
+    <br>from <code>{{ m.source }}</code>
+    {% else %}
+    <br>no report exists for this figure
+    {% endif %}
+  </div>
+  {% if m.caveats %}
+  <ul style="margin:0.6rem 0 0;font-size:0.82rem;color:var(--ink-soft)">
+    {% for caveat in m.caveats %}
+    <li>{{ caveat }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% macro no_results_note() %}
+<div class="note">
+  <strong>Nothing on this site is a result yet.</strong>
+  Firebreak is built and tested end to end, and it has not been measured. Two things are
+  missing and both are stated wherever a number would go: no model has run, because there are
+  no credentials configured, and the incident library is recorded for one tuning split only, so
+  both held-out test splits are empty. Figures do exist in <code>reports/eval/</code>. Every one
+  of them carries a caveat saying why it is not a result, and the pages here repeat the caveat
+  rather than the figure.
+</div>
+{% endmacro %}

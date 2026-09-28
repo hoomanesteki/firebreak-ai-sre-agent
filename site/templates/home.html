@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block content %}
+
+<h1>An AI SRE that cites evidence you can re-run</h1>
+<p class="lead">
+  Firebreak investigates a production incident, names a root cause or says it cannot, and links
+  every sentence in its report to the query, time window and rows it rests on. If a claim
+  cannot be re-executed to the same bytes, a gate removes it before anybody reads it.
+</p>
+
+{{ ui.no_results_note() }}
+
+<h2>The problem</h2>
+<p>
+  The expensive part of an incident is not the fix, it is the minutes spent deciding which of
+  forty services to look at. That decision is made from dashboards under time pressure, and
+  the reasoning behind it is usually lost by the time the postmortem is written.
+</p>
+<p>
+  An agent that guesses faster does not help, because a confident wrong service costs more than
+  no answer. So the design question Firebreak is built around is not how to answer more often.
+  It is how to make an answer checkable, and how to say nothing when the evidence will not
+  support saying something.
+</p>
+
+<h2>What it does</h2>
+<div class="cards">
+  <div class="card">
+    <div class="label">Deterministic first</div>
+    <div class="value" style="font-size:1rem;font-weight:500">
+      Robust anomaly scores and a ranked service list before any model runs, so the model starts
+      from a shortlist rather than from the whole system.
+    </div>
+  </div>
+  <div class="card">
+    <div class="label">Evidence or nothing</div>
+    <div class="value" style="font-size:1rem;font-weight:500">
+      Every tool call records the query, window, backend fingerprint and a hash of its rows. A
+      claim keeps its citation or it does not ship.
+    </div>
+  </div>
+  <div class="card">
+    <div class="label">An exit gate that removes claims</div>
+    <div class="value" style="font-size:1rem;font-weight:500">
+      Six checks, including re-running every citation and refusing a confidence the evidence
+      does not carry. Failing them removes the claim rather than warning about it.
+    </div>
+  </div>
+  <div class="card">
+    <div class="label">Abstention as a first-class answer</div>
+    <div class="value" style="font-size:1rem;font-weight:500">
+      On a healthy system it says so and stops. Naming a service when nothing is broken is the
+      worst failure this design admits.
+    </div>
+  </div>
+</div>
+
+<h2>Results</h2>
+<p>
+  These are the figures a reader would want. All of them are unmeasured, each for a stated
+  reason, and the reason is on the card rather than in a footnote.
+</p>
+<div class="cards">
+  {{ ui.metric_card(number("root_cause_accuracy_test_id")) }}
+  {{ ui.metric_card(number("root_cause_accuracy_test_ood")) }}
+  {{ ui.metric_card(number("abstention_accuracy_test_id")) }}
+  {{ ui.metric_card(number("cost_per_investigation_usd")) }}
+</div>
+<p>
+  <a href="evaluation.html">The Evaluation page</a> has the figures that do exist, with the
+  caveat each report attaches to itself, and explains why a partly recorded tuning split is not
+  a benchmark.
+</p>
+
+<h2>What is actually built and checked</h2>
+<div class="scroll">
+  <table>
+    <thead><tr><th>Thing</th><th>State</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Scenario library</td>
+        <td>{{ library.specs }} fault-injection specs across four splits. {{ library.recordings_note }}</td>
+      </tr>
+      <tr>
+        <td>Offline demo</td>
+        <td>
+          {{ showcase.incidents }} incidents replayed from {{ showcase.cassettes }} recorded
+          answers with no model and no network. Recorded from mode
+          <code>{{ showcase.recorded_from_mode }}</code>, so it demonstrates the path rather than
+          model quality.
+        </td>
+      </tr>
+      <tr>
+        <td>Decisions</td>
+        <td>{{ adrs | length }} architecture decision records, each with the alternatives it rejected.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<h2>Quickstart</h2>
+<p>Runs on a clone with no model, no Docker and no network:</p>
+<pre>git clone {{ repository }}.git
+cd firebreak-ai-sre-agent
+make setup
+make demo-offline   # {{ showcase.incidents }} incidents, replayed and checked against their recordings
+make console        # the Console on http://127.0.0.1:8080</pre>
+<p><a href="run-it.html">Run it</a> covers local models, the live stack and recording new scenarios.</p>
+
+{% endblock %}

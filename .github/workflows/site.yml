@@ -1,0 +1,83 @@
+name: site
+
+# SPEC.md Section 15: deployed on pushes to main that touch site/, reports/ or docs/.
+#
+# `docs/` is in the trigger list because the Decisions page is generated from the ADR files
+# themselves rather than from a hand-kept list, so adding an ADR changes the site without
+# anything under site/ changing.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "reports/**"
+      - "docs/**"
+      - ".github/workflows/site.yml"
+  workflow_dispatch:
+
+# Read the repository, write the Pages artefact, and mint the id token Pages deployment
+# needs. Nothing wider: this workflow publishes a static site and has no reason to be able
+# to push a commit.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time, and do not cancel one in flight. A cancelled deploy can leave
+# Pages serving a half-published site, which is worse than a queue.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # Before building, not after. Every number on the site comes from this file, so a
+      # stale one publishes stale numbers with no sign anything is wrong. The check ignores
+      # the disk-derived section, which is why it agrees here with no bundles present.
+      - name: Check the published numbers are current
+        run: PYTHONPATH=src uv run python scripts/build_site_stats.py --check
+
+      - name: Check the README matches them
+        run: uv run python scripts/check_repo_hygiene.py
+
+      - name: Build the site
+        run: uv run python site/build.py
+
+      # A page that renders an unquotable figure as a number is the failure this project
+      # cares about most, and it is not a crash, so it needs its own assertion in the
+      # pipeline rather than only in the test suite.
+      - name: Refuse to publish an unsourced number
+        run: uv run pytest tests/unit/test_site_build.py -q
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

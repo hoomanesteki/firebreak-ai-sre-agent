@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>How it works</h1>
+<p class="lead">
+  A frozen recording of an incident goes in. A report whose every claim re-runs to the same
+  bytes comes out, or an abstention. Between those, four things do the work: deterministic
+  triage, typed tools that record their own provenance, a commander with specialists and an
+  independent critic, and a gate that removes claims rather than warning about them.
+</p>
+
+<h2>The shape of one investigation</h2>
+<figure>
+<svg viewBox="0 0 720 200" role="img" aria-labelledby="lifecycle-title">
+  <title id="lifecycle-title">An incident bundle enters triage, then the agent loop, then the exit gate, and leaves as a report or an abstention</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <g fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.85">
+    <rect x="6" y="70" width="112" height="56" rx="6"/>
+    <rect x="152" y="70" width="112" height="56" rx="6"/>
+    <rect x="298" y="26" width="124" height="144" rx="6"/>
+    <rect x="456" y="70" width="112" height="56" rx="6"/>
+    <rect x="602" y="16" width="112" height="56" rx="6"/>
+    <rect x="602" y="124" width="112" height="56" rx="6"/>
+    <path d="M118 98 H150" marker-end="url(#arrow)"/>
+    <path d="M264 98 H296" marker-end="url(#arrow)"/>
+    <path d="M422 98 H454" marker-end="url(#arrow)"/>
+    <path d="M568 92 L600 52" marker-end="url(#arrow)"/>
+    <path d="M568 104 L600 148" marker-end="url(#arrow)"/>
+  </g>
+  <g fill="currentColor" font-family="system-ui, sans-serif" font-size="11.5">
+    <text x="62" y="94" text-anchor="middle" font-weight="600">Bundle</text>
+    <text x="62" y="110" text-anchor="middle" opacity="0.7">frozen replay</text>
+    <text x="208" y="94" text-anchor="middle" font-weight="600">Triage</text>
+    <text x="208" y="110" text-anchor="middle" opacity="0.7">no model</text>
+    <text x="360" y="50" text-anchor="middle" font-weight="600">Agent loop</text>
+    <text x="360" y="72" text-anchor="middle" opacity="0.7">commander</text>
+    <text x="360" y="90" text-anchor="middle" opacity="0.7">4 specialists</text>
+    <text x="360" y="108" text-anchor="middle" opacity="0.7">hypothesis board</text>
+    <text x="360" y="126" text-anchor="middle" opacity="0.7">critic</text>
+    <text x="360" y="150" text-anchor="middle" opacity="0.7">budgeted</text>
+    <text x="512" y="94" text-anchor="middle" font-weight="600">Exit gate</text>
+    <text x="512" y="110" text-anchor="middle" opacity="0.7">6 checks</text>
+    <text x="658" y="40" text-anchor="middle" font-weight="600">Report</text>
+    <text x="658" y="56" text-anchor="middle" opacity="0.7">every claim cited</text>
+    <text x="658" y="148" text-anchor="middle" font-weight="600">Abstention</text>
+    <text x="658" y="164" text-anchor="middle" opacity="0.7">with its reason</text>
+  </g>
+</svg>
+<figcaption>
+  Triage runs before any model and can end the investigation on its own. That is deliberate: on
+  a healthy system the cheapest correct answer is to stop.
+</figcaption>
+</figure>
+
+<h2>Deterministic triage first</h2>
+<p>
+  Before a model sees anything, Firebreak computes robust anomaly scores over every service's
+  metrics, using a median and median absolute deviation rather than a mean and standard
+  deviation, because one spike moves a mean and a fault is a spike. It walks the service graph
+  with personalised PageRank to separate a broken service from the services merely downstream
+  of it, and produces a ranked shortlist.
+</p>
+<p>
+  If nothing scores above the abstention threshold, the investigation ends there and says so,
+  naming the largest deviation it found and the threshold it was compared against. A reader can
+  disagree with the threshold, which is the property that makes the answer useful.
+</p>
+
+<h2>Typed tools, not free-form queries</h2>
+<p>
+  Tools take validated arguments and build their own queries. A model never writes a query
+  string. That costs flexibility and buys three things the project depends on: a query nobody
+  can inject into, a cap on how much data one call can return, and an evidence record whose
+  identifier is a hash of what the call was and what came back.
+</p>
+<p>
+  Every call records its query, its time window, a fingerprint of the backend it hit, and a hash
+  of its rows. That record is what a claim cites, and it is what the gate re-runs.
+</p>
+
+<h2>Roles</h2>
+<div class="scroll">
+  <table>
+    <thead><tr><th>Role</th><th>Does</th><th>Cannot</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Commander</td>
+        <td>Chooses which hypothesis to test next and which specialist to send.</td>
+        <td>Call an evidence tool itself.</td>
+      </tr>
+      <tr>
+        <td>Metrics, logs, traces and change analysts</td>
+        <td>Gather evidence on one hypothesis with one question each.</td>
+        <td>See each other's answers, so four specialists are four independent looks.</td>
+      </tr>
+      <tr>
+        <td>Critic</td>
+        <td>Argues against the leading hypothesis on the same evidence.</td>
+        <td>Gather new evidence, so it cannot build its own case.</td>
+      </tr>
+      <tr>
+        <td>Reporter</td>
+        <td>Writes claims, each naming the evidence it rests on.</td>
+        <td>Cite a record no tool produced.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<h2>The exit gate</h2>
+<p>
+  Six checks run on the finished report. They remove claims rather than annotating them,
+  because a warning next to a claim is a claim that still gets quoted.
+</p>
+<div class="scroll">
+  <table>
+    <thead><tr><th>Check</th><th>Refuses</th></tr></thead>
+    <tbody>
+      <tr><td><code>coverage</code></td><td>A claim citing an evidence id nothing recorded.</td></tr>
+      <tr><td><code>re_execution</code></td><td>A citation that does not re-run to the same hash.</td></tr>
+      <tr><td><code>numbers</code></td><td>A number in prose that its cited evidence does not contain.</td></tr>
+      <tr><td><code>consistency</code></td><td>A report that disagrees with the notebook or the timeline.</td></tr>
+      <tr><td><code>confidence_sanity</code></td><td>High confidence the evidence does not support.</td></tr>
+      <tr><td><code>abstention</code></td><td>Naming a service whose support is below the threshold.</td></tr>
+    </tbody>
+  </table>
+</div>
+<div class="note">
+  <strong>What the gate does not check.</strong>
+  Whether a claim says anything. Six checks ask whether a claim is <em>supported</em>; none asks
+  whether it is <em>informative</em>, and a report of true, cited, uninformative sentences passes
+  cleanly. This showed up in the offline demo's own transcripts and is recorded as an open
+  question rather than quietly fixed.
+</div>
+
+<h2>Harness principles</h2>
+<div class="scroll">
+  <table>
+    <thead><tr><th>Principle</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>The agent never sees a label</td>
+        <td>
+          Ground truth lives outside the bundles, in a package only the eval code may import,
+          enforced by a test that walks the import graph. Each label carries a random canary and
+          every prompt is scanned for it.
+        </td>
+      </tr>
+      <tr>
+        <td>Bundles are frozen</td>
+        <td>Replay is byte-stable, so a change in a score is a change in the code.</td>
+      </tr>
+      <tr>
+        <td>Fault flags are hidden from the change log</td>
+        <td>Otherwise the answer is in the evidence.</td>
+      </tr>
+      <tr>
+        <td>Tuning uses train and validation only</td>
+        <td>Held-out splits are computed once per release candidate, or not quoted.</td>
+      </tr>
+      <tr>
+        <td>Two test splits, not one</td>
+        <td>
+          In-distribution asks whether it works; out-of-distribution holds back whole fault
+          families and asks whether it generalised or memorised.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p><a href="decisions.html">The decision records</a> give the alternatives each of these rejected.</p>
+
+{% endblock %}

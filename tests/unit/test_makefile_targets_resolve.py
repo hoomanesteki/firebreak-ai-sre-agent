@@ -29,7 +29,9 @@ MAKEFILE = REPO_ROOT / "Makefile"
 
 TEXT = MAKEFILE.read_text(encoding="utf-8")
 
-SCRIPT_PATTERN = re.compile(r"scripts/[A-Za-z0-9_/]+\.py")
+# Any Python file the Makefile runs, not just those under scripts/. The site builder lives
+# in site/, and a pattern anchored on one directory would have let that one through.
+SCRIPT_PATTERN = re.compile(r"(?:scripts|site|ops|tools)/[A-Za-z0-9_/]+\.py")
 MODULE_PATTERN = re.compile(r"python -m ([A-Za-z0-9_.]+)")
 TARGET_PATTERN = re.compile(r"^([a-zA-Z][a-zA-Z0-9_-]*):.*?## ", re.MULTILINE)
 
@@ -83,6 +85,8 @@ class TestTheHelpTextCoversTheTargets:
         for name in (
             "setup",
             "verify",
+            "site",
+            "site-stats",
             "demo",
             "demo-offline",
             "console",

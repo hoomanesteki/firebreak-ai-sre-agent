@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Decisions</h1>
+<p class="lead">
+  {{ adrs | length }} records, each written when the decision was made rather than afterwards.
+  The section that earns its keep is "alternatives considered": a record without one is a
+  justification, not a decision.
+</p>
+
+<div class="scroll">
+  <table>
+    <thead><tr><th class="num">ADR</th><th>Decision</th></tr></thead>
+    <tbody>
+      {% for adr in adrs %}
+      <tr>
+        <td class="num"><code>{{ adr.number }}</code></td>
+        <td><a href="{{ adr.href }}">{{ adr.title }}</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p>
+  Each also carries a "consequences" section listing what the decision cost, including the bugs
+  it caused. Several of those are more useful than the decision itself.
+</p>
+
+{% endblock %}

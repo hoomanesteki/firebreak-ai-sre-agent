@@ -241,3 +241,4 @@ reports/lab/alerts.jsonl
 # needs them, and the leakage control is the import rule in
 # `config/leakage.yaml` rather than the labels being absent from the repository.
 /bundles/
+site/dist/

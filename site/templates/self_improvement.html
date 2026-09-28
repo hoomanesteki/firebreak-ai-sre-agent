@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block content %}
+
+<h1>Self-improvement</h1>
+<p class="lead">
+  A wrong report should become an evaluation task. The loop that does that is built, tested, and
+  has never run against a model, so this page describes a mechanism rather than a result.
+</p>
+
+<div class="note">
+  <strong>Nothing here has improved anything yet.</strong>
+  Prompt optimisation needs a model to generate candidates and a reflection model to critique
+  them. Neither is configured, so the optimiser reports its baseline and stops. The machinery
+  below is covered by tests; what it would achieve is unmeasured, and the honest figure for
+  "how much did optimisation help" is that it has not been attempted.
+</div>
+
+<h2>The loop</h2>
+<ol>
+  <li>A report is published with its claims, citations and the incident it came from.</li>
+  <li>A person answers one question on the Feedback page: was the root cause right.</li>
+  <li>A wrong answer becomes a labelled evaluation task, so the failure joins the benchmark.</li>
+  <li>Memory records what was learned about that service, available only on train scenarios.</li>
+  <li>Prompt optimisation runs offline over train, and is gated against validation before anything ships.</li>
+</ol>
+
+<h2>Memory is train-only, and a test proves it</h2>
+<p>
+  A memory of "payment failed like this last time" is ground truth wearing a different hat. If
+  the agent could read memories written during a held-out evaluation, the benchmark would be
+  measuring recall rather than investigation.
+</p>
+<p>
+  So memory writes are refused for anything outside train, and a leakage test walks the import
+  graph to prove the agent packages have no route to the label package at all. That test has
+  caught two real routes during development, both of which looked harmless: one module imported
+  the scenario package for a single enum value, and the demo package imported scenario specs to
+  build bundles. Neither was a leak; both were routes a leak could later travel.
+</p>
+
+<h2>Optimisation is gated, not trusted</h2>
+<p>
+  GEPA proposes prompt variants against train scenarios. A variant ships only if it is not worse
+  than the current prompt on validation, judged by a paired bootstrap whose interval must exclude
+  zero. An optimiser that improved a training figure and quietly cost accuracy elsewhere is the
+  normal outcome, not the unlucky one.
+</p>
+<p>
+  Prompts are versioned files with a stamp recorded on every run, so a report can be traced to
+  the exact prompt that produced it.
+</p>
+
+<h2>What did not improve</h2>
+<p>
+  This section is meant to carry the honest half of the story and it is empty for the same reason
+  the rest of the page is: no optimisation run has happened. What is already known from
+  development, and is not an optimisation result:
+</p>
+<ul>
+  <li>
+    The abstention threshold could be retuned to roughly double sensitivity on the recordings
+    available, at no measured cost in specificity, and that change was refused. One no-fault
+    recording is not enough evidence to loosen the check that prevents naming a service on a
+    healthy system, and the two faults it would still miss score below the healthy recording, so
+    no threshold on a top anomaly score can catch them without crying wolf.
+  </li>
+  <li>
+    The ranking blames the frontend for payment failures: the symptom rather than the cause.
+    Personalised PageRank over the service graph was supposed to separate those and does not,
+    on the recordings available.
+  </li>
+</ul>
+<p>
+  Both are recorded in the phase reports with the evidence behind them.
+</p>
+
+{% endblock %}

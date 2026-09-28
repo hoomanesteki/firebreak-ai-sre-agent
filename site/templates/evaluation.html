@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block content %}
+
+<h1>Evaluation</h1>
+<p class="lead">
+  The harness, the splits, the graders, and an honest account of what has and has not been
+  measured. This page exists to make a claim checkable, which includes making the absence of a
+  claim visible.
+</p>
+
+{{ ui.no_results_note() }}
+
+<h2>The headline figures</h2>
+<div class="cards">
+  {{ ui.metric_card(number("root_cause_accuracy_test_id")) }}
+  {{ ui.metric_card(number("root_cause_accuracy_test_ood")) }}
+  {{ ui.metric_card(number("baseline_root_cause_accuracy_test_id")) }}
+  {{ ui.metric_card(number("abstention_accuracy_test_id")) }}
+  {{ ui.metric_card(number("cost_per_investigation_usd")) }}
+</div>
+
+<h2>Why a figure that exists is still not a result</h2>
+<p>
+  <code>reports/eval/</code> holds eight reports and not one of them is quotable. Each says so in
+  its own file, under <code>quotable_as_a_result</code>, with the reason attached. Three kinds of
+  reason come up, and the difference between them matters:
+</p>
+<div class="scroll">
+  <table>
+    <thead><tr><th>Reason</th><th>What the figure actually measures</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Synthetic fixtures</td>
+        <td>
+          Bundles generated from a spec rather than recorded from a running system. Useful for
+          building the harness and nothing else. The largest single finding in this project is
+          that fixtures are a different scale of difficulty from recordings rather than merely an
+          easier one: the same deterministic triage scores far higher on fixtures than on real
+          recordings of the same faults.
+        </td>
+      </tr>
+      <tr>
+        <td>Partly recorded split</td>
+        <td>
+          A real measurement of a small sample. Eight of sixteen validation scenarios are
+          recorded, so the figure is true about those eight and says nothing about the split.
+        </td>
+      </tr>
+      <tr>
+        <td>Tuning split</td>
+        <td>
+          How well the system fits data it was developed against. Thresholds and prompts were
+          chosen using validation, so a validation figure measures fit, not performance.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+<div class="note">
+  <strong>A report can also go stale, and that is worse than a missing one.</strong>
+  A report is a snapshot. One in this repository was computed over a single recorded incident
+  that was later deleted for recording corruption, so it describes a state that no longer exists
+  while still satisfying "every number traces to a report". The build checks a report's recorded
+  count against the bundles present and refuses to publish from one that no longer matches.
+</div>
+
+<h2>Splits</h2>
+<div class="scroll">
+  <table>
+    <thead><tr><th>Split</th><th class="num">Specs</th><th>Used for</th></tr></thead>
+    <tbody>
+      {% for name, count in library.specs_by_split.items() %}
+      <tr>
+        <td><code>{{ name }}</code></td>
+        <td class="num">{{ count }}</td>
+        <td>
+          {% if name == "train" %}Development. Prompts and thresholds may see it.
+          {% elif name == "validation" %}Tuning and model selection. A figure from it measures fit.
+          {% elif name == "test_id" %}Held out. Same fault types, different variants, loads and seeds.
+          {% elif name == "test_ood" %}Held out. Whole fault families removed from train and validation, so it asks whether the system generalised or memorised.
+          {% else %}See SPEC.md Section 8.2.
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p>
+  Splitting is by scenario spec, not by recording, so no spec appears in two splits and a second
+  recording of the same fault cannot leak an answer across the boundary.
+  {{ library.recordings_note }}
+</p>
+
+<h2>Graders</h2>
+<div class="scroll">
+  <table>
+    <thead><tr><th>Grader</th><th>Asks</th><th>Does not apply when</th></tr></thead>
+    <tbody>
+      <tr><td><code>root_cause</code></td><td>Is the named service the injected one, at rank 1.</td><td>The incident has no fault, so there is nothing to name.</td></tr>
+      <tr><td><code>root_cause_top3</code></td><td>Is it anywhere in the top three.</td><td>As above.</td></tr>
+      <tr><td><code>abstention</code></td><td>Did it abstain exactly when it should have.</td><td>Never. This is the grader for the no-fault cases.</td></tr>
+      <tr><td><code>fault_class</code></td><td>Is the mechanism right, not just the service.</td><td>No fault.</td></tr>
+      <tr><td><code>onset</code></td><td>How far off is the stated start time.</td><td>A bundle with no measurable flag convergence.</td></tr>
+      <tr><td><code>evidence_validity</code></td><td>Does every citation re-run to the same bytes.</td><td>Never. It applies to abstentions too.</td></tr>
+      <tr><td><code>remediation</code></td><td>Would the proposal have fixed it.</td><td>No proposal was made.</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>
+  Two graders rather than one for the naming question, because a single grader scoring both
+  identification and abstention would let a system that abstains everywhere look like one that
+  identifies everything. A no-fault task is <em>not applicable</em> to the root-cause grader, and
+  that is reported rather than counted as a pass.
+</p>
+
+<h2>How a claim is checked</h2>
+<p>
+  Accuracy is reported with a bootstrap confidence interval, not as a bare number, because a
+  figure over eight scenarios and a figure over eighty are not the same kind of statement.
+  Comparisons between configurations are paired by incident and use a paired bootstrap, so the
+  interval reflects the same incidents being compared rather than two independent samples.
+  A configuration is only accepted over its baseline when the interval excludes zero.
+</p>
+
+<h2>Baselines and ablations</h2>
+<div class="scroll">
+  <table>
+    <thead><tr><th>Configuration</th><th>Is</th></tr></thead>
+    <tbody>
+      <tr><td><code>b0</code></td><td>Deterministic triage alone, no model. The floor any agent has to beat.</td></tr>
+      <tr><td><code>b1</code></td><td>A single-agent ReAct loop with the same tools.</td></tr>
+      <tr><td><code>b2</code></td><td>The same loop without the knowledge graph.</td></tr>
+      <tr><td><code>fb-v1</code></td><td>The full system.</td></tr>
+      <tr><td><code>a1</code> to <code>a6</code></td><td>Ablations, each removing one component to see what it was worth.</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>
+  <code>b0</code> is the important one. A multi-agent system that cannot beat a page of statistics
+  is a multi-agent system that should not exist, and the comparison is reported whichever way it
+  comes out.
+</p>
+
+<h2>Every row this site publishes</h2>
+<div class="scroll">
+  <table>
+    <thead><tr><th>Metric</th><th>Value</th><th>Source</th></tr></thead>
+    <tbody>
+      {% for row in readme_rows %}
+      <tr><td>{{ row.metric }}</td><td>{{ row.value }}</td><td><code>{{ row.source }}</code></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p>
+  Reports considered for this build, newest per configuration and split, chosen by the report's
+  own <code>generated_at</code> rather than by modification time, which a git checkout rewrites:
+</p>
+<div class="scroll">
+  <table>
+    <thead><tr><th>Configuration and split</th><th>Report</th></tr></thead>
+    <tbody>
+      {% for name, path in stats.reports_considered.items() %}
+      <tr><td><code>{{ name }}</code></td><td><code>{{ path }}</code></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

@@ -4,7 +4,7 @@ SHELL := /bin/bash
 
 .PHONY: help setup verify lint format types test test-cov hygiene leakage clean unhide \
         live live-config live-down live-logs lab-flags lab-library lab-bundles lab-package lab-verify lab-smoke lab-webhook lab-record lab-record-library \
-        graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates eval-b0 eval eval-compare eval-gate eval-regression cost-table optimize prompts cassettes demo-offline demo console spec-check site-stats site-stats-check ci-status
+        graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates eval-b0 eval eval-compare eval-gate eval-regression cost-table optimize prompts cassettes demo-offline demo console spec-check site site-stats site-stats-check ci-status
 
 help:  ## Show the available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -52,9 +52,9 @@ types:  ## Type check src and scripts with mypy strict, for every platform we ru
 	# body is, and warn_unreachable turns whichever half is dead into an error.
 	# A darwin-only local run passed while CI's Linux run failed, which is
 	# exactly the failure this catches before a push.
-	uv run mypy --platform darwin src scripts
-	uv run mypy --platform linux src scripts
-	uv run mypy --platform win32 src scripts
+	uv run mypy --platform darwin src scripts site
+	uv run mypy --platform linux src scripts site
+	uv run mypy --platform win32 src scripts site
 
 test:  ## Run the test suite with the coverage floor
 	uv run pytest --cov --cov-report=term-missing
@@ -267,6 +267,9 @@ demo: live-config  ## Run an investigation against the live stack
 
 cost-table:  ## Cost versus accuracy for all-strong, all-small and the cascade
 	PYTHONPATH=src uv run python scripts/cost_accuracy_table.py --split $(or $(SPLIT),validation)
+
+site:  ## Build the static site into site/dist
+	PYTHONPATH=src uv run python site/build.py
 
 site-stats:  ## Regenerate reports/site_stats.json, the only source of published numbers
 	PYTHONPATH=src uv run python scripts/build_site_stats.py

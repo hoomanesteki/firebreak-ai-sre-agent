@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Security</h1>
+<p class="lead">
+  An agent that reads attacker-controlled text and can propose changes to production is two
+  problems, not one. The design answer is that the component which decides and the component
+  which holds credentials are never the same process.
+</p>
+
+<h2>The separation</h2>
+<p>
+  Firebreak cannot execute a remediation. It writes a proposal. A separate approval service holds
+  the only credentials that can act, requires a person, and verifies afterwards that the metric
+  it was supposed to fix actually recovered. The Console has no approve button, and says so on
+  the page, because adding one would put the decision and the credential back together.
+</p>
+<p>
+  This is enforced rather than documented: a test walks the import graph and fails if any agent
+  module can reach the module that holds credentials.
+</p>
+
+<h2>Prompt injection through telemetry</h2>
+<p>
+  The realistic attack is not a user typing at the agent. It is a log line. A service under
+  attack writes whatever the attacker sent into its logs, Firebreak reads those logs as evidence,
+  and the text arrives inside a prompt.
+</p>
+<p>
+  So content retrieved from telemetry is marked as data and never treated as instruction, and the
+  red-team suite injects payloads into recorded logs and asserts that no proposal is made and the
+  withheld-content marker appears. The payloads live in the repository so the suite can be
+  extended rather than trusted.
+</p>
+
+<h2>Traces carry shapes, never content</h2>
+<p>
+  Firebreak emits its own OpenTelemetry spans describing what it did: which node ran, which tool
+  it called, how many tokens it spent, how many rows came back. A prompt becomes a twelve
+  character hash.
+</p>
+<p>
+  That is a security decision and it is the one with consequences outside the repository. Traces
+  go to a collector, often a shared one, retained longer than anything else, and read by people
+  who were never given access to the incident. A span carrying the prompt carries the customer
+  identifiers and hostnames inside it, outward, by default. An error records the exception type
+  and not its message, because a tool's message can quote the data that caused it.
+</p>
+<p>
+  The switch that includes content exists for local debugging, is off, and writes its own value
+  onto every root span, so a trace says whether it is carrying content rather than leaving a
+  reader to notice.
+</p>
+
+<h2>The Console binds to loopback</h2>
+<p>
+  It renders incident telemetry and has no authentication, because adding one would be a login
+  system nobody reviewed. Reaching it from another machine takes a deliberate environment
+  variable rather than being the default behaviour of starting it.
+</p>
+
+<h2>Limits</h2>
+<ul>
+  <li>
+    The audit log is hash-chained, which makes tampering evident rather than impossible. Anyone
+    who can rewrite the file can rewrite the chain; what they cannot do is change one entry
+    without the rest failing to verify.
+  </li>
+  <li>
+    The red-team suite proves the payloads it contains are handled. It does not prove the next
+    payload will be.
+  </li>
+  <li>
+    A dependency advisory with no fix available is carried explicitly in the threat model with
+    the reason, rather than suppressed in a config file.
+  </li>
+</ul>
+<p>
+  The full threat model, including the OWASP agentic mapping, is in
+  <a href="{{ repository }}/blob/main/docs/threat-model.md"><code>docs/threat-model.md</code></a>.
+</p>
+
+{% endblock %}

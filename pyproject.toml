@@ -96,12 +96,15 @@ extend-immutable-calls = ["typer.Option", "typer.Argument"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["ANN", "T20"]
+# Both are commands a person runs and reads the output of, so they print. The rule stays
+# on for `src/`, where it is right: library code that prints cannot be embedded.
 "scripts/**" = ["T20"]
+"site/**" = ["T20"]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["src", "scripts"]
+files = ["src", "scripts", "site"]
 warn_unreachable = true
 show_error_codes = true
 
