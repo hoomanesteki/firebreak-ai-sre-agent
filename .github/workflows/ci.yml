@@ -74,9 +74,9 @@ jobs:
         # warn_unreachable error on the other platform. A darwin-only local run
         # passed while this step failed on Linux.
         run: |
-          uv run mypy --platform darwin src scripts
-          uv run mypy --platform linux src scripts
-          uv run mypy --platform win32 src scripts
+          uv run mypy --platform darwin src scripts site
+          uv run mypy --platform linux src scripts site
+          uv run mypy --platform win32 src scripts site
 
       - name: Test
         # FIREBREAK_REQUIRE_NEO4J turns the integration tests' skip into a
