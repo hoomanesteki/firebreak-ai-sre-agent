@@ -21,6 +21,10 @@ dependencies = [
     "opentelemetry-exporter-otlp-proto-http>=1.30",
     "fastapi>=0.115",
     "jinja2>=3.1",
+    # The Console is a shipped feature, so the server that runs it is a dependency of the
+    # product rather than of development. It sat in `dev` until Phase 12, which meant an
+    # install without dev groups had the pages and no way to serve them.
+    "uvicorn>=0.34",
 ]
 
 [project.scripts]
@@ -37,7 +41,6 @@ dev = [
     "types-pyyaml>=6.0",
     "scikit-learn>=1.6",
     "scipy>=1.15",
-    "uvicorn>=0.34",
 ]
 
 # Kept out of `dev` because of a real conflict, not for tidiness. drain3 pins
@@ -93,12 +96,15 @@ extend-immutable-calls = ["typer.Option", "typer.Argument"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["ANN", "T20"]
+# Both are commands a person runs and reads the output of, so they print. The rule stays
+# on for `src/`, where it is right: library code that prints cannot be embedded.
 "scripts/**" = ["T20"]
+"site/**" = ["T20"]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["src", "scripts"]
+files = ["src", "scripts", "site"]
 warn_unreachable = true
 show_error_codes = true
 
@@ -139,4 +145,10 @@ omit = ["src/firebreak/web/*", "src/firebreak/cli/*"]
 
 [tool.coverage.report]
 fail_under = 85
+# Two decimals, because the default of zero makes the gate round before comparing.
+# coverage's should_fail_under is `round(total, precision) < fail_under`, so at precision 0
+# a total of 84.97 rounds to 85 and passes, while pytest-cov's summary line uses a plain
+# comparison and prints "FAIL Required test coverage of 85.0% not reached". The message and
+# the exit code disagreed, and the effective floor was 84.5 rather than 85.
+precision = 2
 show_missing = true

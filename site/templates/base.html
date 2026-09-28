@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ page_title }}{% if page_name != "index.html" %} | Firebreak{% endif %}</title>
+<meta name="description" content="Firebreak: a multi-agent AI SRE that investigates production incidents and cites re-runnable evidence.">
+{# No fonts fetched and no CDN. A page that needs the network to render cannot be read
+   offline, and this project's own demo is the offline case. System faces it is. #}
+<style>
+:root {
+  --ink: #16181d;
+  --ink-soft: #55596a;
+  --ink-faint: #878c9e;
+  --paper: #fbfbfc;
+  --panel: #ffffff;
+  --line: #e2e4ea;
+  --accent: #b4381f;
+  --accent-soft: #fdf1ee;
+  --warn-bg: #fff8e8;
+  --warn-line: #e6cf9a;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e9eaee;
+    --ink-soft: #a9aebf;
+    --ink-faint: #7a7f91;
+    --paper: #14161a;
+    --panel: #1b1e24;
+    --line: #2c3038;
+    --accent: #e8734f;
+    --accent-soft: #2a1d18;
+    --warn-bg: #2a2416;
+    --warn-line: #574a2a;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.62 var(--sans);
+  -webkit-text-size-adjust: 100%;
+}
+.wrap { max-width: 56rem; margin: 0 auto; padding: 0 1.4rem; }
+header.top { border-bottom: 1px solid var(--line); background: var(--panel); }
+header.top .wrap { display: flex; flex-wrap: wrap; align-items: baseline; gap: 1rem; padding-top: 1rem; padding-bottom: 1rem; }
+.brand { font-size: 1.15rem; font-weight: 650; letter-spacing: -0.015em; text-decoration: none; color: var(--ink); }
+.brand span { color: var(--accent); }
+nav.top { display: flex; flex-wrap: wrap; gap: 0.15rem 1rem; margin-left: auto; font-size: 0.9rem; }
+nav.top a { color: var(--ink-soft); text-decoration: none; padding: 0.15rem 0; border-bottom: 2px solid transparent; }
+nav.top a:hover { color: var(--ink); }
+nav.top a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--accent); }
+main { padding: 2.4rem 0 3.5rem; }
+h1 { font-size: 1.95rem; line-height: 1.22; letter-spacing: -0.02em; margin: 0 0 0.6rem; }
+h2 { font-size: 1.28rem; letter-spacing: -0.01em; margin: 2.4rem 0 0.7rem; }
+h3 { font-size: 1.02rem; margin: 1.6rem 0 0.4rem; }
+p { margin: 0 0 0.95rem; }
+.lead { font-size: 1.08rem; color: var(--ink-soft); margin-bottom: 1.6rem; }
+a { color: var(--accent); }
+code, pre { font-family: var(--mono); font-size: 0.875em; }
+pre {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  padding: 0.85rem 1rem; overflow-x: auto; margin: 0 0 1rem;
+}
+code:not(pre code) { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 0.08em 0.32em; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.1rem 1.25rem; margin: 0 0 1.1rem; }
+.note { background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 8px; padding: 1rem 1.2rem; margin: 0 0 1.4rem; }
+.note strong { display: block; margin-bottom: 0.3rem; }
+.scroll { overflow-x: auto; margin: 0 0 1.2rem; }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+th, td { text-align: left; padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; color: var(--ink-soft); font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; margin: 0 0 1.4rem; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.1rem 1.2rem; }
+.card .label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); margin-bottom: 0.45rem; }
+.card .value { font-size: 1.32rem; font-weight: 600; letter-spacing: -0.01em; line-height: 1.3; }
+.card .value.absent { font-size: 1rem; font-weight: 500; color: var(--ink-soft); }
+.card .src { font-size: 0.78rem; color: var(--ink-faint); margin-top: 0.55rem; word-break: break-all; }
+.badge {
+  display: inline-block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em;
+  border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.55rem; color: var(--ink-soft);
+  background: var(--paper); white-space: nowrap;
+}
+.badge.absent, .badge.stale { border-color: var(--warn-line); background: var(--warn-bg); color: var(--ink); }
+ul, ol { margin: 0 0 1rem; padding-left: 1.3rem; }
+li { margin-bottom: 0.32rem; }
+figure { margin: 0 0 1.3rem; }
+figcaption { font-size: 0.85rem; color: var(--ink-soft); margin-top: 0.45rem; }
+svg { max-width: 100%; height: auto; }
+footer.bottom { border-top: 1px solid var(--line); background: var(--panel); font-size: 0.85rem; color: var(--ink-soft); }
+footer.bottom .wrap { padding: 1.3rem 1.4rem; }
+footer.bottom p { margin: 0 0 0.4rem; }
+@media (max-width: 34rem) {
+  h1 { font-size: 1.6rem; }
+  nav.top { margin-left: 0; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="index.html">fire<span>break</span></a>
+    <nav class="top">
+      {% for name, title in pages %}
+      <a href="{{ name }}"{% if name == page_name %} aria-current="page"{% endif %}>{{ title }}</a>
+      {% endfor %}
+      <a href="{{ repository }}">Source</a>
+    </nav>
+  </div>
+</header>
+<main>
+  <div class="wrap">
+{% block content %}{% endblock %}
+  </div>
+</main>
+<footer class="bottom">
+  <div class="wrap">
+    <p>
+      Every number on this site is generated by <code>scripts/build_site_stats.py</code> from a
+      file in <code>reports/</code>, and each one names the file it came from. A build fails
+      rather than render a number it cannot source.
+    </p>
+    <p>
+      Built from commit <code>{{ commit }}</code> at {{ generated_at }}.
+      {{ unmeasured_count }} of {{ metric_count }} metrics are unmeasured, for the reasons each
+      one states.
+    </p>
+    <p>
+      Firebreak is MIT licensed. The target system is the
+      <a href="https://github.com/open-telemetry/opentelemetry-demo">OpenTelemetry Demo</a>,
+      Apache-2.0, used at a pinned release.
+    </p>
+  </div>
+</footer>
+</body>
+</html>

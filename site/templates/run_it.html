@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Run it</h1>
+<p class="lead">
+  The offline path needs no model, no Docker and no network, and it is the path this project is
+  built to work on. Everything else needs something you have to supply.
+</p>
+
+<h2>Offline, on a fresh clone</h2>
+<pre>git clone {{ repository }}.git
+cd firebreak-ai-sre-agent
+make setup
+make demo-offline</pre>
+<p>
+  That rebuilds {{ showcase.incidents }} incidents from their scenario specs, replays each one
+  against {{ showcase.cassettes }} recorded model answers, and fails if any of them stops
+  reproducing. It is wired into <code>make verify</code>, so it is checked on every commit rather
+  than being a demo that rots.
+</p>
+<div class="note">
+  <strong>The demo replays stub answers, not a model.</strong>
+  The cassettes were recorded from mode <code>{{ showcase.recorded_from_mode }}</code>, which the
+  demo prints before its first line. It demonstrates that the whole path runs and reproduces. It
+  is not evidence about model quality, and its per-incident results are far better than the
+  measured ones because it runs on fixtures.
+</div>
+
+<h2>The Console</h2>
+<pre>make console   # http://127.0.0.1:8080</pre>
+<p>
+  Six pages over what Firebreak already produced: incidents, one investigation step by step, a
+  report with every claim linked to its evidence, the approval queue, evaluation, and feedback.
+  It reads files and computes nothing, so a number on a page came from a file something else
+  wrote. It binds to loopback; see <a href="security.html">Security</a> for why.
+</p>
+<p>
+  Run <code>make demo-offline</code> first, or every page will correctly tell you it has nothing
+  to show and name the command that would fill it.
+</p>
+
+<h2>With a local model</h2>
+<pre>export LLM_BASE_URL=http://localhost:11434/v1
+export LLM_API_KEY=ollama
+make demo-offline   # now exercises the real loop</pre>
+<p>
+  Any OpenAI-compatible endpoint works, Ollama included. Without credentials the graph's
+  deterministic floor publishes triage's answer with a label saying no AI analysis happened,
+  rather than failing or pretending.
+</p>
+
+<h2>The live stack</h2>
+<pre>make live     # the pinned OpenTelemetry Demo plus Firebreak's overlay
+make demo     # an investigation against it</pre>
+<p>
+  Needs Docker and about 6 GB of memory. The target system is the OpenTelemetry Demo at a pinned
+  release, with an overlay adding a service graph connector and alert rules. Nothing inside
+  <code>vendor/</code> is edited, so the pin means what it says.
+</p>
+
+<h2>Recording new incidents</h2>
+<pre>make lab-verify                      # is the stack fit to record from
+make lab-record SPEC=&lt;scenario-id&gt;   # one scenario
+make lab-record-library              # the library, resumably</pre>
+<p>
+  A scenario's baseline, incident and recovery have to actually happen, so the full library is
+  roughly 36 hours of wall clock and there is no compressing it. The recorder is resumable and
+  decides what to skip from the bundles on disk rather than from its own progress file, because a
+  progress file can be stale and a bundle either exists or does not.
+</p>
+<div class="note">
+  <strong>Record on mains power.</strong>
+  Six of the first fourteen recordings were corrupted by a laptop sleeping mid-run: the monotonic
+  clock stops while the wall clock jumps, so a bundle looks complete and has a hole in it. The
+  recorder now checks duration and sample continuity and refuses such a bundle, but the cheaper
+  fix is a power cable.
+</div>
+
+<h2>Checks</h2>
+<pre>make verify        # lint, types on three platforms, tests, hygiene, leakage, offline demo
+make spec-check    # the repository against SPEC.md's own tables
+make site-stats    # regenerate every number this site and the README publish
+make ci-status     # what CI said about HEAD</pre>
+
+{% endblock %}

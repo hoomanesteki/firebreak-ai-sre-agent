@@ -1,0 +1,151 @@
+{
+  "commit": "6a4835b45b58f499b061583127b74243aac062b6-dirty",
+  "generated_at": "2026-09-28T03:01:56.668270+00:00",
+  "honesty": "A metric is published as a number only when its report says quotable_as_a_result. Everything else is a stated absence with its reason. 5 of 5 metrics are unmeasured.",
+  "library": {
+    "recordings_note": "Recordings are not in this repository. Bundles average 7.6 MB and bundles/ is git-ignored; they ship as a release asset with checksums.",
+    "source": "scenarios/specs",
+    "specs": 114,
+    "specs_by_split": {
+      "test_id": 29,
+      "test_ood": 30,
+      "train": 39,
+      "validation": 16
+    }
+  },
+  "local": {
+    "bundles_present": true,
+    "note": "Derived from bundles on disk, so it describes the machine that ran the build. Not published on any page and not compared by --check.",
+    "recorded_by_split": {
+      "test_id": 0,
+      "test_ood": 0,
+      "train": 0,
+      "validation": 8
+    },
+    "stale_reports": {
+      "b0/test_ood": "the report was computed over 1 recorded scenario(s) and 0 are on disk now, so it describes a state that no longer exists"
+    }
+  },
+  "metrics": {
+    "abstention_accuracy_test_id": {
+      "caveats": [
+        "No report exists for this configuration and split."
+      ],
+      "display": "not measured: the held-out splits have no recordings",
+      "key": "abstention_accuracy_test_id",
+      "label": "Abstention accuracy, held-out ID test",
+      "mode": "absent",
+      "quotable": false,
+      "source": "",
+      "value": null
+    },
+    "baseline_root_cause_accuracy_test_id": {
+      "caveats": [
+        "These figures come from synthetic fixtures, not recorded incidents. They are a design signal for building the harness and must never be quoted as a result. Record the incident library and re-run to obtain real figures."
+      ],
+      "display": "not a result: this report is over synthetic fixtures, not recorded incidents",
+      "key": "baseline_root_cause_accuracy_test_id",
+      "label": "B0 triage accuracy, held-out ID test",
+      "mode": "synthetic fixtures",
+      "quotable": false,
+      "source": "reports/eval/b0/test_id/2026-09-25_edb92d082888.json",
+      "value": null
+    },
+    "cost_per_investigation_usd": {
+      "caveats": [
+        ""
+      ],
+      "display": "not measured: no model has run, so there is no model result to report",
+      "key": "cost_per_investigation_usd",
+      "label": "Cost per investigation",
+      "mode": "absent",
+      "quotable": false,
+      "source": "",
+      "value": null
+    },
+    "root_cause_accuracy_test_id": {
+      "caveats": [
+        "No report exists for this configuration and split."
+      ],
+      "display": "not measured: the held-out splits have no recordings",
+      "key": "root_cause_accuracy_test_id",
+      "label": "Root cause accuracy, held-out ID test",
+      "mode": "absent",
+      "quotable": false,
+      "source": "",
+      "value": null
+    },
+    "root_cause_accuracy_test_ood": {
+      "caveats": [
+        "No report exists for this configuration and split."
+      ],
+      "display": "not measured: the held-out splits have no recordings",
+      "key": "root_cause_accuracy_test_ood",
+      "label": "Root cause accuracy, held-out OOD test",
+      "mode": "absent",
+      "quotable": false,
+      "source": "",
+      "value": null
+    }
+  },
+  "readme_rows": [
+    {
+      "metric": "Scenario library",
+      "source": "scenarios/specs",
+      "value": "114 scenario specs; recordings ship as a release asset, not in this repository"
+    },
+    {
+      "metric": "Offline demo",
+      "source": "recordings/cassettes/manifest.json",
+      "value": "10 incidents, 56 cassettes recorded from mode stub"
+    },
+    {
+      "metric": "Root cause accuracy, held-out ID test",
+      "source": "no report",
+      "value": "not measured: the held-out splits have no recordings"
+    },
+    {
+      "metric": "Root cause accuracy, held-out OOD test",
+      "source": "no report",
+      "value": "not measured: the held-out splits have no recordings"
+    },
+    {
+      "metric": "B0 triage accuracy, held-out ID test",
+      "source": "reports/eval/b0/test_id/2026-09-25_edb92d082888.json",
+      "value": "not a result: this report is over synthetic fixtures, not recorded incidents"
+    },
+    {
+      "metric": "Abstention accuracy, held-out ID test",
+      "source": "no report",
+      "value": "not measured: the held-out splits have no recordings"
+    },
+    {
+      "metric": "Cost per investigation",
+      "source": "no report",
+      "value": "not measured: no model has run, so there is no model result to report"
+    }
+  ],
+  "reports_considered": {
+    "a1/validation": "reports/eval/a1/validation/2026-09-26_bd113c8b3ed2.json",
+    "a5/validation": "reports/eval/a5/validation/2026-09-27_f5e34ca6da1f-dirty.json",
+    "b0/test_id": "reports/eval/b0/test_id/2026-09-25_edb92d082888.json",
+    "b0/test_ood": "reports/eval/b0/test_ood/2026-09-25_b82d75b00fa6.json",
+    "b0/validation": "reports/eval/b0/validation/2026-09-26_bd113c8b3ed2.json",
+    "b1/validation": "reports/eval/b1/validation/2026-09-26_bd113c8b3ed2.json",
+    "b2/validation": "reports/eval/b2/validation/2026-09-26_bd113c8b3ed2.json",
+    "fb-v1/validation": "reports/eval/fb-v1/validation/2026-09-27_f5e34ca6da1f-dirty.json"
+  },
+  "showcase": {
+    "cassettes": 56,
+    "incidents": 10,
+    "recorded_from_mode": "stub",
+    "source": "recordings/cassettes/manifest.json"
+  },
+  "unmeasured": [
+    "root_cause_accuracy_test_id",
+    "root_cause_accuracy_test_ood",
+    "baseline_root_cause_accuracy_test_id",
+    "abstention_accuracy_test_id",
+    "cost_per_investigation_usd"
+  ]
+}

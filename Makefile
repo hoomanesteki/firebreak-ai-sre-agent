@@ -4,7 +4,7 @@ SHELL := /bin/bash
 
 .PHONY: help setup verify lint format types test test-cov hygiene leakage clean unhide \
         live live-config live-down live-logs lab-flags lab-library lab-bundles lab-package lab-verify lab-smoke lab-webhook lab-record lab-record-library \
-        graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates eval-b0 eval eval-compare eval-gate eval-regression cost-table optimize prompts cassettes demo-offline demo console spec-check ci-status
+        graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates eval-b0 eval eval-compare eval-gate eval-regression cost-table optimize prompts cassettes demo-offline demo console spec-check site site-stats site-stats-check verify-clean ci-status
 
 help:  ## Show the available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -35,7 +35,7 @@ unhide:
 		chflags nohidden .venv/lib/python*/site-packages/*.pth 2>/dev/null || true; \
 	fi
 
-verify: unhide lint types test hygiene leakage spec-check demo-offline  ## Run every check the review gate expects
+verify: unhide lint types test hygiene leakage spec-check site-stats-check demo-offline  ## Run every check the review gate expects
 
 lint:  ## Lint and check formatting
 	uv run ruff check .
@@ -52,9 +52,9 @@ types:  ## Type check src and scripts with mypy strict, for every platform we ru
 	# body is, and warn_unreachable turns whichever half is dead into an error.
 	# A darwin-only local run passed while CI's Linux run failed, which is
 	# exactly the failure this catches before a push.
-	uv run mypy --platform darwin src scripts
-	uv run mypy --platform linux src scripts
-	uv run mypy --platform win32 src scripts
+	uv run mypy --platform darwin src scripts site
+	uv run mypy --platform linux src scripts site
+	uv run mypy --platform win32 src scripts site
 
 test:  ## Run the test suite with the coverage floor
 	uv run pytest --cov --cov-report=term-missing
@@ -267,6 +267,18 @@ demo: live-config  ## Run an investigation against the live stack
 
 cost-table:  ## Cost versus accuracy for all-strong, all-small and the cascade
 	PYTHONPATH=src uv run python scripts/cost_accuracy_table.py --split $(or $(SPLIT),validation)
+
+verify-clean:  ## Run CI's checks in a fresh clone, to catch local-only passes
+	PYTHONPATH=src uv run python scripts/verify_clean_clone.py $(if $(DIRTY),--allow-dirty,)
+
+site:  ## Build the static site into site/dist
+	PYTHONPATH=src uv run python site/build.py
+
+site-stats:  ## Regenerate reports/site_stats.json, the only source of published numbers
+	PYTHONPATH=src uv run python scripts/build_site_stats.py
+
+site-stats-check:  ## Fail if site_stats.json is stale against the reports
+	PYTHONPATH=src uv run python scripts/build_site_stats.py --check
 
 spec-check:  ## Check the repository against SPEC.md's own tables
 	PYTHONPATH=src uv run python scripts/check_spec_conformance.py

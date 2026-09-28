@@ -153,6 +153,40 @@ class TestTheRealRepository:
             assert found.ok, found.late
 
 
+class TestTheLastPhaseIsNotFollowedByAnInventedOne:
+    """`current_phase()` counts reports, so once every phase has one it returns one past the
+    last. The checker printed "Phase 13 is in progress" of a thirteen-phase spec, which invents
+    a phase and leaves every later comparison measuring against nothing.
+
+    This matters precisely at the end of the project, which is when nobody is looking at the
+    tool any more.
+    """
+
+    def test_every_report_written_means_no_phase_is_in_progress(self) -> None:
+        last = max(TASKS)
+        assert current_phase() > last, (
+            "not every phase has a report yet, so this boundary is not reachable; "
+            "remove this test only when SPEC.md gains a phase"
+        )
+
+    def test_the_checker_still_checks_every_phase_at_the_boundary(self) -> None:
+        """Clamping the phase number must not turn the checks off. Every obligation of every
+        phase is still due, because every phase is complete."""
+        last = max(TASKS)
+        for found in (
+            check_configurations(SPEC_TEXT, TASKS, last),
+            check_adrs(SPEC_TEXT, TASKS, last),
+            check_phase_reports(SPEC_TEXT, last),
+        ):
+            assert found.ok, found.late
+
+    def test_the_phase_count_and_the_last_phase_number_differ_by_one(self) -> None:
+        """The off-by-one itself. Phases are numbered from zero, so a thirteen-phase spec ends
+        at twelve, and reporting the count as a phase number is the mistake."""
+        assert max(TASKS) == len(TASKS) - 1
+        assert 0 in TASKS
+
+
 class TestAnUnindexedRecordIsLate:
     def test_every_written_record_is_in_the_index(self) -> None:
         """A record nobody browsing docs/adr/README.md can find may as well not

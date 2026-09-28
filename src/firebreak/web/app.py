@@ -93,12 +93,37 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def generated_at(payload: dict[str, Any]) -> str:
+    """When a report says it was produced, for ordering reports.
+
+    The report's own `generated_at`, and nothing else. Two other keys look usable and are
+    not. The filename carries a date and a commit hash, so two runs on the same day sort by
+    hash, which has nothing to do with which came last. Modification time is worse: git sets
+    it when it writes the file, so a clone, a checkout or a branch switch restamps every
+    report, usually with one identical timestamp, and the ordering becomes whatever the
+    working tree last did.
+
+    That was not theoretical. `reports/eval/b0/validation/` holds a fixture run from
+    2026-09-25 reporting 1.000 root-cause accuracy beside the recorded run reporting 0.143,
+    and under mtime ordering a branch switch promoted the fixture run to B0's validation
+    result. The Evaluation page would have shown this system at perfect accuracy on recorded
+    incidents with nothing in the repository having changed.
+
+    A report with no `generated_at` sorts before every report that has one, rather than
+    raising. It is older than the convention, and taking the page down over it would be a
+    worse answer than showing the newer report.
+    """
+    value = payload.get("generated_at")
+    return value if isinstance(value, str) else ""
+
+
 def latest_eval_reports() -> dict[str, dict[str, Any]]:
     """The most recent eval report for each configuration and split.
 
-    By modification time, not by filename. The filename carries a date and a commit, and
-    two runs on the same day sort by commit hash, which has nothing to do with which came
-    last.
+    By the report's own `generated_at`, for the reasons in that function. The timestamps are
+    ISO 8601 with a fixed offset, so string order is chronological order and no parsing is
+    needed; the filename breaks a tie, so the page shows the same number on every reader's
+    machine rather than whatever the filesystem listed first.
     """
     found: dict[str, dict[str, Any]] = {}
     root = REPORTS_DIR / "eval"
@@ -106,12 +131,15 @@ def latest_eval_reports() -> dict[str, dict[str, Any]]:
         return found
     for configuration in sorted(p for p in root.iterdir() if p.is_dir()):
         for split in sorted(p for p in configuration.iterdir() if p.is_dir()):
-            files = sorted(split.glob("*.json"), key=lambda p: p.stat().st_mtime)
-            if not files:
+            payloads = [
+                (generated_at(payload), path.name, payload)
+                for path in sorted(split.glob("*.json"))
+                if (payload := read_json(path)) is not None
+            ]
+            if not payloads:
                 continue
-            payload = read_json(files[-1])
-            if payload is not None:
-                found[f"{configuration.name}/{split.name}"] = payload
+            payloads.sort(key=lambda entry: (entry[0], entry[1]))
+            found[f"{configuration.name}/{split.name}"] = payloads[-1][2]
     return found
 
 

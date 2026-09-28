@@ -21,6 +21,12 @@ current phase before starting.
 - make setup | make verify | make demo | make demo-offline
 - make live | make lab-record SPEC=... | make eval CONFIG=... SPLIT=...
 - make optimize NODE=...
+- make console | make site | make site-stats | make spec-check
+- make ci-status WATCH=1 after every push. A red build left alone blocks
+  every later phase.
+- make verify-clean before pushing anything that reads files. It runs CI's
+  checks in a fresh clone, which is the only way to catch a test that passes
+  here because of git-ignored local state and fails in CI.
 
 ## Git
 - Commit as the configured owner. No --author, no date changes, no
