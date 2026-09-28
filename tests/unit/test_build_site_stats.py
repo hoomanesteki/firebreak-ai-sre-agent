@@ -239,12 +239,19 @@ class TestOrderingUsesGeneratedAt:
 
 class TestTheGeneratedFileMatchesTheRepository:
     def test_building_it_produces_the_committed_file(self) -> None:
-        """`--check` in CI relies on this being reproducible, timestamps aside."""
+        """`--check` in CI relies on this being reproducible.
+
+        `local` is excluded for the same reason `--check` excludes it: it is derived from
+        bundles on disk, so it differs between a laptop with recordings and CI with none.
+        Comparing it here made this test pass locally and fail in CI, which is the precise
+        failure the `local` section was introduced to avoid and which I reintroduced by
+        leaving this assertion comparing everything.
+        """
         committed = json.loads((REPO_ROOT / "reports" / "site_stats.json").read_text())
         fresh = stats.build()
         for payload in (committed, fresh):
-            payload.pop("generated_at", None)
-            payload.pop("commit", None)
+            for key in ("generated_at", "commit", "local"):
+                payload.pop(key, None)
         assert committed == fresh, "run scripts/build_site_stats.py"
 
     def test_every_readme_row_has_the_keys_hygiene_requires(self) -> None:
