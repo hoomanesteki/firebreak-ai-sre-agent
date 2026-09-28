@@ -26,13 +26,21 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 CONSOLE_DIR = REPO_ROOT / "reports" / "console"
 
 
-def as_console_payload(result: Any) -> dict[str, Any]:
+def as_console_payload(result: Any, *, replayed: bool = False) -> dict[str, Any]:
     """One investigation, in the shape the Console's templates read.
 
     Takes the result structurally rather than by type, so this module needs no import of
     the agent package. That keeps the web layer out of the agent's import graph, which the
     leakage rules care about: `firebreak.web` is an agent package as far as
     `config/leakage.yaml` is concerned.
+
+    `replayed` drops the wall clock, and the reason is the same one that makes the
+    Evaluation page print "not measured" rather than a cost of zero. A replay's elapsed
+    time measures how fast this machine read cassettes off disk, not how long an
+    investigation takes. Storing it would put a number on the Investigation page that says
+    nothing about the system and reads exactly like one that does. It also kept the
+    committed showcase reports permanently dirty, since the one field that varied run to
+    run was the one nobody could use.
     """
     report = result.report
     state = result.state
@@ -46,7 +54,8 @@ def as_console_payload(result: Any) -> dict[str, Any]:
         "notes_run": list(result.notes),
         "rounds": result.rounds,
         "tool_calls": state.budget.tool_calls,
-        "wall_clock_seconds": result.wall_clock_seconds,
+        "wall_clock_seconds": None if replayed else result.wall_clock_seconds,
+        "replayed": replayed,
         "claims": [
             {
                 "text": claim.text,
@@ -85,7 +94,9 @@ def as_console_payload(result: Any) -> dict[str, Any]:
     }
 
 
-def write_console_report(result: Any, directory: Path | None = None) -> Path:
+def write_console_report(
+    result: Any, directory: Path | None = None, *, replayed: bool = False
+) -> Path:
     """Store one investigation for the Console.
 
     Overwrites. An investigation of the same incident is the same incident, and keeping
@@ -96,7 +107,7 @@ def write_console_report(result: Any, directory: Path | None = None) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     path = root / f"{result.report.incident_id}.json"
     path.write_text(
-        json.dumps(as_console_payload(result), indent=2, sort_keys=True) + "\n",
+        json.dumps(as_console_payload(result, replayed=replayed), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     return path

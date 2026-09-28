@@ -601,9 +601,10 @@
   ],
   "notes": [],
   "notes_run": [],
+  "replayed": true,
   "root_cause_service": "checkout",
   "rounds": 1,
   "stopped_because": "complete",
   "tool_calls": 5,
-  "wall_clock_seconds": 0.2067360410001129
+  "wall_clock_seconds": null
 }

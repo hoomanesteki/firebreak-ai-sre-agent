@@ -12,6 +12,7 @@ would be the most misleading thing in the repository.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -28,6 +29,16 @@ from firebreak.demo.showcase import (
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CASSETTES = REPO_ROOT / "recordings" / "cassettes"
+CONSOLE_DIR = REPO_ROOT / "reports" / "console"
+
+
+def _console_digest() -> str:
+    """One hash over every committed showcase report, for comparing across demo runs."""
+    digest = hashlib.sha256()
+    for path in sorted(CONSOLE_DIR.glob("*.json")):
+        digest.update(path.name.encode("utf-8"))
+        digest.update(path.read_bytes())
+    return digest.hexdigest()
 
 
 def run_demo(*arguments: str) -> subprocess.CompletedProcess[str]:
@@ -133,6 +144,31 @@ class TestTheDemoRuns:
     def test_it_shows_abstentions_as_well_as_answers(self) -> None:
         result = run_demo()
         assert "abstained" in result.stdout
+
+    def test_it_leaves_the_committed_reports_byte_identical(self) -> None:
+        """Running the demo must not dirty the tree it ships in.
+
+        The showcase reports are committed, because they are the only thing that makes the
+        Console non-empty on a fresh clone. They are also rewritten by every demo run, and
+        every `make verify`. When the payload stored a replay's wall clock, that made ten
+        tracked files differ after every run, over the one field nobody could use: the
+        elapsed time of reading cassettes off this machine's disk.
+        """
+        before = _console_digest()
+        assert run_demo().returncode == 0
+        assert _console_digest() == before, (
+            "the demo rewrote its own committed reports; some field is not deterministic"
+        )
+
+    def test_a_replayed_report_stores_no_wall_clock(self) -> None:
+        """Same reason the Evaluation page prints "not measured" rather than a cost of
+        zero. A number that describes the replay would read as one describing the system.
+        """
+        for path in sorted(CONSOLE_DIR.glob("*.json")):
+            stored = json.loads(path.read_text(encoding="utf-8"))
+            if not stored.get("replayed"):
+                continue
+            assert stored["wall_clock_seconds"] is None, f"{path.name} timed its replay"
 
 
 class TestItFailsWhenAReplayDoesNotReproduce:

@@ -135,7 +135,10 @@ def main() -> int:
             # Stored where the Console can read it. The demo is the only thing that
             # produces a report on a fresh clone, so without this every Console page would
             # be empty even after a successful demo.
-            write_console_report(result)
+            # `replayed` drops the wall clock. Timing a cassette replay measures this
+            # machine's disk, and storing it also left these committed reports dirty after
+            # every run for the sake of a number nobody can use.
+            write_console_report(result, replayed=True)
 
             replayed += 1
             differences = []

@@ -12,10 +12,26 @@
       <tr><th>Rounds</th><td class="num">{{ report.rounds }}</td></tr>
       <tr><th>Tool calls</th><td class="num">{{ report.tool_calls }}</td></tr>
       <tr><th>Evidence records</th><td class="num">{{ report.evidence | length }}</td></tr>
-      <tr><th>Wall clock</th><td class="num">{{ "%.2f"|format(report.wall_clock_seconds) }} s</td></tr>
+      <tr>
+        <th>Wall clock</th>
+        <td class="num">
+          {% if report.wall_clock_seconds is none %}
+            not meaningful
+          {% else %}
+            {{ "%.2f"|format(report.wall_clock_seconds) }} s
+          {% endif %}
+        </td>
+      </tr>
       <tr><th>Stopped because</th><td><code>{{ report.stopped_because or "complete" }}</code></td></tr>
     </tbody>
   </table>
+  {% if report.replayed %}
+  <p class="caption">
+    This investigation was replayed from recorded model answers, so it has no wall clock.
+    Timing a replay measures how fast this machine reads cassettes off disk, which would
+    look like a figure for how long an investigation takes and is not one.
+  </p>
+  {% endif %}
 </div>
 
 <div class="panel">
