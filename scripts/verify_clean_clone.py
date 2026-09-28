@@ -55,8 +55,19 @@ STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
 NOT_COVERED = (
     "Neo4j integration tests, which need the service container CI provides. They skip here.",
     "The dependency audit, which needs the network.",
-    "Submodule drift tests, if the clone has no submodules.",
 )
+
+# Variables that point at the original checkout and would make the clone use its virtualenv.
+# uv warns about the mismatch and carries on, so without this the clone installs nothing and
+# runs against the parent's environment, which is the opposite of the point.
+LOCAL_ONLY_VARIABLES = ("VIRTUAL_ENV", "UV_PROJECT_ENVIRONMENT", "PYTHONPATH", "PYTHONHOME")
+
+# Filled in at run time by whatever the flags turned off, so the closing report names every gap
+# rather than only the permanent ones.
+NOT_COVERED_EXTRA: list[str] = []
+
+# The pinned target system. Named once, because the copy and the status check have to agree.
+SUBMODULE = "vendor/otel-demo"
 
 
 @dataclass
@@ -80,11 +91,77 @@ def run(name: str, command: tuple[str, ...], cwd: Path, environment: dict[str, s
     )
 
 
+def copy_submodule(clone: Path) -> str | None:
+    """Put the pinned demo into the clone, from this checkout rather than from GitHub.
+
+    Returns None on success, or why it could not, so the caller can report the gap.
+
+    **Cloned from the local path rather than fetched.** `git submodule update --init` pulls the
+    whole OpenTelemetry Demo over the network, which took minutes here and then died with a
+    reset connection. This check is meant to run before every push, so it cannot depend on a
+    large fetch succeeding.
+
+    **A clone rather than a directory copy.** Copying the working tree was the first attempt and
+    left two tests failing: they run `git describe --tags --exact-match` inside the submodule,
+    and a copied tree's `.git` file points at the parent's module directory, which does not exist
+    in the clone. Cloning from the local path brings the refs and tags with it, so `describe`
+    answers.
+
+    The recorded pin is checked out explicitly, because the local checkout could be sitting
+    somewhere else and a check whose job is to notice drift must not quietly inherit it.
+    """
+    source = REPO_ROOT / SUBMODULE
+    if not (source / ".git").exists():
+        return f"{SUBMODULE} is not checked out here, so it could not be copied"
+
+    pinned = subprocess.run(
+        ("git", "rev-parse", f"HEAD:{SUBMODULE}"),
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout.strip()
+    if not pinned:
+        return f"the recorded commit for {SUBMODULE} could not be read"
+
+    say(f"  cloning {SUBMODULE} from this checkout at {pinned[:8]}, which needs no network")
+    target = clone / SUBMODULE
+    target.parent.mkdir(parents=True, exist_ok=True)
+    cloned = subprocess.run(
+        ("git", "clone", "--no-hardlinks", "--quiet", str(source), str(target)),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if cloned.returncode != 0:
+        return f"cloning it from the local path failed: {cloned.stderr.strip()[:200]}"
+
+    checked_out = subprocess.run(
+        ("git", "checkout", "--quiet", pinned),
+        cwd=target,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if checked_out.returncode != 0:
+        return f"the recorded commit {pinned[:8]} could not be checked out in the clone"
+    return None
+
+
 def working_tree_is_clean() -> bool:
     completed = subprocess.run(
         ("git", "status", "--porcelain"), cwd=REPO_ROOT, capture_output=True, text=True, check=False
     )
     return completed.returncode == 0 and not completed.stdout.strip()
+
+
+def say(message: str) -> None:
+    """Print and flush.
+
+    Flushed because this takes minutes and Python buffers stdout when it is redirected, so
+    without it a run into a log file shows nothing at all until the end and looks hung.
+    """
+    print(message, flush=True)
 
 
 def main() -> int:
@@ -97,9 +174,13 @@ def main() -> int:
     )
     parser.add_argument("--keep", action="store_true", help="leave the clone for inspection")
     parser.add_argument(
-        "--submodules", action="store_true", help="initialise submodules, as CI does"
+        "--no-submodules",
+        action="store_true",
+        help="skip submodule init. Faster, and about fourteen tests then fail rather than "
+        "skip, because they read the pinned demo's own files on purpose",
     )
     arguments = parser.parse_args()
+    NOT_COVERED_EXTRA.clear()
 
     if not working_tree_is_clean() and not arguments.allow_dirty:
         print(
@@ -111,7 +192,7 @@ def main() -> int:
 
     temporary = Path(tempfile.mkdtemp(prefix="firebreak-clean-"))
     clone = temporary / "clone"
-    print(f"cloning the current commit into {clone}")
+    say(f"cloning the current commit into {clone}")
     # --no-hardlinks so the clone cannot share object files with the original, and no
     # --shared for the same reason. This is meant to behave like somebody else's machine.
     cloned = subprocess.run(
@@ -130,19 +211,25 @@ def main() -> int:
     ).stdout.strip()
     subprocess.run(("git", "checkout", "--quiet", head), cwd=clone, check=False)
 
-    if arguments.submodules:
-        subprocess.run(
-            ("git", "submodule", "update", "--init", "--recursive", "--quiet"),
-            cwd=clone,
-            check=False,
+    # On by default, because CI checks out with submodules and roughly fourteen tests read the
+    # pinned demo's own files deliberately, so that they fail when the pin moves and something
+    # upstream changed underneath. Without the submodule those tests fail rather than skip, and
+    # a check that is always red is a check nobody runs.
+    if arguments.no_submodules:
+        NOT_COVERED_EXTRA.append(
+            "Submodule drift tests: the clone has no submodules, so they fail rather than skip."
         )
+    else:
+        reason = copy_submodule(clone)
+        if reason is not None:
+            NOT_COVERED_EXTRA.append(f"Submodule drift tests: {reason}")
 
     # A clean environment, because inherited FIREBREAK_ and LLM_ variables are exactly the
     # kind of local state this is looking for.
     environment = {
         key: value
         for key, value in os.environ.items()
-        if not key.startswith(("FIREBREAK_", "LLM_"))
+        if not key.startswith(("FIREBREAK_", "LLM_")) and key not in LOCAL_ONLY_VARIABLES
     }
     environment["PYTHONPATH"] = str(clone / "src")
 
@@ -151,11 +238,11 @@ def main() -> int:
         for name, command in STEPS:
             result = run(name, command, clone, environment)
             results.append(result)
-            print(f"  {'ok  ' if result.code == 0 else 'FAIL'} {name} ({result.seconds:.0f}s)")
+            say(f"  {'ok  ' if result.code == 0 else 'FAIL'} {name} ({result.seconds:.0f}s)")
             if result.code != 0:
                 break
     else:
-        print("  FAIL Install")
+        say("  FAIL Install")
 
     failed = [result for result in results if result.code != 0]
     if failed:
@@ -163,7 +250,7 @@ def main() -> int:
         print("\n".join(failed[0].output.splitlines()[-40:]))
 
     print("\nnot covered here:")
-    for line in NOT_COVERED:
+    for line in (*NOT_COVERED, *NOT_COVERED_EXTRA):
         print(f"  {line}")
 
     if arguments.keep:
