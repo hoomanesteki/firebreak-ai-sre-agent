@@ -78,8 +78,28 @@ make lab-record-library              # the library, resumably</pre>
 
 <h2>Checks</h2>
 <pre>make verify        # lint, types on three platforms, tests, hygiene, leakage, offline demo
+make verify-clean  # the same checks in a fresh clone, which is where local state shows up
 make spec-check    # the repository against SPEC.md's own tables
 make site-stats    # regenerate every number this site and the README publish
 make ci-status     # what CI said about HEAD</pre>
+<p>
+  <code>make verify-clean</code> exists because <code>make verify</code> runs against a working
+  tree and CI runs against a fresh clone. Everything git-ignored is the difference, and a test
+  that reads one of those files passes locally and fails in CI. It takes about four minutes and
+  needs no network.
+</p>
+
+<h2>Operations</h2>
+<p>
+  <a href="{{ repository }}/blob/main/docs/runbook.md"><code>docs/runbook.md</code></a> has seven
+  procedures written for somebody who did not build this: record a scenario, add a tool, add a
+  remediation, retune thresholds, rotate secrets, investigate a failed eval, restore from backup.
+  Each says how to tell it worked and what to do when it did not.
+</p>
+<p>
+  The retune procedure is the one worth reading even if you never retune anything. It keeps a
+  worked example of a change that was measured, would have doubled sensitivity, and was refused,
+  with the three reasons that made refusing it correct.
+</p>
 
 {% endblock %}

@@ -167,11 +167,27 @@ Kubernetes tooling, paging and chat integrations, autonomous remediation
 without approval, model fine-tuning, and multi-tenant deployment. See
 SPEC.md Section 3.2.
 
+## Documentation
+
+| Document | What it is for |
+|---|---|
+| `docs/runbook.md` | Seven operational procedures: record a scenario, add a tool, add a remediation, retune thresholds, rotate secrets, investigate a failed eval, restore from backup. Each says how to tell it worked. |
+| `docs/threat-model.md` | The OWASP agentic mapping, the privilege separation, and the limits of each control. |
+| `docs/adr/` | Fourteen decision records, each with the alternatives it rejected and the bugs the decision caused. |
+| `docs/phase-reports/` | One report per phase, including what each phase could not do and why. |
+| `docs/demo-shot-list.md` | The script for the demo video, with two scenes marked unrecordable and what unblocks them. |
+| `docs/release-notes-v1.0.0.md` | Draft release notes. Read the "before the feature list" section first. |
+| `docs/target-system.md` | How the pinned OpenTelemetry Demo is wired and what the overlay changes. |
+| `SPEC.md` | The contract. Everything above is downstream of it. |
+
 ## Development
 
 - `SPEC.md` is the contract. `CLAUDE.md` and `AGENTS.md` hold the working
   rules.
 - `make verify` runs lint, types, tests, and repository hygiene.
+- `make verify-clean` runs the same checks in a fresh clone, which is the only
+  way to catch a test that passes because of git-ignored local state.
+- `make ci-status WATCH=1` says what CI thought of the last push.
 - Commit messages follow Conventional Commits and are checked by a hook.
 
 ## License
