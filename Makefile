@@ -4,7 +4,7 @@ SHELL := /bin/bash
 
 .PHONY: help setup verify lint format types test test-cov hygiene leakage clean unhide \
         live live-config live-down live-logs lab-flags lab-library lab-bundles lab-package lab-verify lab-smoke lab-webhook lab-record lab-record-library \
-        graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates eval-b0 eval eval-compare eval-gate eval-regression cost-table optimize prompts cassettes demo-offline demo console spec-check ci-status
+        graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates eval-b0 eval eval-compare eval-gate eval-regression cost-table optimize prompts cassettes demo-offline demo console spec-check site-stats site-stats-check ci-status
 
 help:  ## Show the available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -35,7 +35,7 @@ unhide:
 		chflags nohidden .venv/lib/python*/site-packages/*.pth 2>/dev/null || true; \
 	fi
 
-verify: unhide lint types test hygiene leakage spec-check demo-offline  ## Run every check the review gate expects
+verify: unhide lint types test hygiene leakage spec-check site-stats-check demo-offline  ## Run every check the review gate expects
 
 lint:  ## Lint and check formatting
 	uv run ruff check .
@@ -267,6 +267,12 @@ demo: live-config  ## Run an investigation against the live stack
 
 cost-table:  ## Cost versus accuracy for all-strong, all-small and the cascade
 	PYTHONPATH=src uv run python scripts/cost_accuracy_table.py --split $(or $(SPLIT),validation)
+
+site-stats:  ## Regenerate reports/site_stats.json, the only source of published numbers
+	PYTHONPATH=src uv run python scripts/build_site_stats.py
+
+site-stats-check:  ## Fail if site_stats.json is stale against the reports
+	PYTHONPATH=src uv run python scripts/build_site_stats.py --check
 
 spec-check:  ## Check the repository against SPEC.md's own tables
 	PYTHONPATH=src uv run python scripts/check_spec_conformance.py
