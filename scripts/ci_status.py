@@ -153,18 +153,31 @@ def repository() -> str:
     return body.removesuffix(".git")
 
 
+# Short enough for a person to copy from `git log`, long enough not to match two commits
+# in a repository this size. Git's own default abbreviation is 7.
+SHORTEST_SHA = 7
+
+
 def head_sha() -> str:
     return _git(["rev-parse", "HEAD"], "could not read HEAD")
 
 
 def find_run(repo: str, sha: str) -> RunResult | None:
-    """The most recent run for one commit, or None if none exists yet."""
+    """The most recent run for one commit, or None if none exists yet.
+
+    Matches by prefix, because a short SHA is what a person copies out of `git log` and
+    an exact comparison silently found nothing and reported it as "no run yet". That read
+    exactly like CI not having started, which is the one thing this tool exists to
+    distinguish from a failure.
+    """
     payload = _get(f"/repos/{repo}/actions/runs?per_page=30")
     runs = payload.get("workflow_runs")
     if not isinstance(runs, list):
         raise CiError("the runs endpoint returned no workflow_runs list")
+    if len(sha) < SHORTEST_SHA:
+        raise CiError(f"{sha!r} is too short to identify a commit, give at least {SHORTEST_SHA}")
     for raw in runs:
-        if not isinstance(raw, dict) or raw.get("head_sha") != sha:
+        if not isinstance(raw, dict) or not str(raw.get("head_sha") or "").startswith(sha):
             continue
         conclusion = raw.get("conclusion")
         return RunResult(
