@@ -7,11 +7,16 @@
   built to work on. Everything else needs something you have to supply.
 </p>
 
-<h2>Offline, on a fresh clone</h2>
+<h2>On a fresh clone</h2>
 <pre>git clone {{ repository }}.git
 cd firebreak-ai-sre-agent
 make setup
-make demo-offline</pre>
+make demo</pre>
+<p>
+  <code>make demo</code> chooses: the live stack if it is up, the offline showcase otherwise, and
+  it prints which and what would have changed the choice. On a machine with no Docker that is the
+  offline path, which is the same thing <code>make demo-offline</code> runs directly.
+</p>
 <p>
   That rebuilds {{ showcase.incidents }} incidents from their scenario specs, replays each one
   against {{ showcase.cassettes }} recorded model answers, and fails if any of them stops

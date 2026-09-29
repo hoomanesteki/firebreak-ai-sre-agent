@@ -260,10 +260,12 @@ cassettes:  ## Record replay cassettes for the showcase incidents
 demo-offline:  ## Replay a recorded investigation with no model and no network
 	PYTHONPATH=src uv run python scripts/demo_offline.py
 
-demo: live-config  ## Run an investigation against the live stack
-	@echo "The live demo needs the stack up (make live) and model credentials."
-	@echo "Without credentials the deterministic floor publishes B0's triage, labelled."
-	PYTHONPATH=src uv run python -m firebreak.cli.app lab verify
+# Chooses: the live stack if it is up, the offline showcase otherwise, and it says which and
+# why. The old target went straight at the live stack, so on a fresh clone with no Docker it
+# failed with a Compose error about a missing submodule, which tells a first-time reader
+# nothing. SPEC.md Section 17 names this command as a Phase 12 acceptance criterion.
+demo:  ## Run the best demo this machine can, live or offline, and say which
+	PYTHONPATH=src uv run python scripts/demo.py
 
 cost-table:  ## Cost versus accuracy for all-strong, all-small and the cascade
 	PYTHONPATH=src uv run python scripts/cost_accuracy_table.py --split $(or $(SPLIT),validation)

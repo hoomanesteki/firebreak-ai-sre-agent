@@ -45,12 +45,13 @@ and the list says which and why.
 What runs today, on a clone with nothing installed but Python and uv:
 
 ```bash
-make demo-offline
+make demo
 ```
 
-Ten incidents rebuilt from their scenario specs and replayed against recorded
-answers, printing what each one concluded and why it is in the showcase. Two
-of the ten abstain, which is the correct answer for them.
+It chooses. With the live stack up it investigates a live incident; without
+it, it replays ten recorded incidents with no model, no network and no Docker,
+and it says which it chose and what would have changed the choice. Two of the
+ten abstain, which is the correct answer for them.
 
 ## Results
 
