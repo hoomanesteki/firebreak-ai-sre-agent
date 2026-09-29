@@ -23,18 +23,80 @@
     {% endfor %}
     </tbody>
   </table>
-  <details>
-    <summary>Why there is no form here yet</summary>
-    <p class="caption">
-      Feedback is recorded through <code>firebreak.memory.feedback</code>, and the store
-      and its rules exist and are tested. A form is a view over them, and building one
-      before any report has been reviewed would be building a view over nothing. What the
-      form has to enforce is already enforced: a report marked wrong with no correction is
-      refused, because it cannot become an evaluation task.
-    </p>
-  </details>
 </div>
 {% endif %}
+
+{% if not awaiting and choices %}
+<div class="panel">
+  <h2>Awaiting review</h2>
+  <p class="caption">
+    Every incident has at least one answer. A second opinion is still worth giving: nothing is
+    promoted to an evaluation task on one reviewer's word, so a contested report stays out of the
+    benchmark until two people agree.
+  </p>
+</div>
+{% endif %}
+
+<div class="panel">
+  <h2>Answer one</h2>
+  <p class="caption">
+    This is the Console's only write path, and it writes a judgement rather than an action.
+    The Approvals page has no button because executing a change needs a credential this
+    process does not hold; recording what you thought of a report needs none.
+  </p>
+  {% if error %}
+  <div class="note"><strong>Not recorded.</strong> {{ error }}</div>
+  {% endif %}
+  {% if saved %}
+  <div class="note"><strong>Recorded.</strong> Your answer about <code>{{ saved }}</code> is in
+  the feedback log. A second reviewer answering the same incident is kept rather than
+  overwriting yours, because a disagreement is the signal.</div>
+  {% endif %}
+  <form method="post" action="/feedback">
+    <p>
+      <label for="incident_id">Incident</label><br>
+      <select id="incident_id" name="incident_id" required>
+        {% for incident in choices %}
+        <option value="{{ incident.bundle_id }}">
+          {{ incident.bundle_id }} ({% if incident.abstained %}abstained{% else %}said {{ incident.named }}{% endif %}){% if incident.reviewed %} already answered once{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+      <br><span class="caption">An incident that already has an answer can be answered again.
+      Two reviewers disagreeing is kept rather than overwritten, and nothing can be promoted to
+      an evaluation task on one reviewer's word.</span>
+    </p>
+    <p>
+      <label for="reviewer">Your name</label><br>
+      <input id="reviewer" name="reviewer" required autocomplete="off">
+    </p>
+    <p>
+      <label for="verdict">Verdict</label><br>
+      <select id="verdict" name="verdict" required>
+        <option value="correct">correct</option>
+        <option value="partly">partly, the named service was involved but was not the cause</option>
+        <option value="incorrect">incorrect</option>
+      </select>
+    </p>
+    <p>
+      <label for="true_root_cause">What actually broke</label><br>
+      <input id="true_root_cause" name="true_root_cause" autocomplete="off">
+      <br><span class="caption">Required unless the verdict is correct. A report marked wrong
+      with no correction cannot become an evaluation task, which is the point of collecting
+      this, so the store refuses it.</span>
+    </p>
+    <p>
+      <label for="incorrect_claims">Claims that did not hold</label><br>
+      <input id="incorrect_claims" name="incorrect_claims" autocomplete="off" placeholder="1, 3">
+      <br><span class="caption">Indices as shown on the report, comma separated. Optional.</span>
+    </p>
+    <p>
+      <label for="note">Note</label><br>
+      <textarea id="note" name="note" rows="3" cols="60" maxlength="2000"></textarea>
+    </p>
+    <p><button type="submit">Record this answer</button></p>
+  </form>
+</div>
 
 {% if given %}
 <div class="panel">

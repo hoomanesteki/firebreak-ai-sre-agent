@@ -122,6 +122,40 @@ class TestNoUnquotableNumberReachesAPage:
             assert "stub" in pages[name], f"{name} describes the demo without naming its mode"
 
 
+class TestThePublicSiteCannotPublishAReviewersAnswer:
+    """The Console and the site are not the same audience, and only one of them is public.
+
+    A feedback record holds `true_root_cause`: a human's statement of what actually broke. For
+    an incident in a held-out split that is the label. The Console may show it, because it binds
+    loopback and a second reviewer checking agreement needs to see it. The site must not, because
+    the site is on the internet.
+
+    Nothing connects them today: the site reads `site_stats.json` and the ADR files, and neither
+    touches feedback. This is the test that keeps it that way, because the connection would be one
+    convenient line and the consequence would be publishing answers to a benchmark.
+    """
+
+    def test_no_page_contains_a_true_root_cause_field(self, pages: dict[str, str]) -> None:
+        for name, html in pages.items():
+            assert "true_root_cause" not in html, f"{name} renders a reviewer's answer"
+
+    def test_the_stats_file_carries_no_feedback(self, stats: dict[str, Any]) -> None:
+        assert "feedback" not in json.dumps(stats)
+
+    def test_the_builder_never_reads_the_feedback_store(self) -> None:
+        """Asserted on the source, because the risk is a future edit rather than today's
+        behaviour."""
+        builder = (REPO_ROOT / "scripts" / "build_site_stats.py").read_text(encoding="utf-8")
+        assert "feedback" not in builder
+        assert "memory" not in builder
+
+    def test_no_template_reads_a_feedback_record(self) -> None:
+        for template in (REPO_ROOT / "site" / "templates").glob("*.html"):
+            body = template.read_text(encoding="utf-8")
+            assert "true_root_cause" not in body, template.name
+            assert "verdict" not in body, template.name
+
+
 class TestAMissingKeyFailsTheBuild:
     """SPEC.md Section 15, by name. A site that quietly omitted a metric would look like one
     whose author chose not to show it."""

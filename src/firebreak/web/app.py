@@ -29,12 +29,17 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import ValidationError
+
+from firebreak.memory.feedback import Feedback, FeedbackStore, Verdict
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
@@ -191,6 +196,29 @@ def recorded_incidents() -> list[dict[str, Any]]:
     ]
 
 
+def explain(problem: Exception) -> str:
+    """One sentence a reviewer can act on, from a validation failure.
+
+    The model's own message, which says why the rule exists rather than that a field was
+    invalid: "a report marked wrong with no correction cannot become a test case, which is
+    the point of collecting this". That is worth showing verbatim.
+
+    Taken from `errors()` rather than by slicing `str(problem)`. The string form ends with a
+    link to pydantic's documentation, so the obvious approach of reading the last line puts a
+    URL on the page where the explanation should be. It did, until this function existed.
+    """
+    if isinstance(problem, ValidationError):
+        messages = [str(entry.get("msg") or "") for entry in problem.errors()]
+        # Pydantic prefixes a custom validator's message with "Value error, ", which is
+        # noise to a reader who did not write the validator.
+        cleaned = [message.removeprefix("Value error, ").strip() for message in messages]
+        joined = " ".join(part for part in cleaned if part)
+        if joined:
+            return joined[:300]
+    text = str(problem).strip()
+    return text[:300] if text else "could not record that"
+
+
 def create_app() -> FastAPI:
     """Build the Console.
 
@@ -339,13 +367,19 @@ def create_app() -> FastAPI:
         )
 
     @app.get("/feedback", response_class=HTMLResponse)
-    def feedback(request: Request) -> HTMLResponse:
+    def feedback(request: Request, error: str = "", saved: str = "") -> HTMLResponse:
         """Reports awaiting review, and the feedback already given."""
         given = read_jsonl(REPORTS_DIR / "feedback" / "feedback.jsonl")
-        awaiting = [
-            incident
-            for incident in showcase_incidents()
-            if incident["bundle_id"] not in {row.get("incident_id") for row in given}
+        reviewed = {row.get("incident_id") for row in given}
+        incidents = showcase_incidents()
+        awaiting = [incident for incident in incidents if incident["bundle_id"] not in reviewed]
+        # The form offers every incident, not only the unreviewed ones. The store keeps a
+        # second reviewer's answer rather than overwriting the first, and `agreement()` needs
+        # two before it can say anything, so a second opinion on a reviewed incident is wanted
+        # rather than tolerated. Offering only `awaiting` would make the form disappear once
+        # everything had one answer, which is exactly when a second one becomes useful.
+        choices = [
+            {**incident, "reviewed": incident["bundle_id"] in reviewed} for incident in incidents
         ]
         return page(
             request,
@@ -357,6 +391,9 @@ def create_app() -> FastAPI:
             ),
             given=given,
             awaiting=awaiting,
+            choices=choices,
+            error=error,
+            saved=saved,
             missing=None
             if given or awaiting
             else Missing(
@@ -365,6 +402,62 @@ def create_app() -> FastAPI:
                 how="Run `make demo-offline`.",
             ).as_dict(),
         )
+
+    @app.post("/feedback", response_class=HTMLResponse)
+    async def submit_feedback(request: Request) -> Response:
+        """Record one reviewer's answer about one report.
+
+        **The only write path in the Console, and it writes a judgement rather than an
+        action.** The Approvals page deliberately has no button, because executing a
+        remediation needs a credential and the design keeps the credential out of this
+        process. Recording what a human thought of a report needs no credential and is the
+        whole point of the page, which is why this one exists and that one does not.
+
+        **Validation is the model's, not this handler's.** `Feedback` refuses a verdict of
+        `partly` or `incorrect` with no stated cause, because a report marked wrong with no
+        correction cannot become an evaluation task. Re-checking that here would be a second
+        definition of the rule, and two definitions disagree eventually. The handler's job is
+        to turn a form into a model and turn the model's complaint into a sentence.
+        """
+        form = await request.form()
+
+        def field(name: str) -> str:
+            value = form.get(name)
+            return value.strip() if isinstance(value, str) else ""
+
+        # Claim indices, as either repeated fields or one comma separated field, because a
+        # checkbox per claim and a typed list are both reasonable and the handler should not
+        # care which the page used. Parsed here rather than in the model, since "3" is a form
+        # artefact and the model takes integers. Anything unparseable is dropped rather than
+        # refused: a reviewer whose verdict and cause are right should not lose the answer
+        # over a stray comma, and the claim list is the least important field on the form.
+        claims: list[int] = []
+        for raw in form.getlist("incorrect_claims"):
+            if not isinstance(raw, str):
+                continue
+            for piece in raw.replace(" ", "").split(","):
+                if piece.isdigit():
+                    claims.append(int(piece))
+
+        try:
+            record = Feedback(
+                incident_id=field("incident_id"),
+                reviewer=field("reviewer"),
+                verdict=Verdict(field("verdict")),
+                true_root_cause=field("true_root_cause") or None,
+                incorrect_claims=tuple(sorted(set(claims))),
+                note=field("note"),
+                submitted_at=datetime.now(UTC),
+            )
+        except (ValidationError, ValueError) as problem:
+            return RedirectResponse(
+                url=f"/feedback?error={quote(explain(problem))}", status_code=303
+            )
+
+        FeedbackStore().record(record)
+        # 303 and a redirect, so a reload does not submit again. A reviewer who refreshes
+        # after answering should see their answer, not record it twice.
+        return RedirectResponse(url=f"/feedback?saved={quote(record.incident_id)}", status_code=303)
 
     @app.get("/live/{bundle_id}", response_class=HTMLResponse)
     def live(request: Request, bundle_id: str) -> HTMLResponse:
