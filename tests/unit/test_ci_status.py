@@ -43,6 +43,7 @@ FULL_SHA = "9272208a1b2c3d4e5f60718293a4b5c6d7e8f900"
 def a_run(**overrides: Any) -> dict[str, Any]:
     payload = {
         "id": 42,
+        "name": "ci",
         "head_sha": FULL_SHA,
         "head_branch": "feat/p11-console-observability",
         "status": "completed",
@@ -115,6 +116,85 @@ class TestAShortShaFindsItsRun:
         assert found.id == 99
 
 
+class TestEveryWorkflowForTheCommitIsChecked:
+    """The defect this class exists for.
+
+    This repository has two workflows: `ci`, and `site` on pushes to main. The tool returned
+    only the newest run, so a green site deployment finishing after a red `ci` run reported the
+    commit as passing. A tool whose whole job is "did this commit pass" cannot answer for one
+    workflow and be read as answering for all of them, and the first time both ran it did
+    exactly that.
+    """
+
+    def test_both_workflows_are_returned(self, runs) -> None:  # type: ignore[no-untyped-def]
+        runs["/repos/o/r/actions/runs"] = {
+            "workflow_runs": [
+                a_run(id=2, name="site", conclusion="success"),
+                a_run(id=1, name="ci", conclusion="success"),
+            ]
+        }
+        found = ci.find_runs("o/r", FULL_SHA[:7])
+        assert [run.workflow for run in found] == ["site", "ci"]
+
+    def test_a_newer_passing_workflow_does_not_hide_an_older_failure(self, runs) -> None:  # type: ignore[no-untyped-def]
+        """The exact shape of the bug: `site` succeeded after `ci` failed on the same commit."""
+        runs["/repos/o/r/actions/runs"] = {
+            "workflow_runs": [
+                a_run(id=2, name="site", conclusion="success"),
+                a_run(id=1, name="ci", conclusion="failure"),
+            ]
+        }
+        found = ci.find_runs("o/r", FULL_SHA[:7])
+        assert any(run.finished and not run.passed for run in found)
+
+    def test_the_description_names_the_failing_workflow(self, runs) -> None:  # type: ignore[no-untyped-def]
+        """A reader with two workflows needs to know which one to look at."""
+        runs["/repos/o/r/actions/runs"] = {
+            "workflow_runs": [
+                a_run(id=2, name="site", conclusion="success"),
+                a_run(id=1, name="ci", conclusion="failure"),
+            ]
+        }
+        text = ci.describe_all(ci.find_runs("o/r", FULL_SHA[:7]))
+        assert "workflow ci" in text
+        assert "workflow site" in text
+        assert "failed workflow(s): ci" in text
+
+    def test_a_re_run_wins_over_the_original_for_the_same_workflow(self, runs) -> None:  # type: ignore[no-untyped-def]
+        """One entry per workflow, newest first, so a fixed commit is not called broken by its
+        first attempt."""
+        runs["/repos/o/r/actions/runs"] = {
+            "workflow_runs": [
+                a_run(id=3, name="ci", conclusion="success"),
+                a_run(id=1, name="ci", conclusion="failure"),
+            ]
+        }
+        found = ci.find_runs("o/r", FULL_SHA[:7])
+        assert len(found) == 1
+        assert found[0].id == 3
+
+    def test_no_runs_is_an_empty_list_rather_than_a_pass(self, runs) -> None:  # type: ignore[no-untyped-def]
+        runs["/repos/o/r/actions/runs"] = {"workflow_runs": [a_run(head_sha="f" * 40)]}
+        assert ci.find_runs("o/r", FULL_SHA[:7]) == []
+
+    def test_a_workflow_still_running_is_not_a_pass(self, runs) -> None:  # type: ignore[no-untyped-def]
+        """Half the answer is not the answer. A commit has passed only when every workflow
+        has finished and every one of them succeeded."""
+        runs["/repos/o/r/actions/runs"] = {
+            "workflow_runs": [
+                a_run(id=2, name="site", status="in_progress", conclusion=None),
+                a_run(id=1, name="ci", conclusion="success"),
+            ]
+        }
+        found = ci.find_runs("o/r", FULL_SHA[:7])
+        assert not all(run.finished for run in found)
+
+    def test_an_unnamed_workflow_is_labelled_rather_than_dropped(self, runs) -> None:  # type: ignore[no-untyped-def]
+        runs["/repos/o/r/actions/runs"] = {"workflow_runs": [a_run(name=None)]}
+        found = ci.find_runs("o/r", FULL_SHA[:7])
+        assert found[0].workflow == "unknown"
+
+
 class TestAMissingRunIsNotAPass:
     def test_no_run_for_the_commit_returns_none(self, runs) -> None:  # type: ignore[no-untyped-def]
         runs["/repos/o/r/actions/runs"] = {"workflow_runs": [a_run(head_sha="f" * 40)]}
@@ -152,6 +232,7 @@ class TestOnlySuccessCountsAsPassed:
     def test_every_other_conclusion_is_a_failure(self, conclusion: str) -> None:
         run = ci.RunResult(
             id=1,
+            workflow="ci",
             sha=FULL_SHA,
             branch="b",
             status="completed",
@@ -165,6 +246,7 @@ class TestOnlySuccessCountsAsPassed:
     def test_success_is_a_pass(self) -> None:
         run = ci.RunResult(
             id=1,
+            workflow="ci",
             sha=FULL_SHA,
             branch="b",
             status="completed",
@@ -197,6 +279,7 @@ class TestItNamesWhatFailed:
         }
         base = ci.RunResult(
             id=42,
+            workflow="ci",
             sha=FULL_SHA,
             branch="b",
             status="completed",
@@ -227,6 +310,7 @@ class TestItNamesWhatFailed:
         }
         base = ci.RunResult(
             id=7,
+            workflow="ci",
             sha=FULL_SHA,
             branch="b",
             status="completed",
@@ -253,6 +337,7 @@ class TestItSurvivesTheApiBeingUnhelpful:
         runs["/repos/o/r/actions/runs/42/jobs"] = {"jobs": None}
         base = ci.RunResult(
             id=42,
+            workflow="ci",
             sha=FULL_SHA,
             branch="b",
             status="completed",
@@ -266,6 +351,7 @@ class TestItSurvivesTheApiBeingUnhelpful:
         runs["/repos/o/r/actions/runs/42/jobs"] = {"jobs": ["not an object", {"name": "verify"}]}
         base = ci.RunResult(
             id=42,
+            workflow="ci",
             sha=FULL_SHA,
             branch="b",
             status="completed",

@@ -37,7 +37,20 @@ first increase in five years ([Catchpoint](https://www.catchpoint.com/press-rele
 
 ## Demo
 
-TBD (produced in Phase 12).
+No GIF or video yet. The shot list is written, in
+`docs/demo-shot-list.md`, and the owner records it; two of its eight scenes
+cannot be recorded until there are model credentials and a recorded library,
+and the list says which and why.
+
+What runs today, on a clone with nothing installed but Python and uv:
+
+```bash
+make demo-offline
+```
+
+Ten incidents rebuilt from their scenario specs and replayed against recorded
+answers, printing what each one concluded and why it is in the showcase. Two
+of the ten abstain, which is the correct answer for them.
 
 ## Results
 
@@ -129,8 +142,23 @@ nothing else.
 
 ## Architecture
 
-TBD (produced in Phase 6). The design is in SPEC.md Sections 4 to 6, and the
-binding harness principles are in Section 5.
+An incident bundle enters deterministic triage, which scores every service
+with a robust z against a median and MAD, walks the service graph with
+personalised PageRank, and can end the investigation on its own by abstaining.
+What survives goes to a commander that picks hypotheses, four specialists that
+each gather evidence on one question without seeing each other's answers, a
+hypothesis board, and a critic that argues against the leader on the same
+evidence and cannot gather its own. A reporter writes claims. An exit gate
+then runs six checks and removes any claim that fails one.
+
+Every tool builds its own query from validated arguments, so no model ever
+writes a query string, and every call records the query, the window, a
+fingerprint of the backend and a hash of its rows. That record is what a claim
+cites and what the gate re-runs.
+
+The design rationale is in SPEC.md Sections 4 to 6, the binding harness
+principles in Section 5, and the decisions with their rejected alternatives in
+`docs/adr/`.
 
 ## How reports are verified
 

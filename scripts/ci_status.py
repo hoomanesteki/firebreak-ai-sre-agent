@@ -80,6 +80,10 @@ class RunResult:
     """One CI run, as much of it as the anonymous API will say."""
 
     id: int
+    # Which workflow produced it. Named, because "did this commit pass" has more than one
+    # answer in this repository and a report that does not say which workflow it describes
+    # invites the reader to assume it covers all of them.
+    workflow: str
     sha: str
     branch: str
     status: str
@@ -162,13 +166,19 @@ def head_sha() -> str:
     return _git(["rev-parse", "HEAD"], "could not read HEAD")
 
 
-def find_run(repo: str, sha: str) -> RunResult | None:
-    """The most recent run for one commit, or None if none exists yet.
+def find_runs(repo: str, sha: str) -> list[RunResult]:
+    """Every workflow run for one commit, newest first, or an empty list if none exists yet.
 
-    Matches by prefix, because a short SHA is what a person copies out of `git log` and
-    an exact comparison silently found nothing and reported it as "no run yet". That read
-    exactly like CI not having started, which is the one thing this tool exists to
-    distinguish from a failure.
+    **Every run, not the newest one.** This repository has more than one workflow: `ci`, and
+    `site` on pushes to main. Returning only the most recent meant a green site deployment
+    could report a pass while `ci` had failed on the same commit, because the site workflow
+    finished later. A tool whose whole job is "did this commit pass" cannot answer for one
+    workflow and be read as answering for all of them.
+
+    Matches by prefix, because a short SHA is what a person copies out of `git log` and an
+    exact comparison silently found nothing and reported it as "no run yet". That read exactly
+    like CI not having started, which is the one thing this tool exists to distinguish from a
+    failure.
     """
     payload = _get(f"/repos/{repo}/actions/runs?per_page=30")
     runs = payload.get("workflow_runs")
@@ -176,20 +186,40 @@ def find_run(repo: str, sha: str) -> RunResult | None:
         raise CiError("the runs endpoint returned no workflow_runs list")
     if len(sha) < SHORTEST_SHA:
         raise CiError(f"{sha!r} is too short to identify a commit, give at least {SHORTEST_SHA}")
+    found: list[RunResult] = []
+    seen: set[str] = set()
     for raw in runs:
         if not isinstance(raw, dict) or not str(raw.get("head_sha") or "").startswith(sha):
             continue
+        workflow = str(raw.get("name") or "unknown")
+        # One entry per workflow: a re-run appears as a newer run of the same workflow, and
+        # the newer one is the answer. The list arrives newest first.
+        if workflow in seen:
+            continue
+        seen.add(workflow)
         conclusion = raw.get("conclusion")
-        return RunResult(
-            id=int(raw["id"]),
-            sha=str(raw["head_sha"]),
-            branch=str(raw.get("head_branch") or "unknown"),
-            status=str(raw.get("status") or "unknown"),
-            conclusion=str(conclusion) if conclusion else None,
-            title=str(raw.get("display_title") or ""),
-            url=str(raw.get("html_url") or ""),
+        found.append(
+            RunResult(
+                id=int(raw["id"]),
+                workflow=workflow,
+                sha=str(raw["head_sha"]),
+                branch=str(raw.get("head_branch") or "unknown"),
+                status=str(raw.get("status") or "unknown"),
+                conclusion=str(conclusion) if conclusion else None,
+                title=str(raw.get("display_title") or ""),
+                url=str(raw.get("html_url") or ""),
+            )
         )
-    return None
+    return found
+
+
+def find_run(repo: str, sha: str) -> RunResult | None:
+    """The newest run for one commit, kept for callers that want one.
+
+    Prefer `find_runs`: this cannot see a second workflow failing.
+    """
+    runs = find_runs(repo, sha)
+    return runs[0] if runs else None
 
 
 def with_jobs(repo: str, run: RunResult) -> RunResult:
@@ -221,6 +251,7 @@ def with_jobs(repo: str, run: RunResult) -> RunResult:
         )
     return RunResult(
         id=run.id,
+        workflow=run.workflow,
         sha=run.sha,
         branch=run.branch,
         status=run.status,
@@ -232,9 +263,9 @@ def with_jobs(repo: str, run: RunResult) -> RunResult:
 
 
 def describe(run: RunResult) -> str:
-    """What CI said, in the form a reader can act on."""
+    """What one workflow said, in the form a reader can act on."""
     lines = [
-        f"{run.sha[:8]} on {run.branch}: {run.status}"
+        f"{run.sha[:8]} on {run.branch}, workflow {run.workflow}: {run.status}"
         + (f" ({run.conclusion})" if run.conclusion else ""),
         f"  {run.title}",
     ]
@@ -251,6 +282,16 @@ def describe(run: RunResult) -> str:
         )
         lines.append(f"  full logs: {run.url}")
     return "\n".join(lines)
+
+
+def describe_all(runs: list[RunResult]) -> str:
+    """Every workflow for the commit, so a pass means every one of them passed."""
+    parts = [describe(run) for run in runs]
+    failing = [run.workflow for run in runs if run.finished and not run.passed]
+    if failing:
+        parts.append("")
+        parts.append(f"failed workflow(s): {', '.join(sorted(failing))}")
+    return "\n".join(parts)
 
 
 def main() -> int:
@@ -277,7 +318,7 @@ def main() -> int:
     transient = 0
     while True:
         try:
-            found = find_run(repo, sha)
+            found = find_runs(repo, sha)
         except CiError as error:
             # A watch tolerates a few network failures, because the run it is watching is
             # still going and the answer is still coming. A single check does not: there
@@ -291,7 +332,7 @@ def main() -> int:
             continue
         transient = 0
 
-        if found is None:
+        if not found:
             if not arguments.watch or waited_for_start >= STARTUP_GRACE_SECONDS:
                 print(
                     f"no CI run for {sha[:8]} yet. A missing run is not a pass: check "
@@ -306,7 +347,7 @@ def main() -> int:
             continue
 
         try:
-            run = with_jobs(repo, found)
+            runs = [with_jobs(repo, run) for run in found]
         except CiError as error:
             transient += 1
             if not arguments.watch or transient > MAX_TRANSIENT_FAILURES:
@@ -316,21 +357,32 @@ def main() -> int:
             time.sleep(POLL_SECONDS)
             continue
 
-        if run.finished:
-            print(describe(run))
-            return 0 if run.passed else 1
+        unfinished = [run for run in runs if not run.finished]
+
+        # Every workflow, not the first one to finish. A commit has passed only when all of
+        # them have, and a failure anywhere is the answer even while something else is still
+        # running: waiting for a green workflow to join a red one wastes the wait.
+        if any(run.finished and not run.passed for run in runs):
+            print(describe_all(runs))
+            return 1
+
+        if not unfinished:
+            print(describe_all(runs))
+            return 0
 
         if not arguments.watch:
-            print(describe(run))
-            print("still running; add --watch to wait")
+            print(describe_all(runs))
+            names = ", ".join(run.workflow for run in unfinished)
+            print(f"still running ({names}); add --watch to wait")
             return 3
 
         if time.monotonic() >= deadline:
-            print(describe(run))
+            print(describe_all(runs))
             print(f"still running after {arguments.timeout}s, giving up waiting")
             return 3
 
-        print(f"{run.status}, checking again in {POLL_SECONDS}s", flush=True)
+        names = ", ".join(f"{run.workflow} {run.status}" for run in unfinished)
+        print(f"{names}, checking again in {POLL_SECONDS}s", flush=True)
         time.sleep(POLL_SECONDS)
 
 
