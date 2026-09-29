@@ -318,7 +318,8 @@ def describe_all(runs: list[RunResult]) -> str:
         parts.append(
             f"cancelled workflow(s): {', '.join(sorted(superseded))}. "
             "ci.yml cancels a run in progress when a newer commit is pushed to the same ref, "
-            "so this commit has no verdict. Check the newer commit."
+            "so this commit has no verdict. If a newer commit was pushed, check that one; "
+            "if the run was cancelled by hand, re-run it."
         )
     return "\n".join(parts)
 

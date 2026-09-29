@@ -271,8 +271,13 @@ class TestACancelledRunIsNotAFailure:
         assert "no verdict" in text
         assert "failed workflow(s)" not in text
 
-    def test_it_tells_the_reader_to_check_the_newer_commit(self) -> None:
-        assert "Check the newer commit" in ci.describe_all([self._cancelled()])
+    def test_the_advice_covers_both_ways_a_run_gets_cancelled(self) -> None:
+        """`superseded` cannot tell a superseding push from somebody pressing cancel, so the
+        advice must be right either way. "Check the newer commit" was wrong for a run cancelled
+        by hand, where there is no newer commit to check."""
+        text = ci.describe_all([self._cancelled()])
+        assert "If a newer commit was pushed, check that one" in text
+        assert "cancelled by hand, re-run it" in text
 
     def test_an_interrupted_step_is_not_called_a_failed_step(self, runs) -> None:  # type: ignore[no-untyped-def]
         """A cancelled run's in-flight step reports itself as failed, which it did not: it was
