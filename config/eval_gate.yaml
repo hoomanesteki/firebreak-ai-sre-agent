@@ -74,9 +74,21 @@ cost:
   # floor in USD.
   ignore_below_usd: 0.01
 
-# Verdicts, in the order they are checked. The first failure decides, so the
-# order encodes which problem a reader should be told about first: a system
-# that is both wrong and expensive has a quality problem.
+# Every verdict the gate can return. A vocabulary, not an order: the order is
+# control flow in `decide` and cannot be configured from here. A contract test
+# asserts this list matches the Verdict enum exactly, so the file and the code
+# cannot drift, which they had, because this key was silently ignored.
+#
+# The order `decide` actually uses, which is worth knowing and is not what an
+# earlier version of this comment claimed:
+#
+#   1. FAIL_QUALITY        a regression was measured, and that is the thing to fix
+#   2. INCONCLUSIVE        no regression beyond the margin was observed and none
+#                          could be ruled out either, so the library is too small
+#   3. FAIL_CALIBRATION    or INCONCLUSIVE again, when the estimate sits inside
+#                          the margin but the interval cannot rule a regression out
+#   4. FAIL_COST
+#   5. PASS                the fallthrough, reached only when nothing above fired
 verdicts:
   - PASS
   - FAIL_QUALITY

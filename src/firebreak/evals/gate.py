@@ -83,12 +83,24 @@ class CostRule(BaseModel):
 
 
 class GateConfig(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="ignore")
+    """The gate's rules, read from `config/eval_gate.yaml`.
+
+    `extra="forbid"` rather than ignore, and the reason is what ignore was hiding. The file
+    carried a `verdicts` list that no field declared, so it was accepted and dropped: editing it
+    changed nothing, and its comment claimed an order the code does not use. Unknown keys are now
+    refused, and `verdicts` is declared below so the file and the enum cannot drift.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     metrics: dict[str, MetricRule]
     calibration: CalibrationRule
     cost: CostRule
     minimum_tasks: int = Field(ge=1)
+    # The full vocabulary, declared so the file states it and a contract test can prove the two
+    # agree. It is a vocabulary and not an order: the order lives in `decide`'s control flow,
+    # which cannot be configured, and pretending otherwise is what the old comment did.
+    verdicts: tuple[Verdict, ...] = ()
 
 
 @lru_cache(maxsize=1)
