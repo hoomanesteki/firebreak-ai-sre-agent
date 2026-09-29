@@ -101,6 +101,21 @@ class RunResult:
         return self.finished and self.conclusion == "success"
 
     @property
+    def superseded(self) -> bool:
+        """Cancelled, which on this repository nearly always means a newer push took over.
+
+        `ci.yml` sets `cancel-in-progress` on a concurrency group keyed by ref, so pushing a
+        second commit kills the first commit's run mid-step. That is the setting working, and
+        reporting it as a failure sends a reader to look at a build that was never going to
+        finish. A check that cries wolf is a check nobody runs.
+
+        It cannot distinguish a superseding push from somebody pressing cancel, and it does not
+        try: neither is a failure of the code, and both mean the same thing to a reader, which
+        is that this commit has no verdict and a newer one should be checked.
+        """
+        return self.finished and self.conclusion == "cancelled"
+
+    @property
     def failed_jobs(self) -> tuple[JobResult, ...]:
         return tuple(job for job in self.jobs if job.conclusion not in {"success", "skipped", None})
 
@@ -272,8 +287,12 @@ def describe(run: RunResult) -> str:
     for job in run.jobs:
         lines.append(f"  job {job.name}: {job.conclusion or job.status}")
         for step in job.failed_steps:
-            lines.append(f"    failed step: {step.name}")
-    if run.failed_jobs:
+            # A cancelled run's in-flight step reports itself as failed, which it did not: it
+            # was interrupted. Calling it a failed step sends a reader to debug a step that
+            # never finished.
+            label = "interrupted at" if run.superseded else "failed step:"
+            lines.append(f"    {label} {step.name}")
+    if run.failed_jobs and not run.superseded:
         lines.append("")
         lines.append(
             "Job logs need a token this environment does not have. Reproduce the "
@@ -287,10 +306,20 @@ def describe(run: RunResult) -> str:
 def describe_all(runs: list[RunResult]) -> str:
     """Every workflow for the commit, so a pass means every one of them passed."""
     parts = [describe(run) for run in runs]
-    failing = [run.workflow for run in runs if run.finished and not run.passed]
+    failing = [
+        run.workflow for run in runs if run.finished and not run.passed and not run.superseded
+    ]
+    superseded = [run.workflow for run in runs if run.superseded]
     if failing:
         parts.append("")
         parts.append(f"failed workflow(s): {', '.join(sorted(failing))}")
+    if superseded:
+        parts.append("")
+        parts.append(
+            f"cancelled workflow(s): {', '.join(sorted(superseded))}. "
+            "ci.yml cancels a run in progress when a newer commit is pushed to the same ref, "
+            "so this commit has no verdict. Check the newer commit."
+        )
     return "\n".join(parts)
 
 
@@ -362,13 +391,16 @@ def main() -> int:
         # Every workflow, not the first one to finish. A commit has passed only when all of
         # them have, and a failure anywhere is the answer even while something else is still
         # running: waiting for a green workflow to join a red one wastes the wait.
-        if any(run.finished and not run.passed for run in runs):
+        if any(run.finished and not run.passed and not run.superseded for run in runs):
             print(describe_all(runs))
             return 1
 
         if not unfinished:
             print(describe_all(runs))
-            return 0
+            # A cancelled run is not a pass and not a failure: it has no verdict. Exit 3, the
+            # same code as "still running", because both mean the caller has not got an answer
+            # yet rather than that something is broken.
+            return 3 if any(run.superseded for run in runs) else 0
 
         if not arguments.watch:
             print(describe_all(runs))

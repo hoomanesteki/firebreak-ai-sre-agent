@@ -225,6 +225,109 @@ class TestAMissingRunIsNotAPass:
             ci.find_run("o/r", FULL_SHA[:7])
 
 
+class TestACancelledRunIsNotAFailure:
+    """`ci.yml` sets `cancel-in-progress` on a concurrency group keyed by ref, so pushing a
+    second commit kills the first commit's run mid-step. That is the setting working.
+
+    The tool called it "failed workflow(s): ci" and exited 1, which sends a reader to debug a
+    build that was never going to finish. A check that cries wolf is a check nobody runs, and
+    pushing twice in a row is about the most ordinary thing there is.
+    """
+
+    def _cancelled(self) -> Any:
+        return ci.RunResult(
+            id=1,
+            workflow="ci",
+            sha=FULL_SHA,
+            branch="main",
+            status="completed",
+            conclusion="cancelled",
+            title="t",
+            url="u",
+        )
+
+    def test_a_cancelled_run_is_superseded_rather_than_failed(self) -> None:
+        run = self._cancelled()
+        assert run.finished
+        assert not run.passed
+        assert run.superseded
+
+    def test_a_real_failure_is_not_superseded(self) -> None:
+        run = ci.RunResult(
+            id=1,
+            workflow="ci",
+            sha=FULL_SHA,
+            branch="main",
+            status="completed",
+            conclusion="failure",
+            title="t",
+            url="u",
+        )
+        assert not run.superseded
+
+    def test_the_report_says_no_verdict_rather_than_failed(self) -> None:
+        text = ci.describe_all([self._cancelled()])
+        assert "cancelled workflow(s): ci" in text
+        assert "no verdict" in text
+        assert "failed workflow(s)" not in text
+
+    def test_it_tells_the_reader_to_check_the_newer_commit(self) -> None:
+        assert "Check the newer commit" in ci.describe_all([self._cancelled()])
+
+    def test_an_interrupted_step_is_not_called_a_failed_step(self, runs) -> None:  # type: ignore[no-untyped-def]
+        """A cancelled run's in-flight step reports itself as failed, which it did not: it was
+        interrupted. Calling it a failed step sends a reader to debug a step that never
+        finished."""
+        runs["/repos/o/r/actions/runs/1/jobs"] = {
+            "jobs": [
+                {
+                    "name": "verify",
+                    "status": "completed",
+                    "conclusion": "cancelled",
+                    "steps": [
+                        {"name": "Lint", "conclusion": "success"},
+                        {"name": "Test", "conclusion": "failure"},
+                    ],
+                }
+            ]
+        }
+        text = ci.describe(ci.with_jobs("o/r", self._cancelled()))
+        assert "interrupted at Test" in text
+        assert "failed step" not in text
+
+    def test_no_log_guidance_is_offered_for_a_cancelled_run(self, runs) -> None:  # type: ignore[no-untyped-def]
+        """The guidance tells a reader to reproduce the failing step locally. There is no
+        failing step to reproduce."""
+        runs["/repos/o/r/actions/runs/1/jobs"] = {
+            "jobs": [
+                {
+                    "name": "verify",
+                    "status": "completed",
+                    "conclusion": "cancelled",
+                    "steps": [{"name": "Test", "conclusion": "failure"}],
+                }
+            ]
+        }
+        text = ci.describe(ci.with_jobs("o/r", self._cancelled()))
+        assert "make verify covers" not in text
+
+    def test_a_failure_beside_a_cancellation_is_still_a_failure(self) -> None:
+        """The cancellation must not mask a real failure in another workflow."""
+        failed = ci.RunResult(
+            id=2,
+            workflow="site",
+            sha=FULL_SHA,
+            branch="main",
+            status="completed",
+            conclusion="failure",
+            title="t",
+            url="u",
+        )
+        text = ci.describe_all([self._cancelled(), failed])
+        assert "failed workflow(s): site" in text
+        assert "cancelled workflow(s): ci" in text
+
+
 class TestOnlySuccessCountsAsPassed:
     @pytest.mark.parametrize(
         "conclusion", ["failure", "cancelled", "timed_out", "action_required", "startup_failure"]
