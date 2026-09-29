@@ -218,6 +218,20 @@ def check_adrs(spec: str, tasks: dict[int, str], phase: int) -> Findings:
     return findings
 
 
+# The headings SPEC.md Section 21.1's template requires, matched as substrings so a report may
+# say "Deviations from the spec (with ADR links)" or just "Deviations from the spec".
+REPORT_SECTIONS = (
+    "## Summary",
+    "## What was built",
+    "## Evidence",
+    "## Acceptance criteria",
+    "## Deviations",
+    "## Known issues",
+    "## Open questions",
+    "## Next phase preview",
+)
+
+
 def check_phase_reports(spec: str, phase: int) -> Findings:
     """Every completed phase has a report, and no report jumps ahead."""
     findings = Findings()
@@ -233,6 +247,20 @@ def check_phase_reports(spec: str, phase: int) -> Findings:
     ]
     for name in sorted(stray):
         findings.late.append(f"{name} is a report for a phase SPEC.md does not declare")
+
+    # The template's own sections, from SPEC.md Section 21.1. A report missing one is not a
+    # small thing: an absent "Deviations from the spec" is ambiguous between "this phase
+    # deviated nowhere" and "nobody considered the question", and the reviewer reads the
+    # report rather than asking. Six reports were missing exactly that section until a check
+    # looked.
+    for number in declared:
+        report = PHASE_REPORT_DIR / f"P{number:02d}.md"
+        if number >= phase or not report.is_file():
+            continue
+        text = report.read_text(encoding="utf-8")
+        for heading in REPORT_SECTIONS:
+            if heading not in text:
+                findings.late.append(f"{report.name} has no '{heading}' section")
     return findings
 
 
