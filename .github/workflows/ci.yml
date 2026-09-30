@@ -85,7 +85,23 @@ jobs:
         # what CI covers rather than failing.
         env:
           FIREBREAK_REQUIRE_NEO4J: "1"
-        run: uv run pytest --cov --cov-report=term-missing
+        # The JUnit report exists for the annotation step below, not for this one.
+        run: |
+          mkdir -p .quality
+          uv run pytest --cov --cov-report=term-missing --junitxml=.quality/junit.xml
+
+      # Job logs need a token an anonymous caller does not have, so `make ci-status` can name
+      # the failing step and never the failing test. That cost two diagnoses: a red Test step
+      # meant reproducing the whole suite locally and hoping this machine differed in the way
+      # that mattered, and twice it did not, because the failing tests only run where a service
+      # container exists.
+      #
+      # Annotations are readable without a token. This turns each failure into one, and says so
+      # explicitly when the report lists no failures at all, which means the step failed on the
+      # coverage floor or crashed rather than on a test.
+      - name: Say which test failed
+        if: failure()
+        run: uv run python scripts/annotate_test_failures.py .quality/junit.xml
 
       - name: Ground truth leakage
         run: uv run python scripts/check_leakage.py

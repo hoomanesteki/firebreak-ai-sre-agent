@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "verify_clean_clone.py"
@@ -37,6 +38,42 @@ def _load() -> Any:
 
 
 checker = _load()
+
+# `uv run python <script>` inside the workflow, split by whether the step is conditional.
+SCRIPT_IN_STEP = re.compile(r"(?:python|uv run python) (scripts/[a-z_]+\.py|site/build\.py)")
+
+
+def _ci_steps() -> list[dict[str, object]]:
+    workflow = yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8"))
+    steps: list[dict[str, object]] = []
+    for job in workflow["jobs"].values():
+        steps.extend(job.get("steps") or [])
+    return steps
+
+
+def _scripts_in(step: dict[str, object]) -> set[str]:
+    run = step.get("run")
+    return set(SCRIPT_IN_STEP.findall(run)) if isinstance(run, str) else set()
+
+
+def ci_scripts_always_run() -> set[str]:
+    """Scripts CI runs unconditionally, so a pre-push check should run them too."""
+    found: set[str] = set()
+    for step in _ci_steps():
+        if step.get("if"):
+            continue
+        found |= _scripts_in(step)
+    return found
+
+
+def ci_scripts_on_failure() -> set[str]:
+    """Scripts CI runs only when something already failed."""
+    found: set[str] = set()
+    for step in _ci_steps():
+        condition = step.get("if")
+        if isinstance(condition, str) and "failure()" in condition:
+            found |= _scripts_in(step)
+    return found
 
 
 class TestTheStepsMatchCi:
@@ -81,14 +118,22 @@ class TestTheStepsMatchCi:
         scripts each one invokes, which is the part that matters. A step CI has and this does not
         is a step that can only fail after a push, which is the whole reason to run this first.
         """
-        workflow = CI_WORKFLOW.read_text(encoding="utf-8")
-        in_ci = set(
-            re.findall(r"(?:python|uv run python) (scripts/[a-z_]+\.py|site/build\.py)", workflow)
-        )
+        in_ci = ci_scripts_always_run()
         assert in_ci, "the workflow no longer invokes scripts in a recognisable form"
         here = {part for _, command in checker.STEPS for part in command if part.endswith(".py")}
         missing = in_ci - here
         assert not missing, f"CI runs these and this script does not: {sorted(missing)}"
+
+    def test_a_failure_only_step_is_not_expected_here(self) -> None:
+        """CI annotates failing tests in a step guarded by `if: failure()`. There is nothing for
+        it to do on a passing run, so this script does not run it, and the comparison above has to
+        know the difference between a step that was forgotten and one that is conditional.
+
+        Its own test because the distinction was found the hard way: the general check flagged the
+        annotation step the moment it was added, which was the check working and the wrong answer.
+        """
+        assert "scripts/annotate_test_failures.py" in ci_scripts_on_failure()
+        assert "scripts/annotate_test_failures.py" not in ci_scripts_always_run()
 
     def test_it_runs_the_offline_demo_last(self) -> None:
         """CLAUDE.md requires the offline demo green from Phase 11, and it is the slowest
