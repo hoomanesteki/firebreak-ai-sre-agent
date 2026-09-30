@@ -73,6 +73,23 @@ class TestTheStepsMatchCi:
             f"this script checks {here} and CI checks {in_ci}"
         )
 
+    def test_it_runs_every_check_ci_runs_a_script_for(self) -> None:
+        """The drift this test exists for, generalised past mypy.
+
+        The first version compared only the type-check paths, and the step lists drifted anyway:
+        CI gained a site link check and this script did not. So the comparison is now over the
+        scripts each one invokes, which is the part that matters. A step CI has and this does not
+        is a step that can only fail after a push, which is the whole reason to run this first.
+        """
+        workflow = CI_WORKFLOW.read_text(encoding="utf-8")
+        in_ci = set(
+            re.findall(r"(?:python|uv run python) (scripts/[a-z_]+\.py|site/build\.py)", workflow)
+        )
+        assert in_ci, "the workflow no longer invokes scripts in a recognisable form"
+        here = {part for _, command in checker.STEPS for part in command if part.endswith(".py")}
+        missing = in_ci - here
+        assert not missing, f"CI runs these and this script does not: {sorted(missing)}"
+
     def test_it_runs_the_offline_demo_last(self) -> None:
         """CLAUDE.md requires the offline demo green from Phase 11, and it is the slowest
         meaningful step, so a fast failure should come first."""

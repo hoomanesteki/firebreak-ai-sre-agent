@@ -46,7 +46,18 @@ STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Repository hygiene", ("uv", "run", "python", "scripts/check_repo_hygiene.py")),
     ("Spec conformance", ("uv", "run", "python", "scripts/check_spec_conformance.py")),
     ("Site stats", ("uv", "run", "python", "scripts/build_site_stats.py", "--check")),
-    ("Site", ("uv", "run", "python", "site/build.py")),
+    ("Site", ("uv", "run", "python", "site/build.py", "--output", ".quality/site-check")),
+    (
+        "Links",
+        (
+            "uv",
+            "run",
+            "python",
+            "scripts/check_site_links.py",
+            ".quality/site-check",
+            "--allow-parent",
+        ),
+    ),
     ("Offline demo", ("uv", "run", "python", "scripts/demo_offline.py")),
 )
 
