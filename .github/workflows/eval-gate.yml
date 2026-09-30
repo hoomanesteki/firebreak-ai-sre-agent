@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           submodules: true
 
@@ -81,7 +81,7 @@ jobs:
     # Opt in per pull request, because this one spends money.
     if: contains(github.event.pull_request.labels.*.name, 'run-evals')
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           submodules: true
 
@@ -135,7 +135,7 @@ jobs:
 
       - name: Comment the verdict
         if: always()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
