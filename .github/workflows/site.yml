@@ -2,14 +2,31 @@ name: site
 
 # SPEC.md Section 15: deployed on pushes to main that touch site/, reports/ or docs/.
 #
-# `docs/` is in the trigger list because the Decisions page is generated from the ADR files
-# themselves rather than from a hand-kept list, so adding an ADR changes the site without
-# anything under site/ changing.
+# **It builds everywhere and deploys only from main.** Building only on main meant a branch
+# could break the site and nobody would know until after the merge, which is the wrong moment
+# to find out that a page references a variable nothing generates. The build job runs on every
+# branch and pull request; the deploy job is gated on main.
+#
+# `docs/` and `explainer/` are in the trigger list because the Decisions page is generated from
+# the ADR files themselves rather than a hand-kept list, so adding an ADR changes the site
+# without anything under `site/` changing.
 on:
   push:
+    branches: [main, "feat/**", "chore/**", "fix/**", "ci/**", "docs/**"]
+    paths:
+      - "site/**"
+      - "explainer/**"
+      - "reports/**"
+      - "docs/**"
+      - "scripts/assemble_site.py"
+      - "scripts/check_site_links.py"
+      - "scripts/build_site_stats.py"
+      - ".github/workflows/site.yml"
+  pull_request:
     branches: [main]
     paths:
       - "site/**"
+      - "explainer/**"
       - "reports/**"
       - "docs/**"
       - ".github/workflows/site.yml"
@@ -26,7 +43,10 @@ permissions:
 # One deployment at a time, and do not cancel one in flight. A cancelled deploy can leave
 # Pages serving a half-published site, which is worse than a queue.
 concurrency:
-  group: pages
+  # Keyed by ref, so a branch build does not queue behind main's deploy. Not cancelled in
+  # flight: a cancelled deploy can leave Pages serving a half-published site, which is worse
+  # than a queue.
+  group: pages-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -58,21 +78,53 @@ jobs:
       - name: Check the README matches them
         run: uv run python scripts/check_repo_hygiene.py
 
+      # Quarto is a separate binary, not a Python package, so it is installed rather than
+      # synced. Pinned: an unpinned toolchain that renders the published site is a toolchain
+      # that can change the site without a commit.
+      - name: Install Quarto
+        uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: 1.10.18
+
       - name: Build the site
-        run: uv run python site/build.py
+        run: PYTHONPATH=src uv run python scripts/assemble_site.py
+
+      # The explainer shows generated numbers through Quarto variables. An unsubstituted
+      # placeholder renders as literal text rather than failing the build, so it is checked
+      # here: a page reading "{{< var specs >}}" is worse than a page with no number, because
+      # it looks like a bug in the site rather than a missing measurement.
+      - name: Refuse an unsubstituted variable
+        run: |
+          set -euo pipefail
+          if grep -rlF '{{< var' site/dist --include='*.html'; then
+            echo "::error::a Quarto variable was not substituted; is explainer/_variables.yml current?"
+            exit 1
+          fi
+          echo "every variable substituted"
 
       # A page that renders an unquotable figure as a number is the failure this project
       # cares about most, and it is not a crash, so it needs its own assertion in the
       # pipeline rather than only in the test suite.
       - name: Refuse to publish an unsourced number
-        run: uv run pytest tests/unit/test_site_build.py -q
+        run: uv run pytest tests/unit/test_site_build.py tests/unit/test_explainer_site.py -q
 
+      # Only the links inside the published tree. External links need the network and would
+      # make a deploy fail because somebody else's server was down, which is the wrong reason
+      # to block a release. The phase report records that outbound links are checked by hand.
+      - name: Check every internal link resolves
+        run: PYTHONPATH=src uv run python scripts/check_site_links.py site/dist
+
+      # Only from main. A branch build proves the site still builds, which is the point of
+      # running it there, and uploading a Pages artefact from a branch would queue a deploy of
+      # unreviewed content.
       - uses: actions/upload-pages-artifact@v3
+        if: github.ref == 'refs/heads/main'
         with:
           path: site/dist
 
   deploy:
     needs: build
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:

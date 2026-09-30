@@ -1,0 +1,130 @@
+---
+title: "Trade-offs"
+subtitle: "What was prioritised, what was refused, and the mistakes worth knowing about."
+---
+
+## How the work was ordered
+
+Thirteen phases, each with a review gate. The ordering was not by feature value; it was by
+**what would invalidate later work if it were wrong**.
+
+```{mermaid}
+flowchart LR
+  P0["0. Foundation<br/><small>hooks, CI, hygiene</small>"] --> P1["1 and 2. Target system,<br/>bundles, splits,<br/>leakage controls"]
+  P1 --> P2["3 and 4. Tools,<br/>graph, triage"]
+  P2 --> P3["5 and 6. Eval harness,<br/>baselines"]
+  P3 --> P4["7 to 10. Critic, gate,<br/>cascade, security,<br/>self-improvement"]
+  P4 --> P5["11 and 12. Console,<br/>observability,<br/>site"]
+  style P1 fill:#fff8e8,stroke:#e6cf9a
+  style P3 fill:#fff8e8,stroke:#e6cf9a
+```
+
+The two highlighted phases came before any agent existed, and that was the single most
+consequential choice in the project.
+
+**Leakage controls before the agent.** If the agent can see the label, every number afterwards
+is worthless, and the failure is silent: a leak does not crash, it produces an accuracy figure
+that means nothing. So the import-graph walk, the canaries and the split design were built and
+tested before there was anything to leak to.
+
+**The harness before the agent.** Building the measuring instrument first means the first thing
+you learn about your system is how well it does, rather than how good the demo looks. It is also
+why this project can say it has no result: the instrument exists and reports honestly, including
+when the answer is "nothing has been measured".
+
+## Decisions and what each one cost
+
+Fourteen decision records, each with the alternatives it rejected. The ones where the cost is
+most visible:
+
+| Decision | Rejected | What it cost |
+|---|---|---|
+| Typed tool templates | Free-form queries | The agent can only ask the fourteen questions somebody wrote a tool for |
+| Deterministic triage first | Letting the model explore | A fault the statistics miss is one the agent never sees |
+| Frozen bundles for replay | Live-only evaluation | Recording the library is ~36 hours of wall clock and cannot be compressed |
+| Approval service as sole writer | Firebreak executing its own fixes | Nothing is ever fixed automatically, by construction |
+| Gate removes claims | Annotating them | A report can come back thinner than the investigation was |
+| Spans carry shapes, never content | Shipping prompts for debugging | Debugging a bad prompt from a trace is not possible |
+| Two telemetry pipelines | One with a distinguishing attribute | More to deploy, and the simpler option fails silently |
+
+## Things that were measured and then refused
+
+This is the section worth reading, because refusing a change that looks good is harder than
+making one.
+
+::: {.callout-warning}
+## A threshold retune that would have doubled sensitivity
+
+On the recordings available, lowering the abstention threshold from 22.7 to about 13.4 would
+more than double sensitivity at **no measured cost** in specificity.
+
+It was not done, for three reasons:
+
+1. **There is one no-fault recording.** Fitting a threshold whose entire job is specificity to a
+   single negative example is fitting noise.
+2. **Three of the positives sit exactly at the score cap.** The gap a midpoint would sit in is
+   as much an artefact of clipping as a property of the data.
+3. **It would not fix the real problem.** The two faults that would still be missed are latency
+   faults scoring *below* the healthy recording. No threshold on a top anomaly score can catch a
+   latency fault without crying wolf on a busy healthy system. That needs a second signal, not a
+   better number.
+
+The shipped value is the fixture-tuned one and is labelled as such everywhere it appears.
+:::
+
+::: {.callout-warning}
+## Published techniques that measured worse
+
+The ranking's parameters were each chosen by ablation, and two well-known improvements were
+measured as regressions here:
+
+| Mechanism | Published as | Measured, top-1 of 147 |
+|---|---|---|
+| Endpoint scaling | An improvement | 147 with, 143 without. **Kept** |
+| Self-loops | An improvement | 143 with, 147 without. **Dropped** |
+| Backward edges | An improvement | 10 with, 147 without. **Dropped** |
+
+Backward edges are the interesting one: they feed score back into the upstream symptoms the
+ranking exists to demote, so they actively undo the mechanism. Adopting all three because they
+are published would have produced a system that ranks almost at random.
+:::
+
+## Mistakes worth knowing about
+
+Every one of these was found, and most were found by something other than a test.
+
+| What happened | How it was found | What changed |
+|---|---|---|
+| Six of fourteen recordings silently corrupted by a laptop sleeping mid-run | A bundle looked complete with a hole in the middle | Duration and continuity checks; the recorder refuses such a bundle |
+| `make console` broken for an entire phase while 34 tests said the Console worked | Somebody typed the command | Tests that resolve the documented interface, not just the code behind it |
+| Eval reports ordered by modification time, which git rewrites on checkout | Two reports shared a checkout timestamp | Ordered by the report's own `generated_at`. A branch switch could have promoted a fixture run reporting perfect accuracy |
+| The coverage floor was 84.5%, not the 85% twelve reports named | A run printed FAIL and exited 0 | `precision = 2`, so the message and the exit code agree |
+| A config file carried a key nothing read, whose comment described control flow the code does not have | An audit of all 80 models | `extra="forbid"`, and the vocabulary declared once |
+| Four separate defects in the tool that reports whether CI passed | Using it | Tests for it, and it now answers for every workflow |
+
+::: {.callout-note}
+## The pattern in all of them
+
+Two components agreeing on a type and disagreeing on a vocabulary, failing silently. It came up
+**nine times**. The remedy each time was the same: declare the vocabulary once, and assert it in
+a contract test.
+
+The second pattern: **the thing that tells you whether everything else is fine is the thing
+nobody checks.** Four of the nine were in the CI status tool, the hygiene checks, or the
+conformance checker.
+:::
+
+## What was deliberately not built
+
+Recorded as decisions with reasons, not as omissions:
+
+- **A collector config and Grafana dashboards.** Nothing here runs a collector. Shipping
+  untested config that looks like a working observability stack is worse than a recorded gap.
+- **Live streaming of an investigation.** Against a frozen bundle a run finishes in under a
+  second, so a progress bar would be theatre.
+- **Charting libraries.** There is one graph worth drawing and no calibration curve with enough
+  data to plot.
+- **An approve button in the Console.** It would put the decision and the credential back in one
+  process, which is the arrangement the whole design avoids.
+
+Next: [what is next](next.qmd).

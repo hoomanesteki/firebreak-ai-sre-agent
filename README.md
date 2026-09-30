@@ -1,67 +1,72 @@
 # Firebreak
 
-A multi-agent AI SRE that investigates production incidents, finds the root
-cause, and cites every piece of evidence, measured on a library of
-reproducible fault-injected incidents.
+**A multi-agent AI SRE that investigates production incidents and cites evidence you can
+re-run.** It names a root cause or refuses to, links every sentence in its report to the query
+behind it, and is benchmarked on fault-injected incidents from the OpenTelemetry Demo.
+
+[Explainer site](https://hoomanesteki.github.io/firebreak-ai-sre-agent/) ·
+[Reference site](https://hoomanesteki.github.io/firebreak-ai-sre-agent/reference/) ·
+[Decisions](docs/adr/) · [Runbook](docs/runbook.md)
 
 ## Status
 
-Under construction. Phase 0 of 12 is complete (SPEC.md Section 17). Result
-numbers below are placeholders until the phase that produces them runs.
+All 13 phases are complete (SPEC.md Section 17). The system is built, tested end to end, and
+**has not been measured**.
+
+Two things are missing, and every page and report says so where a number would go:
+
+- **No model has run.** No credentials are configured, so the deterministic floor publishes
+  triage's answer with a label saying no AI analysis happened.
+- **Both held-out test splits have no recordings.** The library is 114
+  scenario specs and only one tuning split is partly recorded.
+
+Every eval report in `reports/eval/` is marked `quotable_as_a_result: false` with its reason, and
+the site build refuses to publish a figure from any of them. That is deliberate: two figures in
+this repository look quotable and are not.
 
 ## The problem
 
-When an online business breaks, engineers are paged and spend most of the
-incident searching across services, dashboards, logs, and recent changes. A
-PagerDuty survey of 500 IT leaders found customer-facing incidents rose 43%
-over 12 months, took 175 minutes on average to resolve, and cost about USD
-794,000 per incident ([PagerDuty](https://www.pagerduty.com/newsroom/study-cost-of-incidents/)).
-Catchpoint's SRE Report 2025 found median toil rose to 30% from 25%, the
-first increase in five years ([Catchpoint](https://www.catchpoint.com/press-releases/the-sre-report-2025-highlighting-critical-trends-in-site-reliability-engineering)).
+The expensive part of an incident is not the fix. It is the twenty minutes spent deciding which
+of forty services to look at, made from dashboards under time pressure.
 
-## What Firebreak does differently
+Two things go wrong in those minutes, and they pull in opposite directions:
 
-1. Deterministic first, LLM second. Anomaly detection and topology ranking
-   run before any model call and produce a candidate list.
-2. Specialists plus an independent critic. Separate agents gather evidence
-   per signal; a critic with its own prompt tries to refute each hypothesis.
-3. Gates at both ends. An entry gate scopes the alert and treats log text as
-   untrusted data. An exit gate removes any report sentence whose cited
-   evidence does not re-run and match.
-4. Calibrated confidence and the right to abstain, rather than a confident
-   guess.
-5. A cost-aware model cascade with a deterministic floor, so an on-call
-   engineer always gets a report.
-6. An eval harness over reproducible fault-injected incidents, with
-   baselines, ablations, and a statistical CI gate.
+| What goes wrong | Why the obvious fix makes it worse |
+|---|---|
+| The service that pages you is rarely the service that broke | An agent that answers faster gives you a confident wrong service sooner |
+| The reasoning is lost by the time the postmortem is written | An agent that writes prose produces a postmortem nobody can check |
 
-## Demo
+So the question is not how to answer more often. A confident wrong answer costs more than no
+answer. The question is how to make an answer **checkable**, and how to get the system to **say
+nothing** when the evidence will not support saying something.
 
-No GIF or video yet. The shot list is written, in
-`docs/demo-shot-list.md`, and the owner records it; two of its eight scenes
-cannot be recorded until there are model credentials and a recorded library,
-and the list says which and why.
+## How it works
 
-What runs today, on a clone with nothing installed but Python and uv:
-
-```bash
-make demo
+```mermaid
+flowchart LR
+  B["Incident bundle<br/>frozen replay"] --> T["Triage<br/>no model"]
+  T -->|"nothing unusual"| A["Abstain<br/>with the threshold it failed"]
+  T -->|"ranked shortlist"| L["Agent loop<br/>commander, 4 specialists,<br/>critic, budgeted"]
+  L --> G["Exit gate<br/>6 checks"]
+  G -->|"claims survive"| R["Report<br/>every claim cited"]
+  G -->|"support too thin"| A
 ```
 
-It chooses. With the live stack up it investigates a live incident; without
-it, it replays ten recorded incidents with no model, no network and no Docker,
-and it says which it chose and what would have changed the choice. Two of the
-ten abstain, which is the correct answer for them.
+Triage runs before any model and can end the investigation on its own. On a healthy system the
+cheapest correct answer is to stop.
+
+## What it does differently
+
+Four commitments, each with a cost worth naming.
+
+| Commitment | What it buys | What it costs |
+|---|---|---|
+| **Deterministic triage first**, with robust z-scores and personalised PageRank | A shortlist, a cost floor, and a baseline any agent must beat | A fault the statistics miss is one the agent never sees |
+| **Evidence or nothing.** Every tool call records its query, window, backend fingerprint and row hash | Claims that can be re-executed to the same bytes | The agent can only ask the 14 questions somebody wrote a tool for |
+| **A gate that removes claims**, not one that annotates them | A report where every remaining sentence survived re-execution | A report can come back thinner than the investigation was |
+| **Abstention as a real answer** | It says nothing on a healthy system, and names the threshold it failed | It abstains on real faults too, which is the largest open problem |
 
 ## Results
-
-Every row below is generated by `scripts/build_site_stats.py` from a file in
-`reports/`, and the Source column names it. A row reads "not measured" or "not a
-result" when the report behind it does not support a claim about performance. None of
-them does yet: no model has run, and neither held-out test split has any recordings, so
-there is no result to quote. Figures do exist in `reports/eval/`, each carrying its own
-caveats, and not one of them is a result. The recordings themselves are not in this
-repository.
 
 <!-- stats:start -->
 | Metric | Value | Source |
@@ -75,6 +80,10 @@ repository.
 | Cost per investigation | not measured: no model has run, so there is no model result to report | no report |
 <!-- stats:end -->
 
+Every row is generated by `scripts/build_site_stats.py` from a file under `reports/`, and the
+Source column names it. A row reads "not measured" or "not a result" when the report behind it
+does not support a claim about performance. None of them does yet.
+
 ## Quickstart
 
 No model, no Docker, no network:
@@ -83,142 +92,136 @@ No model, no Docker, no network:
 git clone git@github.com:hoomanesteki/firebreak-ai-sre-agent.git
 cd firebreak-ai-sre-agent
 make setup
-make demo-offline   # replay 10 incidents and check each against its recording
-make console        # the Console on http://127.0.0.1:8080
+make demo      # chooses live or offline, and says which
+make console   # six pages on http://127.0.0.1:8080
 ```
 
-`make demo-offline` rebuilds each incident from its scenario spec, replays it
-against recorded answers, and fails if any of them stops reproducing. It is
-part of `make verify`, so it is checked on every commit rather than being a
-demo that rots.
+`make demo` rebuilds 10 incidents from their scenario specs,
+replays them against 56 recorded answers, and fails if any stops
+reproducing. It is part of `make verify`, so it is checked on every commit rather than being a
+demo that rots. Two of the ten abstain, which is the right answer for them.
 
-It replays stub answers rather than a model, which it prints before its first
-line. That means it shows the whole path working and says nothing about model
-quality, and its per-incident results are much better than the measured ones
-because it runs on fixtures.
+> [!WARNING]
+> The demo replays a deterministic stub rather than a model, and prints that before its first
+> line. It names every fault in the set; the same triage, measured on real recordings, names
+> one of seven. It shows the whole path runs and reproduces. It says nothing about quality.
 
 With a local model, any OpenAI-compatible endpoint including Ollama:
 
 ```bash
 export LLM_BASE_URL=http://localhost:11434/v1
 export LLM_API_KEY=ollama
-make demo-offline   # now exercises the real loop
+make demo
 ```
 
-Without credentials the deterministic floor publishes triage's answer with a
-label saying no AI analysis happened, rather than failing or pretending.
+`make demo` also runs against the live stack when one is up; it reports which it chose and what
+would have changed the choice. `make live` starts the pinned OpenTelemetry Demo and needs Docker
+with about 6 GB of memory.
 
-`make demo` runs an investigation against the live stack and needs both Docker
-and credentials.
+## How a report is verified
 
-### Running the live target system
-
-Firebreak investigates the OpenTelemetry Demo, pinned as a submodule at tag
-3.1.0. Start it with:
-
-```bash
-git submodule update --init --recursive
-make live          # starts the demo plus Firebreak's overlay
-make live-down     # stops it and removes its volumes
+```mermaid
+flowchart LR
+  C["Claim"] --> E["Evidence ids it cites"]
+  E --> RR["Re-execute each query"]
+  RR --> HSame row hash?
+  H -->|"yes"| K["Claim kept"]
+  H -->|"no"| X["Claim removed"]
 ```
 
-Resource notes, so the first run is not a surprise:
+Six checks run on the finished report: `coverage`, `re_execution`, `numbers`, `consistency`,
+`confidence_sanity`, `abstention`. A claim that fails is removed rather than annotated, because a
+warning beside a claim is a claim that still gets quoted. See SPEC.md Section 6.9.
 
-- The 28 services declare 7.9 GB of memory limits between them, including
-  128 MB for the Alertmanager that Firebreak's overlay adds. Limits are
-  ceilings rather than reservations, so steady-state usage is lower, but
-  give Docker 10 GB or more. The stack has been started on a 16 GB machine
-  with 7.8 GB allocated to Docker, which works and leaves little room.
-- The four largest single limits are the load generator at 1.5 GB, Jaeger at
-  1.2 GB, OpenSearch at 1 GB, and Kafka at 620 MB.
-- Firebreak's overlay turns off the load generator's headless browser users.
-  They are the largest single memory consumer and they make load levels hard
-  to reproduce between recordings.
-- The first `make live` builds several images and takes a long time. Later
-  runs start from cache.
-
-Everything after the recording step runs from frozen incident bundles, so the
-demo is needed to record a scenario library and to run `make live`, and for
-nothing else.
-
-## Architecture
-
-An incident bundle enters deterministic triage, which scores every service
-with a robust z against a median and MAD, walks the service graph with
-personalised PageRank, and can end the investigation on its own by abstaining.
-What survives goes to a commander that picks hypotheses, four specialists that
-each gather evidence on one question without seeing each other's answers, a
-hypothesis board, and a critic that argues against the leader on the same
-evidence and cannot gather its own. A reporter writes claims. An exit gate
-then runs six checks and removes any claim that fails one.
-
-Every tool builds its own query from validated arguments, so no model ever
-writes a query string, and every call records the query, the window, a
-fingerprint of the backend and a hash of its rows. That record is what a claim
-cites and what the gate re-runs.
-
-The design rationale is in SPEC.md Sections 4 to 6, the binding harness
-principles in Section 5, and the decisions with their rejected alternatives in
-`docs/adr/`.
-
-## How reports are verified
-
-Every claim in a report is a structured object with evidence IDs. Before a
-report is published, a code-only exit gate re-runs each cited query and
-compares the result. Claims that fail after one repair pass are removed and
-counted. See SPEC.md Section 6.9.
+> [!NOTE]
+> The gate cannot check whether a claim **says** anything. All 40 claims across the ten showcase
+> reports are true, cited, re-runnable and uninformative, because they come from a deterministic
+> stub. Whether to add a seventh check is an open question in `docs/phase-reports/P12.md`.
 
 ## Evaluation
 
-Incidents are recorded from the OpenTelemetry Demo with faults injected
-through its feature flags, which gives a true label for every incident.
-Splits are held out by scenario, with a separate out-of-distribution split of
-entirely unseen fault families. Metrics include top-1 and top-3 root-cause
-accuracy, calibration, pass^3 reliability, evidence validity, cost, and time
-to root cause. See SPEC.md Section 9.
+Incidents are recorded from the OpenTelemetry Demo with faults injected through its feature
+flags, which gives a true label for every incident.
+
+```mermaid
+flowchart TB
+  LIB["114 scenario specs"] --> TR["train, 39"]
+  LIB --> VA["validation, 16"]
+  LIB --> TI["test_id, 29"]
+  LIB --> TO["test_ood, 30"]
+  TR --> TUNE["Thresholds, prompts, memory"]
+  VA --> TUNE
+  TI --> RES["The only figures that<br/>may be called a result"]
+  TO --> RES
+```
+
+Splits are held out by scenario spec, and `test_ood` holds back entire fault families to ask
+whether the system generalised or memorised. Seven graders, three baselines, six ablations,
+bootstrap intervals, and a non-inferiority gate that reports `INCONCLUSIVE` separately from
+`FAIL`. See SPEC.md Section 9.
+
+**The agent never sees a label.** Labels live in a package only the eval code may import,
+enforced by a test that walks the import graph; every label carries a canary that every prompt is
+scanned for; and the change log the agent reads excludes fault flag flips. See SPEC.md Section
+8.4.
 
 ## Security and limitations
 
-Logs, traces, and alert text are written by software and sometimes by
-attackers, so Firebreak treats them as untrusted input. Agents hold
-read-only credentials; the only write path is a separate approval service.
-See SPEC.md Section 11.
+Logs, traces and alert text are written by software and sometimes by attackers, so Firebreak
+treats them as untrusted input and never as instruction. Agents hold read-only credentials, and
+the only write path is a separate approval service that requires a person and verifies afterwards
+that the metric recovered. Traces carry shapes and never prompt content. See
+[`docs/threat-model.md`](docs/threat-model.md).
 
-Known limits of the benchmark: faults injected through feature flags are
-cleaner than real incidents, with one clear cause and a known onset. The
-distractor, double-fault, and no-fault families exist to make it harder, and
-the out-of-distribution split checks generalisation, but this is still easier
-than production.
+**Known limits of the benchmark.** Faults injected through feature flags are cleaner than real
+incidents: one clear cause, a known onset. The distractor, double-fault and no-fault families
+exist to make it harder and the out-of-distribution split checks generalisation, but this is
+still easier than production.
+
+**Known limits of the system.** It abstains on most real faults in the recorded set, and the
+ranking blames the frontend for payment failures, which is the symptom over the cause. Both are
+recorded with their evidence in the phase reports.
 
 ## Not in v1
 
-Kubernetes tooling, paging and chat integrations, autonomous remediation
-without approval, model fine-tuning, and multi-tenant deployment. See
-SPEC.md Section 3.2.
+Kubernetes tooling, paging and chat integrations, autonomous remediation without approval, model
+fine-tuning, and multi-tenant deployment. See SPEC.md Section 3.2.
 
 ## Documentation
 
 | Document | What it is for |
 |---|---|
-| `docs/runbook.md` | Seven operational procedures: record a scenario, add a tool, add a remediation, retune thresholds, rotate secrets, investigate a failed eval, restore from backup. Each says how to tell it worked. |
-| `docs/threat-model.md` | The OWASP agentic mapping, the privilege separation, and the limits of each control. |
-| `docs/adr/` | Fourteen decision records, each with the alternatives it rejected and the bugs the decision caused. |
-| `docs/phase-reports/` | One report per phase, including what each phase could not do and why. |
-| `docs/demo-shot-list.md` | The script for the demo video, with two scenes marked unrecordable and what unblocks them. |
-| `docs/release-notes-v1.0.0.md` | Draft release notes. Read the "before the feature list" section first. |
-| `docs/target-system.md` | How the pinned OpenTelemetry Demo is wired and what the overlay changes. |
-| `SPEC.md` | The contract. Everything above is downstream of it. |
+| [`docs/runbook.md`](docs/runbook.md) | Seven operational procedures, each saying how to tell it worked |
+| [`docs/threat-model.md`](docs/threat-model.md) | The OWASP agentic mapping and the limits of each control |
+| [`docs/adr/`](docs/adr/) | 14 decision records, each with the alternatives it rejected |
+| [`docs/phase-reports/`](docs/phase-reports/) | One report per phase, including what each could not do and why |
+| [`docs/demo-shot-list.md`](docs/demo-shot-list.md) | The demo video script, with two scenes marked unrecordable |
+| [`docs/release-notes-v1.0.0.md`](docs/release-notes-v1.0.0.md) | Draft release notes |
+| `SPEC.md` | The contract. Everything above is downstream of it |
 
 ## Development
 
-- `SPEC.md` is the contract. `CLAUDE.md` and `AGENTS.md` hold the working
-  rules.
-- `make verify` runs lint, types, tests, and repository hygiene.
-- `make verify-clean` runs the same checks in a fresh clone, which is the only
-  way to catch a test that passes because of git-ignored local state.
-- `make ci-status WATCH=1` says what CI thought of the last push.
-- Commit messages follow Conventional Commits and are checked by a hook.
+2069 tests, 85.38% coverage against an exact 85%
+floor, three-platform type checking, and a hygiene gate that refuses em dashes, filler words and
+AI attribution.
+
+```bash
+make verify        # lint, types on three platforms, tests, hygiene, leakage, offline demo
+make verify-clean  # the same in a fresh clone, where git-ignored local state shows up
+make site          # the explainer and reference sites
+make ci-status     # what CI said about the last push
+```
+
+`make verify-clean` exists because `make verify` runs against a working tree and CI runs against
+a fresh clone. Everything git-ignored is the difference, and a test that reads one of those files
+passes locally and fails in CI.
+
+Commit messages follow Conventional Commits and are checked by a hook. `CLAUDE.md` and
+`AGENTS.md` hold the working rules.
 
 ## License
 
-MIT. See `LICENSE`.
+MIT. See [`LICENSE`](LICENSE).
+
+The target system is the [OpenTelemetry Demo](https://github.com/open-telemetry/opentelemetry-demo),
+Apache-2.0, used unmodified at a pinned release.

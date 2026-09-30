@@ -108,6 +108,9 @@ footer.bottom p { margin: 0 0 0.4rem; }
       {% for name, title in pages %}
       <a href="{{ name }}"{% if name == page_name %} aria-current="page"{% endif %}>{{ title }}</a>
       {% endfor %}
+      {# Up to the explainer. Relative, because this site is published at /reference/ and
+         has to work from a subdirectory without knowing the site's root. #}
+      <a href="../index.html">Overview</a>
       <a href="{{ repository }}">Source</a>
     </nav>
   </div>

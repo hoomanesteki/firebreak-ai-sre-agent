@@ -1,0 +1,44 @@
+# Dependency updates, grouped so a week's worth arrives as one reviewable PR rather than nine.
+#
+# Why this is wanted here specifically: the audit in `ci.yml` already fails on a known
+# vulnerability, so without something that proposes upgrades the only way a fix arrives is
+# somebody noticing. One of the two advisories this project has carried had no fix available at
+# all, which is exactly the case where you want to be told the moment one appears.
+version: 2
+
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    groups:
+      # Development tooling moves often and breaks little. One PR for all of it.
+      dev-tooling:
+        patterns: ["ruff", "mypy", "pytest*", "pre-commit", "hypothesis", "types-*"]
+      # Everything the product actually ships. Separate, because these deserve reading.
+      runtime:
+        patterns: ["*"]
+        exclude-patterns: ["ruff", "mypy", "pytest*", "pre-commit", "hypothesis", "types-*"]
+    commit-message:
+      # Conventional Commits, because the commit-msg hook rejects anything else and a bot PR
+      # that cannot be merged is worse than no bot.
+      prefix: "chore(deps)"
+    labels: ["dependencies"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 2
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore(ci)"
+    labels: ["dependencies"]
+
+  # Deliberately not the submodule. `vendor/otel-demo` is pinned to a release on purpose, and
+  # several tests read its files so that they fail when the pin moves and something upstream
+  # changed underneath. An automatic bump would defeat the pin, which is the whole point of it.

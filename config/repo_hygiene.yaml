@@ -38,6 +38,13 @@ text_extensions:
   - .js
   - .cypher
   - .sql
+  # Added in Phase 12 with the Quarto explainer. Their absence was a real gap rather than an
+  # oversight worth shrugging at: the check reported "clean" over five published pages that
+  # contained en dashes, which a test in tests/unit/test_explainer_site.py caught instead.
+  # tests/unit/test_hygiene_covers_the_repository.py now fails when a new text type appears
+  # here and is not listed, so the next one cannot slip through the same way.
+  - .qmd
+  - .scss
   - .sh
 
 # Filler and marketing words banned in prose files.

@@ -104,6 +104,16 @@ jobs:
           PYTHONPATH: src
         run: uv run python scripts/demo_offline.py
 
+      # The reference site and its links, without Quarto. `site.yml` builds the whole thing
+      # including the explainer; this catches the cheaper failures on every commit: a template
+      # that stopped rendering, and a link that stopped resolving.
+      - name: Site and links
+        env:
+          PYTHONPATH: src
+        run: |
+          uv run python site/build.py --output .quality/site-check
+          uv run python scripts/check_site_links.py .quality/site-check --allow-parent
+
       - name: Spec conformance
         # Reads SPEC.md's own tables and fails when a completed phase left
         # something out. It found two on the day it was written: an ablation no

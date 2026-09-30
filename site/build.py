@@ -156,7 +156,14 @@ def main() -> int:
     except SiteError as error:
         print(f"site: {error}", file=sys.stderr)
         return 1
-    print(f"site: wrote {len(written)} page(s) to {arguments.output.relative_to(REPO_ROOT)}")
+    # `relative_to` raises when the output is not under the repository root, and a relative
+    # path like `.quality/site-check` is not, so reporting success used to fail with a
+    # ValueError about subpaths. A message about what worked must not be the thing that breaks.
+    try:
+        where: object = arguments.output.relative_to(REPO_ROOT)
+    except ValueError:
+        where = arguments.output
+    print(f"site: wrote {len(written)} page(s) to {where}")
     return 0
 
 

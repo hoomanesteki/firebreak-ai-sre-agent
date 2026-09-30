@@ -1,0 +1,124 @@
+---
+title: "What is next"
+subtitle: "Two inputs stand between a built system and a measured one. Everything else is downstream of them."
+---
+
+## The critical path
+
+```{mermaid}
+flowchart TB
+  C["Model credentials<br/><small>minutes</small>"] --> E
+  R["Record the library<br/><small>~30 hours, mains power</small>"] --> E
+  E["make eval CONFIG=fb-v1 SPLIT=test_id<br/><small>the first publishable number</small>"] --> S["make site-stats<br/><small>the front page fills itself</small>"]
+  E --> G["Cost table, cascade comparison,<br/>judge calibration, GEPA, ablation A6"]
+  style C fill:#fff8e8,stroke:#e6cf9a
+  style R fill:#fff8e8,stroke:#e6cf9a
+```
+
+Nothing on the right can move until both boxes on the left are done, and neither is an
+engineering task.
+
+## In order
+
+### 1. Model credentials
+
+Any OpenAI-compatible endpoint, Ollama included:
+
+```bash
+export LLM_BASE_URL=http://localhost:11434/v1
+export LLM_API_KEY=ollama
+```
+
+Unblocks, in one step: the cost per investigation, the cascade comparison, the judge's
+calibration against human labels, prompt optimisation, ablation A6, and replay cassettes that
+record a real investigation rather than a deterministic stub's imitation of one.
+
+Without credentials the graph's deterministic floor publishes triage's answer with a label saying
+no AI analysis happened. That label is the signal, and it is on every report in the repository
+today.
+
+### 2. Record the library
+
+```bash
+caffeinate -dims make lab-record-library
+```
+
+About thirty hours of wall clock remain. It cannot be compressed: each scenario's baseline,
+incident and recovery have to actually happen. The recorder is resumable and decides what to
+skip from the bundles on disk rather than from its own progress file, because a progress file can
+be stale and a bundle either exists or does not.
+
+::: {.callout-important}
+## On mains power
+
+Six of the first fourteen recordings were corrupted by a laptop sleeping mid-run. The monotonic
+clock stops while the wall clock jumps, so the bundle looks complete and has a hole in the
+middle of it. The recorder now refuses such a bundle, but the cheaper fix is a cable.
+:::
+
+Record in split order. A partly recorded library is still useful if the recorded part is a whole
+split rather than a scattering.
+
+### 3. Then the numbers appear by themselves
+
+```bash
+make eval CONFIG=b0    SPLIT=test_id   # the floor first
+make eval CONFIG=fb-v1 SPLIT=test_id
+make eval CONFIG=fb-v1 SPLIT=test_ood  # did it generalise or memorise
+make site-stats
+```
+
+`make site-stats` regenerates every number the README and both sites publish. No template is
+edited: the pages are built so that a stated absence becomes a stated figure the moment its
+report says `quotable_as_a_result`.
+
+## Open questions that need a decision, not code
+
+| Question | Why it is not mine to make |
+|---|---|
+| Tag `v1.0.0` now, or wait for a measured result | A tag is a public statement |
+| Where the recorded library is hosted | It is ~870 MB and git-ignored |
+| `PYSEC-2026-2447` in `diskcache`, which has no fix | Carried explicitly in the threat model rather than suppressed; releasing makes it a published decision |
+| **Should the exit gate get a seventh check, for whether a claim is informative?** | It would fail every showcase report today. That is either the right answer or a reason to wait for a model |
+| Is `reports/feedback` ground truth for the leakage rules? | It holds a human's statement of what broke, which for a held-out incident is the label |
+| Correct or keep `recording_progress.json`, which overstates by three | Correcting it erases the only record of the corruption incident |
+
+## The two problems worth solving next
+
+Neither is blocked on credentials or recordings. Both are recorded with the evidence behind them.
+
+::: {.panel-tabset}
+### Latency faults need a second signal
+
+The abstention rule misses the two latency faults in the recorded set because they score *below*
+the healthy recording on top anomaly z. No threshold on that one statistic can separate them.
+
+What it needs: a latency-specific signal, probably a distributional shift in the p99 rather than
+a z-score on the mean. That is a measurement problem with a clear shape, and it is the single
+change most likely to move the abstention figure.
+
+### The ranking blames the symptom
+
+It names `frontend` for all three payment failures on the recorded set. Personalised PageRank
+over the service graph was supposed to prevent exactly that.
+
+The ablation numbers say endpoint scaling carries most of the benefit and onset ordering
+contributes nothing measurable *on fixtures*, where accuracy is saturated at 100% and there is no
+room to demonstrate anything. On recordings there is room. Re-running that ablation on real
+recordings is the first thing to do after the library exists.
+:::
+
+## What this project already demonstrates
+
+Even unmeasured, and stated plainly rather than as a claim about performance:
+
+- An evaluation harness that **reports honestly when it has nothing to report**, and a build that
+  refuses to publish a figure its own report marks unquotable.
+- Ground-truth leakage made mechanically impossible rather than carefully avoided, with an
+  import-graph walk that has caught two real routes.
+- A system that **abstains**, states the threshold it failed, and lets a reader disagree with it.
+- Fourteen decision records that include the measurements which contradicted published
+  technique, and the changes that were refused despite looking good.
+
+The thing it does not demonstrate is that it finds root causes. That needs the two inputs above,
+and until then every page says so.

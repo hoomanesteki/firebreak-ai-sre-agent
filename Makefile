@@ -4,7 +4,7 @@ SHELL := /bin/bash
 
 .PHONY: help setup verify lint format types test test-cov hygiene leakage clean unhide \
         live live-config live-down live-logs lab-flags lab-library lab-bundles lab-package lab-verify lab-smoke lab-webhook lab-record lab-record-library \
-        graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates eval-b0 eval eval-compare eval-gate eval-regression cost-table optimize prompts cassettes demo-offline demo console spec-check site site-stats site-stats-check verify-clean ci-status
+        graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates eval-b0 eval eval-compare eval-gate eval-regression cost-table optimize prompts cassettes demo-offline demo console spec-check site site-reference site-stats site-stats-check site-check verify-clean ci-status
 
 help:  ## Show the available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -35,7 +35,7 @@ unhide:
 		chflags nohidden .venv/lib/python*/site-packages/*.pth 2>/dev/null || true; \
 	fi
 
-verify: unhide lint types test hygiene leakage spec-check site-stats-check demo-offline  ## Run every check the review gate expects
+verify: unhide lint types test hygiene leakage spec-check site-stats-check site-check demo-offline  ## Run every check the review gate expects
 
 lint:  ## Lint and check formatting
 	uv run ruff check .
@@ -56,8 +56,25 @@ types:  ## Type check src and scripts with mypy strict, for every platform we ru
 	uv run mypy --platform linux src scripts site
 	uv run mypy --platform win32 src scripts site
 
-test:  ## Run the test suite with the coverage floor
-	uv run pytest --cov --cov-report=term-missing
+# The extra reports feed scripts/record_quality.py, which writes the one small committed
+# summary the README and the explainer site read. SPEC.md Section 3 rule 2: a published metric
+# comes from a generated file, and a test count is a metric. Both raw reports go to a scratch
+# directory because a JUnit XML for two thousand tests has no business being committed.
+QUALITY_TMP := .quality
+test:  ## Run the test suite with the coverage floor, and record the summary
+	@mkdir -p $(QUALITY_TMP)
+	uv run pytest --cov --cov-report=term-missing \
+		--cov-report=json:$(QUALITY_TMP)/coverage.json \
+		--junitxml=$(QUALITY_TMP)/junit.xml
+	PYTHONPATH=src uv run python scripts/record_quality.py \
+		--junit $(QUALITY_TMP)/junit.xml \
+		--coverage $(QUALITY_TMP)/coverage.json
+	@# The published numbers are downstream of the summary above, so they are regenerated
+	@# here rather than merely checked later. Without this, adding a test leaves
+	@# reports/site_stats.json and explainer/_variables.yml stale, make verify fails on its
+	@# own output, and the fix is a second commit. What changes is exactly what the run that
+	@# just happened derived, which is the same category as the coverage report itself.
+	PYTHONPATH=src uv run python scripts/build_site_stats.py
 
 test-cov:  ## Run tests and write an HTML coverage report
 	uv run pytest --cov --cov-report=html
@@ -70,7 +87,7 @@ leakage:  ## Prove the agent has no route to ground truth
 	uv run python scripts/check_leakage.py
 
 clean:  ## Remove build and test artefacts
-	rm -rf .pytest_cache .mypy_cache .ruff_cache htmlcov .coverage
+	rm -rf .pytest_cache .mypy_cache .ruff_cache htmlcov .coverage $(QUALITY_TMP)
 	find . -type d -name __pycache__ -not -path "./.venv/*" -exec rm -rf {} +
 
 # The demo's own Compose files first, then Firebreak's overlay, which takes
@@ -273,7 +290,10 @@ cost-table:  ## Cost versus accuracy for all-strong, all-small and the cascade
 verify-clean:  ## Run CI's checks in a fresh clone, to catch local-only passes
 	PYTHONPATH=src uv run python scripts/verify_clean_clone.py $(if $(DIRTY),--allow-dirty,)
 
-site:  ## Build the static site into site/dist
+site:  ## Build the published site: the Quarto explainer plus the reference site beneath it
+	PYTHONPATH=src uv run python scripts/assemble_site.py
+
+site-reference:  ## Build only the Jinja2 reference site, for when Quarto is not installed
 	PYTHONPATH=src uv run python site/build.py
 
 site-stats:  ## Regenerate reports/site_stats.json, the only source of published numbers
@@ -281,6 +301,14 @@ site-stats:  ## Regenerate reports/site_stats.json, the only source of published
 
 site-stats-check:  ## Fail if site_stats.json is stale against the reports
 	PYTHONPATH=src uv run python scripts/build_site_stats.py --check
+
+# Builds the reference site and checks every internal link. The explainer needs Quarto, which
+# is not a Python dependency, so this does not require it: `make site` is the full build and
+# CI runs that. What this catches locally is a template that stopped rendering and a link that
+# stopped resolving, which are the two ways the site breaks without anything else noticing.
+site-check:  ## Build the reference site and check its links, without needing Quarto
+	PYTHONPATH=src uv run python site/build.py --output $(QUALITY_TMP)/site-check
+	PYTHONPATH=src uv run python scripts/check_site_links.py $(QUALITY_TMP)/site-check --allow-parent
 
 spec-check:  ## Check the repository against SPEC.md's own tables
 	PYTHONPATH=src uv run python scripts/check_spec_conformance.py

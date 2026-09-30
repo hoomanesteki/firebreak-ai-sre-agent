@@ -1,0 +1,146 @@
+---
+title: "An AI SRE that cites evidence you can re-run"
+subtitle: "Firebreak investigates a production incident, names a cause or refuses to, and links every sentence to the query behind it."
+---
+
+::: {.callout-important}
+## Nothing here is a measured result yet
+
+Firebreak is built, tested end to end, and **has never been measured**. Two things are
+missing, and every page says so where a number would go:
+
+- **No model has run.** There are no credentials configured.
+- **Both held-out test splits have no recordings.** The library is {{< var specs >}} scenario
+  specs and only one tuning split is partly recorded.
+
+Figures do exist in `reports/eval/`. Every one of them is marked `quotable_as_a_result: false`
+with the reason attached, and the build refuses to publish any of them.
+:::
+
+## The problem
+
+The expensive part of an incident is not the fix. It is the twenty minutes spent deciding
+which of forty services to look at, made from dashboards under time pressure, by someone who
+was asleep.
+
+Two things go wrong in that twenty minutes, and they pull in opposite directions:
+
+| What goes wrong | Why the obvious fix makes it worse |
+|---|---|
+| The service that pages you is rarely the service that broke | An agent that answers faster gives you a confident wrong service sooner |
+| The reasoning is lost by the time the postmortem is written | An agent that writes prose produces a postmortem nobody can check |
+
+So the design question is not *how do we answer more often*. A confident wrong answer costs
+more than no answer, because it sends people to the wrong dashboard and teaches them to
+distrust the tool. The question is:
+
+> How do you make an answer **checkable**, and how do you get the system to **say nothing**
+> when the evidence will not support saying something?
+
+## What Firebreak does
+
+Four commitments, each of which costs something real.
+
+::: {.panel-tabset}
+### Deterministic first
+
+Robust anomaly scores and a ranked service list are computed **before any model runs**, using
+a median and median absolute deviation rather than a mean and standard deviation, because one
+spike moves a mean and a fault is a spike.
+
+If nothing scores above the abstention threshold, the investigation ends there. On a healthy
+system the cheapest correct answer is to stop.
+
+**The cost:** the model starts from a shortlist it did not choose, so a fault the statistics
+miss is a fault the agent never sees.
+
+### Evidence or nothing
+
+Every tool call records its query, its time window, a fingerprint of the backend it hit, and a
+hash of the rows that came back. A claim cites those records by id.
+
+A model never writes a query string. Tools take validated arguments and build their own
+queries.
+
+**The cost:** flexibility. The agent can only ask the fourteen questions somebody wrote a tool
+for.
+
+### A gate that removes claims
+
+Six checks run on the finished report, including re-executing every citation and comparing the
+hash. A claim that fails is **removed**, not annotated, because a warning beside a claim is a
+claim that still gets quoted.
+
+**The cost:** a report can come back thinner than the investigation was.
+
+### Abstention as a real answer
+
+On a healthy system it says so, names the largest deviation it found and the threshold it was
+compared against, and stops.
+
+**The cost:** it abstains on real faults too. On the recordings available the deterministic
+baseline gets the abstention call right {{< var recorded_abstention_correct >}} times out of
+{{< var recorded_abstention_trials >}}, which is the largest open problem in the project.
+:::
+
+## What one investigation looks like
+
+```{mermaid}
+flowchart LR
+  B["Incident bundle<br/><small>frozen replay</small>"] --> T["Triage<br/><small>no model</small>"]
+  T -->|"nothing unusual"| A["Abstain<br/><small>with the threshold it failed</small>"]
+  T -->|"ranked shortlist"| L["Agent loop<br/><small>commander, 4 specialists,<br/>critic, budgeted</small>"]
+  L --> G["Exit gate<br/><small>6 checks</small>"]
+  G -->|"claims survive"| R["Report<br/><small>every claim cited</small>"]
+  G -->|"support too thin"| A
+```
+
+Triage can end the investigation on its own, before a model is involved. That is the path a
+no-fault incident takes, and it costs nothing.
+
+## What is actually built
+
+| | |
+|---|---|
+| **Scenario library** | {{< var specs >}} fault-injection specs across four splits |
+| **Recorded incidents** | Neither held-out test split has any recordings. They ship as a release asset, not in this repository |
+| **Offline demo** | {{< var showcase_incidents >}} incidents replayed from {{< var showcase_cassettes >}} recorded answers, no model and no network |
+| **Tools** | 14, each typed and capped, each recording its own provenance |
+| **Decision records** | {{< var adrs >}}, each with the alternatives it rejected |
+| **Tests** | {{< var tests_passed >}} passing, {{< var coverage_percent >}}% coverage against an exact floor |
+
+::: {.callout-note collapse="true"}
+## Where these numbers come from
+
+Every one is generated by `scripts/build_site_stats.py` into `explainer/_variables.yml`, from a
+file under `reports/`. No page on this site types a figure, and a figure that file does not carry
+is one no page may state. A count of recorded bundles is deliberately absent: it describes
+whichever machine ran the build, since `bundles/` is git-ignored.
+:::
+
+## Try it
+
+Runs on a clone with no model, no Docker and no network:
+
+```bash
+git clone https://github.com/hoomanesteki/firebreak-ai-sre-agent.git
+cd firebreak-ai-sre-agent
+make setup
+make demo      # chooses live or offline, and says which
+make console   # six pages on http://127.0.0.1:8080
+```
+
+`make demo` replays ten incidents rebuilt from their scenario specs and checks each against
+its recording. Two of the ten abstain, which is the right answer for them.
+
+::: {.callout-warning}
+## The demo's numbers are better than the real ones
+
+It replays a deterministic stub rather than a model, and it prints that before its first line.
+It names every fault in the set. The same triage, measured on real recordings, names
+{{< var recorded_root_cause_correct >}} of {{< var recorded_root_cause_applicable >}}. The demo
+shows that the whole path runs and reproduces. It says nothing about quality.
+:::
+
+Next: [how it works](design.qmd), or jump to [what has and has not been
+measured](metrics.qmd).

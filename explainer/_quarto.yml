@@ -1,0 +1,50 @@
+# The Quarto explainer site: five pages for a reader deciding whether this project is
+# interesting, as opposed to the reference site in `site/`, which is for somebody checking
+# whether its claims hold.
+#
+# Two sites is deliberate. They have different audiences and the honest reference site is
+# dense with caveats by design, which is right for a reviewer and wrong for a first read.
+# This one is published at the root and the reference site at /reference/.
+project:
+  type: website
+  output-dir: _site
+  render:
+    - "*.qmd"
+
+website:
+  title: "Firebreak"
+  description: "A multi-agent AI SRE that investigates incidents and cites evidence you can re-run."
+  site-url: "https://hoomanesteki.github.io/firebreak-ai-sre-agent/"
+  navbar:
+    left:
+      - href: index.qmd
+        text: Overview
+      - href: design.qmd
+        text: How it works
+      - href: metrics.qmd
+        text: Measurement
+      - href: decisions.qmd
+        text: Trade-offs
+      - href: next.qmd
+        text: What is next
+    right:
+      - text: Reference site
+        href: reference/index.html
+      - icon: github
+        href: https://github.com/hoomanesteki/firebreak-ai-sre-agent
+  page-footer:
+    center: |
+      Every number on this site is generated from a file in `reports/`. Where a figure is
+      absent, the page says which measurement is missing rather than leaving a gap.
+
+format:
+  html:
+    theme: [cosmo, custom.scss]
+    toc: true
+    toc-depth: 2
+    code-copy: true
+    code-overflow: wrap
+    link-external-newwindow: true
+    # Diagrams render to SVG at build time, so no page fetches a script to draw one.
+    mermaid:
+      theme: neutral

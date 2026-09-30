@@ -1,0 +1,17 @@
+# Everything is the owner's. A single-maintainer repository does not need routing rules, and
+# this file exists for the one thing it does buy: GitHub requests a review automatically, so a
+# pull request cannot be merged without the owner having been asked.
+#
+# Listed explicitly rather than left implicit because SPEC.md Section 21 makes the review gate
+# part of the process, and a process that depends on remembering is not a process.
+* @hoomanesteki
+
+# The files where a careless change is hardest to notice. Called out for a reader rather than
+# for GitHub, which applies the last matching rule and would route these to the owner anyway.
+#
+#   SPEC.md                  the contract every phase is reviewed against
+#   config/leakage.yaml      the rules that keep ground truth away from the agent
+#   config/thresholds.yaml   tuned numbers, each with the measurement that justified it
+#   config/eval_gate.yaml    what counts as a regression
+/SPEC.md @hoomanesteki
+/config/ @hoomanesteki

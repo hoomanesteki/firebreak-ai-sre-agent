@@ -242,3 +242,6 @@ reports/lab/alerts.jsonl
 # `config/leakage.yaml` rather than the labels being absent from the repository.
 /bundles/
 site/dist/
+.quality/
+explainer/_site/
+explainer/.quarto/

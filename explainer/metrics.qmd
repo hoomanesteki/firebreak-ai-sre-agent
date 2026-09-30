@@ -1,0 +1,167 @@
+---
+title: "Measurement"
+subtitle: "What is measured, what is not, and why a figure that exists can still not be a result."
+---
+
+## The short version
+
+There is no result yet. Not a bad result, not a provisional one: **none**. Every eval report in
+the repository is marked `quotable_as_a_result: false`, and the site build refuses to publish a
+figure from any of them.
+
+```{mermaid}
+flowchart LR
+  R[("reports/eval/<br/><small>8 reports</small>")] --> Q{"quotable_as<br/>_a_result?"}
+  Q -->|"false, all 8"| S["Stated absence<br/><small>with the report's own reason</small>"]
+  Q -->|"true"| N["Published number<br/><small>with its interval</small>"]
+  S --> P["Page"]
+  N --> P
+  style N stroke-dasharray: 4 3
+```
+
+The dashed path has never been taken. `{{< var unmeasured_metrics >}}` of
+`{{< var total_metrics >}}` headline metrics are unmeasured.
+
+## Why a figure can exist and not be a result
+
+Three distinct reasons, and the difference between them is the whole point.
+
+::: {.panel-tabset}
+### Synthetic fixtures
+
+A bundle generated from a spec rather than recorded from a running system.
+
+**The single largest finding in this project** is that fixtures are a *different scale of
+difficulty*, not merely an easier one. The same deterministic triage:
+
+| Data | Root cause named correctly |
+|---|---|
+| Synthetic fixtures | almost all of them |
+| Real recordings | {{< var recorded_root_cause_correct >}} of {{< var recorded_root_cause_applicable >}} |
+
+The threshold tuned on fixtures found a gap so wide it was implausible: the loudest quiet
+system scored 7.7 and the quietest real incident 66.8, with no overlap at all. On recordings
+those populations overlap badly. A tuning run on fixtures produced a number that looked
+excellent and generalised poorly, which is the outcome this project exists to make visible
+rather than to avoid.
+
+### A partly recorded split
+
+Eight of sixteen validation scenarios are recorded. A figure over those eight is a *real
+measurement of a small sample*: true about the eight, silent about the split.
+
+Reported with a bootstrap confidence interval rather than as a bare number, because an accuracy
+over eight incidents and one over eighty are not the same kind of statement.
+
+### A tuning split
+
+Thresholds and prompts were chosen using `validation`. A figure from it measures **fit**, not
+performance.
+
+Only `test_id` and `test_ood` can ever support a claim about performance, and test results are
+computed once per release candidate. Both are currently empty.
+:::
+
+::: {.callout-important}
+## And a report can go stale, which is worse than a missing one
+
+One report in this repository was computed over a single recorded incident that was later
+deleted for recording corruption. It describes a state that no longer exists, while still
+satisfying "every number traces to a report".
+
+So the build checks a report's recorded count against the bundles present and refuses to
+publish from one that no longer matches. "Traceable" was not a strong enough property on its
+own.
+:::
+
+## Two test splits, not one
+
+```{mermaid}
+flowchart TB
+  LIB["{{< var specs >}} scenario specs"] --> TRAIN["train<br/><small>39, development</small>"]
+  LIB --> VAL["validation<br/><small>16, tuning</small>"]
+  LIB --> TID["test_id<br/><small>29, held out</small>"]
+  LIB --> TOOD["test_ood<br/><small>30, whole families held out</small>"]
+  TRAIN --> TUNE["Thresholds, prompts, memory"]
+  VAL --> TUNE
+  TID --> CLAIM["The only figures that<br/>may be called a result"]
+  TOOD --> CLAIM
+  style TUNE fill:#fff8e8,stroke:#e6cf9a
+```
+
+They answer different questions:
+
+- **In-distribution** holds back variants, loads and seeds of fault types seen in development.
+  It asks *does it work*.
+- **Out-of-distribution** holds back **whole fault families**. It asks *did it generalise or
+  memorise*.
+
+Splitting is by scenario spec, not by recording, so a second recording of the same fault cannot
+leak an answer across the boundary.
+
+## Seven graders, and the one that exists to prevent a lie
+
+| Grader | Asks |
+|---|---|
+| `root_cause` | Is the named service the injected one, at rank 1 |
+| `root_cause_top3` | Is it anywhere in the top three |
+| `abstention` | Did it abstain exactly when it should have |
+| `fault_class` | Is the mechanism right, not just the service |
+| `onset` | How far off is the stated start time |
+| `evidence_validity` | Does every citation re-run to the same bytes |
+| `remediation` | Would the proposal have fixed it |
+
+The pair that matters is the first and the third. A single grader scoring both identification
+and abstention would let **a system that abstains on everything look like one that identifies
+everything**. So a no-fault incident is *not applicable* to the root-cause grader, and that is
+reported rather than counted as a pass.
+
+## How a comparison is decided
+
+```{mermaid}
+flowchart LR
+  A["Candidate"] --> P["Paired by incident"]
+  B["Baseline"] --> P
+  P --> BOOT["Paired bootstrap"]
+  BOOT --> I{"Does the interval<br/>exclude zero?"}
+  I -->|"no"| X["Not a difference.<br/>Nothing ships"]
+  I -->|"yes"| Y["A measured difference"]
+```
+
+Paired by incident, not two independent samples, so the interval reflects the same incidents
+being compared. A difference whose interval includes zero **is not a difference**, and nothing
+ships on one.
+
+The gate that enforces this reports `INCONCLUSIVE` separately from `FAIL`, because "a
+regression was measured" and "the split is too small to rule one out" need different responses:
+the first is a bug, the second is a recording session.
+
+## Baselines
+
+| Configuration | Is |
+|---|---|
+| `b0` | Deterministic triage alone, no model. **The floor any agent must beat** |
+| `b1` | A single-agent ReAct loop with the same tools |
+| `b2` | The same loop without the knowledge graph |
+| `fb-v1` | The full system |
+| `a1` to `a6` | Ablations, each removing one component |
+
+`b0` is the important one. A multi-agent system that cannot beat a page of statistics should not
+exist, and the comparison is reported whichever way it comes out.
+
+## Engineering, as distinct from performance
+
+These are facts about the repository, not results about the system.
+
+| | |
+|---|---|
+| Tests | {{< var tests_passed >}} passing, {{< var tests_skipped >}} skipped |
+| Coverage | {{< var coverage_percent >}}%, against an exact 85% floor |
+| Decision records | {{< var adrs >}} |
+
+::: {.callout-note}
+A passing test says the code does what a test says it should. It says nothing about whether
+Firebreak finds root causes. Keeping those two ideas apart is most of what this page is for.
+:::
+
+Next: [the trade-offs and what went wrong](decisions.qmd).

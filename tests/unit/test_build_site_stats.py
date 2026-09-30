@@ -237,6 +237,112 @@ class TestOrderingUsesGeneratedAt:
             stats.newest_reports()
 
 
+class TestTheExplainerSiteTypesNoNumber:
+    """The explainer site reads `explainer/_variables.yml`, which this script generates.
+
+    **Why a generated variable file rather than an executable block in the page.** A Quarto page
+    can run Python, and the first version of the overview did. That made the site render depend
+    on a kernel being available, and CI would have been the place that discovered it was not,
+    which is the failure mode `make verify-clean` exists to catch. A variable file needs nothing
+    but Quarto.
+    """
+
+    def test_it_writes_the_variable_file(self, tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        target = tmp_path / "_variables.yml"
+        monkeypatch.setattr(stats, "VARIABLES_PATH", target)
+        payload = stats.build()
+        payload["local"] = stats.local_diagnostics()
+        stats.write_variables(payload)
+        text = target.read_text(encoding="utf-8")
+        assert "specs: 114" in text
+        assert "Do not edit" in text
+
+    def test_it_carries_no_count_of_local_bundles(self, tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        """Same rule as the published stats file. A recorded count describes the build machine,
+        and the explainer site is read by people who cloned nothing."""
+        target = tmp_path / "_variables.yml"
+        monkeypatch.setattr(stats, "VARIABLES_PATH", target)
+        stats.write_variables(stats.build())
+        lines = target.read_text(encoding="utf-8").splitlines()
+        keys = [line.split(":")[0] for line in lines if line and not line.startswith("#")]
+        assert "recorded" not in keys
+
+    def test_the_adr_count_is_counted_rather_than_typed(self, tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        """So writing an ADR updates the site."""
+        target = tmp_path / "_variables.yml"
+        monkeypatch.setattr(stats, "VARIABLES_PATH", target)
+        stats.write_variables(stats.build())
+        on_disk = len(list((REPO_ROOT / "docs" / "adr").glob("[0-9][0-9][0-9][0-9]-*.md")))
+        assert f"adrs: {on_disk}" in target.read_text(encoding="utf-8")
+
+    def test_missing_quality_data_becomes_a_stated_absence(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:  # type: ignore[no-untyped-def]
+        """A page then shows "not recorded" rather than a number, which is the rule every other
+        figure on these sites follows. Inventing a test count would be the worst kind of lie:
+        entirely plausible and impossible to notice."""
+        monkeypatch.setattr(stats, "QUALITY_PATH", tmp_path / "absent.json")
+        target = tmp_path / "_variables.yml"
+        monkeypatch.setattr(stats, "VARIABLES_PATH", target)
+        payload = stats.build()
+        assert payload["quality"]["available"] is False
+        stats.write_variables(payload)
+        assert 'tests_passed: "not recorded"' in target.read_text(encoding="utf-8")
+
+    def test_quality_facts_read_the_summary(self) -> None:
+        facts = stats.quality_facts()
+        if not facts["available"]:
+            pytest.skip("reports/quality.json not written yet; run make test")
+        assert facts["tests_passed"] > 1000
+        # Not compared against the floor. pytest enforces that, and asserting it here too made
+        # the check circular: the summary is only written by a run that passed.
+        assert 0.0 < facts["coverage_percent"] <= 100.0
+        assert facts["source"] == "reports/quality.json"
+
+    def test_the_committed_variable_file_matches_a_fresh_build(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:  # type: ignore[no-untyped-def]
+        """The explainer site is built from the committed file, so a stale one publishes stale
+        numbers with nothing to notice it."""
+        committed = REPO_ROOT / "explainer" / "_variables.yml"
+        if not committed.is_file():
+            pytest.skip("explainer/_variables.yml not generated yet")
+        target = tmp_path / "_variables.yml"
+        monkeypatch.setattr(stats, "VARIABLES_PATH", target)
+        payload = stats.build()
+        payload["local"] = stats.local_diagnostics()
+        stats.write_variables(payload)
+        assert target.read_text(encoding="utf-8") == committed.read_text(encoding="utf-8"), (
+            "run scripts/build_site_stats.py"
+        )
+
+
+class TestTheBaselineFiguresComeFromTheReport:
+    """The figures the whole project turns on: the same triage names nearly every fault on
+    fixtures and a small fraction on real recordings. Typed into prose on a web page, a number
+    that important goes stale and then gets quoted."""
+
+    def test_it_reads_the_recorded_validation_report(self) -> None:
+        facts = stats.baseline_facts(stats.newest_reports())
+        assert facts["available"]
+        assert facts["root_cause_applicable"] > 0
+        assert facts["root_cause_correct"] <= facts["root_cause_applicable"]
+        assert "reports/eval/b0/validation" in facts["source"]
+
+    def test_it_is_absent_when_the_report_is(self) -> None:
+        assert stats.baseline_facts({})["available"] is False
+
+    def test_a_report_with_no_counts_is_absent_rather_than_zero(self) -> None:
+        """Zero correct and zero applicable would render as a real and terrible figure."""
+        empty = stats.Report(
+            configuration="b0",
+            split="validation",
+            path=REPO_ROOT / "reports" / "eval" / "b0" / "validation" / "x.json",
+            payload={"overall": {"graders": {}}},
+        )
+        assert stats.baseline_facts({("b0", "validation"): empty})["available"] is False
+
+
 class TestBuildCarriesNoMachineState:
     """The structural version of the bug CI caught.
 
