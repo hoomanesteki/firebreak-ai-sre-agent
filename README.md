@@ -196,7 +196,7 @@ fine-tuning, and multi-tenant deployment. See SPEC.md Section 3.2.
 | [`docs/adr/`](docs/adr/) | 14 decision records, each with the alternatives it rejected |
 | [`docs/phase-reports/`](docs/phase-reports/) | One report per phase, including what each could not do and why |
 | [`docs/demo-shot-list.md`](docs/demo-shot-list.md) | The demo video script, with two scenes marked unrecordable |
-| [`docs/release-notes-v1.0.0.md`](docs/release-notes-v1.0.0.md) | Draft release notes |
+| [`docs/release-notes-v1.0.0.md`](docs/release-notes-v1.0.0.md) | Release notes for `v1.0.0`. Read the "before the feature list" section first |
 | `SPEC.md` | The contract. Everything above is downstream of it |
 
 ## Development

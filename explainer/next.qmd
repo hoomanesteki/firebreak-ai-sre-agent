@@ -76,8 +76,8 @@ report says `quotable_as_a_result`.
 
 | Question | Why it is not mine to make |
 |---|---|
-| Tag `v1.0.0` now, or wait for a measured result | A tag is a public statement |
-| Where the recorded library is hosted | It is ~870 MB and git-ignored |
+| Where the recorded library is hosted | It is roughly 870 MB and git-ignored, so `v1.0.0` ships without it |
+| Whether the Console may read a reviewer's answer | `firebreak.web` is an agent package and feedback holds a true root cause |
 | `PYSEC-2026-2447` in `diskcache`, which has no fix | Carried explicitly in the threat model rather than suppressed; releasing makes it a published decision |
 | **Should the exit gate get a seventh check, for whether a claim is informative?** | It would fail every showcase report today. That is either the right answer or a reason to wait for a model |
 | Is `reports/feedback` ground truth for the leakage rules? | It holds a human's statement of what broke, which for a held-out incident is the label |

@@ -1,8 +1,13 @@
 # Firebreak v1.0.0
 
-Draft notes for the owner to review before tagging. **Not tagged by the builder**: a tag is a
-public statement and the release archive it refers to is not something a build step should
-decide to publish.
+Tagged `v1.0.0`. These notes were drafted while the decision was open and are published as
+written, with one change: the owner reviewed the concern below and chose to release.
+
+**The concern, recorded because it was raised twice and overruled once.** Releasing a version
+whose central capability is unmeasured invites a reader to assume it was measured. The mitigation
+is that every surface says otherwise, in its own words, wherever a number would go: the README,
+both sites, every eval report, and the section immediately below. That was judged sufficient. It
+is a judgement, not a fact.
 
 ## What this is
 
@@ -129,12 +134,23 @@ The target system is the [OpenTelemetry Demo](https://github.com/open-telemetry/
 Apache-2.0, used unmodified at a pinned release. Nothing inside `vendor/` is edited, so the pin
 means what it says.
 
-## Before tagging, the owner should decide
+## Decided at release
 
-1. Whether to tag at all with no measured result, or wait for the library and credentials.
-2. Whether the recorded library becomes a release asset, and where it is hosted.
-3. `PYSEC-2026-2447` in `diskcache`, which has no fix available. It is carried explicitly in the
-   threat model with the reason rather than suppressed, and shipping a release is the point at
-   which that becomes a published decision.
-4. Whether `reports/lab/recording_progress.json` is corrected or left as evidence of the
-   corruption incident.
+1. **Tag with no measured result.** Decided yes. The system is complete, tested and honest about
+   what it has not shown; waiting would leave finished work unreleased for an input the release
+   does not depend on.
+2. **`PYSEC-2026-2447` in `diskcache`** ships carried rather than suppressed. There is no version
+   that avoids it, the advisory lists no fix, and the group it lives in is never in the wheel and
+   never installed by CI. `docs/threat-model.md` records the reasoning and the audit ignores it by
+   id in one pass only.
+3. **`reports/lab/recording_progress.json` is left as it stands**, overstating by three, because
+   correcting it would erase the only record of the recording corruption.
+
+## Still open after release
+
+1. **Where the recorded library is hosted.** It is roughly 870 MB and git-ignored, so `v1.0.0`
+   ships without it. A reader can rebuild the ten showcase incidents from their specs, which is
+   what `make demo` does, and cannot reproduce a recorded evaluation.
+2. **Whether the exit gate should get a seventh check**, for whether a claim is informative. It
+   would fail every showcase report today.
+3. **Whether `reports/feedback` is ground truth** for the leakage rules.
