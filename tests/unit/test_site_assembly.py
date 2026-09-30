@@ -156,7 +156,15 @@ class TestTheAssemblyRefusesToPublishHalfASite:
     ) -> None:
         """Quarto renders an unknown variable as literal text rather than failing, so a missing
         variable file would publish `{{< var specs >}}` where a number belongs. That looks like a
-        bug in the site rather than a missing measurement, which is the worse of the two."""
+        bug in the site rather than a missing measurement, which is the worse of the two.
+
+        **Quarto is pretended present rather than required.** `render_explainer` checks for the
+        binary first, so on a machine without it this reached the wrong branch and asserted the
+        wrong message. It passed here, where Quarto is installed, and failed in CI's verify job,
+        which does not install it: only the site job does. A test whose outcome depends on which
+        binaries a machine happens to have is a test that holds on one machine.
+        """
+        monkeypatch.setattr(assembly.shutil, "which", lambda _: "/usr/local/bin/quarto")
         monkeypatch.setattr(assembly, "VARIABLES", tmp_path / "absent.yml")
         with pytest.raises(assembly.AssembleError, match="build_site_stats"):
             assembly.render_explainer()
@@ -175,6 +183,13 @@ class TestTheAssemblyRefusesToPublishHalfASite:
         assert assembly.REFERENCE_SUBPATH == "reference"
         navbar = (REPO_ROOT / "explainer" / "_quarto.yml").read_text(encoding="utf-8")
         assert f"{assembly.REFERENCE_SUBPATH}/index.html" in navbar
+
+    def test_no_test_here_depends_on_quarto_being_installed(self) -> None:
+        """The lesson from the CI failure, pinned. Every test that calls the real renderer must
+        first say whether the binary exists, rather than asking the machine. `make site` is where
+        the real binary is needed, and CI's site job is the only place that installs it."""
+        body = Path(__file__).read_text(encoding="utf-8")
+        assert body.count("assembly.render_explainer()") <= body.count('"which"')
 
     def test_the_reference_site_links_back_out(self) -> None:
         base = (REPO_ROOT / "site" / "templates" / "base.html").read_text(encoding="utf-8")
