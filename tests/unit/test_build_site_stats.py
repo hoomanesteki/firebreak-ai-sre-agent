@@ -381,6 +381,48 @@ class TestBuildCarriesNoMachineState:
         assert "could not be checked" in local["note"]
 
 
+class TestRunningItTwiceLeavesTheTreeClean:
+    """The twin of the check in `test_record_quality.py`, for the same defect in the other
+    generator. `make verify` regenerates this file, so writing unconditionally meant every verify
+    run left it modified over a timestamp."""
+
+    def test_an_unchanged_file_is_not_rewritten(self, tmp_path: Path) -> None:
+        output = tmp_path / "site_stats.json"
+        provenance = ("generated_at", "commit", "local")
+        assert stats.write_if_changed(output, {"metrics": {}, "generated_at": "a"}, provenance)
+        assert not stats.write_if_changed(output, {"metrics": {}, "generated_at": "b"}, provenance)
+
+    def test_a_changed_metric_is_written(self, tmp_path: Path) -> None:
+        output = tmp_path / "site_stats.json"
+        provenance = ("generated_at", "commit", "local")
+        stats.write_if_changed(output, {"metrics": {"a": 1}, "generated_at": "a"}, provenance)
+        assert stats.write_if_changed(
+            output, {"metrics": {"a": 2}, "generated_at": "b"}, provenance
+        )
+
+    def test_the_local_section_alone_does_not_trigger_a_write(self, tmp_path: Path) -> None:
+        """`local` describes the build machine, so a laptop with recordings and CI without must not
+        fight over the file."""
+        output = tmp_path / "site_stats.json"
+        provenance = ("generated_at", "commit", "local")
+        stats.write_if_changed(
+            output, {"metrics": {}, "local": {"bundles_present": True}}, provenance
+        )
+        assert not stats.write_if_changed(
+            output, {"metrics": {}, "local": {"bundles_present": False}}, provenance
+        )
+
+    def test_the_committed_file_is_stable_against_a_fresh_build(self) -> None:
+        """End to end over the real file: a fresh build must not want to change it, provenance
+        aside. If this fails, `make verify` will leave the tree dirty."""
+        committed = json.loads((REPO_ROOT / "reports" / "site_stats.json").read_text())
+        fresh = stats.build()
+        for payload in (committed, fresh):
+            for key in ("generated_at", "commit", "local"):
+                payload.pop(key, None)
+        assert committed == fresh, "run scripts/build_site_stats.py"
+
+
 class TestTheGeneratedFileMatchesTheRepository:
     def test_building_it_produces_the_committed_file(self) -> None:
         """`--check` in CI relies on this being reproducible.

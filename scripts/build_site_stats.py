@@ -622,6 +622,28 @@ def write_variables(stats: dict[str, Any]) -> None:
     VARIABLES_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def write_if_changed(path: Path, payload: dict[str, Any], provenance: tuple[str, ...]) -> bool:
+    """Write only when something other than provenance changed. True if written.
+
+    The twin of the helper in `scripts/record_quality.py`, kept separate rather than shared
+    because these two scripts have no other reason to import each other and a module existing only
+    to hold one function is its own cost.
+    """
+    if path.is_file():
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            existing = None
+        if isinstance(existing, dict):
+            before = {k: v for k, v in existing.items() if k not in provenance}
+            after = {k: v for k, v in payload.items() if k not in provenance}
+            if before == after:
+                return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=OUTPUT)
@@ -662,10 +684,16 @@ def main() -> int:
         print("site stats: up to date")
         return 0
 
-    arguments.output.parent.mkdir(parents=True, exist_ok=True)
-    arguments.output.write_text(rendered, encoding="utf-8")
+    # Provenance changes on every run, and writing unconditionally left this file modified after
+    # every `make verify`. Same reasoning as `scripts/record_quality.py`: a check that dirties the
+    # tree over a field nobody can compare teaches people to ignore `git status`, and the next real
+    # change hides in the noise. `local` is excluded too, since it describes the build machine.
+    wrote = write_if_changed(arguments.output, stats, ("generated_at", "commit", "local"))
     write_variables(stats)
-    print(f"site stats: wrote {arguments.output.relative_to(REPO_ROOT)}")
+    if wrote:
+        print(f"site stats: wrote {arguments.output.relative_to(REPO_ROOT)}")
+    else:
+        print("site stats: unchanged, so the existing file and its provenance stand")
     print(f"  and {VARIABLES_PATH.relative_to(REPO_ROOT)} for the explainer site")
     print(f"  {stats['honesty']}")
     local = stats["local"]

@@ -97,6 +97,36 @@ def build(junit: Path, coverage: Path) -> dict[str, Any]:
     }
 
 
+def write_if_changed(path: Path, payload: dict[str, Any], provenance: tuple[str, ...]) -> bool:
+    """Write only when something other than provenance changed.
+
+    Returns True if the file was written.
+
+    **Why this exists.** `commit` and `generated_at` change on every run by design, so writing
+    unconditionally left these files modified after every `make verify`. That is the defect this
+    project already fixed once, for a replay's wall clock: a check that dirties the tree over a
+    field nobody can compare teaches people to ignore `git status`, and the next real change hides
+    in the noise.
+
+    Provenance is still honest. When a number moves, the file is rewritten and the new commit and
+    timestamp go with it. When nothing moved, the old ones stay, and they correctly describe the
+    run that last produced these numbers rather than the most recent run that recomputed them.
+    """
+    if path.is_file():
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            existing = None
+        if isinstance(existing, dict):
+            before = {k: v for k, v in existing.items() if k not in provenance}
+            after = {k: v for k, v in payload.items() if k not in provenance}
+            if before == after:
+                return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--junit", type=Path, required=True)
@@ -108,10 +138,10 @@ def main() -> int:
     except QualityError as error:
         print(f"quality: {error}", file=sys.stderr)
         return 1
-    arguments.output.parent.mkdir(parents=True, exist_ok=True)
-    rendered = json.dumps(summary, indent=2, sort_keys=True) + "\n"
-    arguments.output.write_text(rendered, encoding="utf-8")
+    wrote = write_if_changed(arguments.output, summary, ("generated_at", "commit"))
     counts = summary["tests"]
+    if not wrote:
+        print("quality: unchanged, so the existing summary and its provenance stand")
     print(
         f"quality: {counts['passed']} passed, {counts['skipped']} skipped, "
         f"{summary['coverage_percent']}% covered"

@@ -166,6 +166,64 @@ class TestTheSummaryIsSelfDescribing:
         assert not output.exists()
 
 
+class TestItDoesNotDirtyTheTreeForNothing:
+    """`commit` and `generated_at` change on every run by design, so writing unconditionally left
+    this file modified after every `make verify`.
+
+    That is the third appearance of one defect in this project. The first was a replay's wall
+    clock, stored in ten committed reports; the second was the same pattern in the site stats. A
+    check that dirties the tree over a field nobody can compare teaches people to ignore
+    `git status`, and then the next real change hides in the noise.
+
+    Provenance stays honest: when a number moves, the file is rewritten and the new commit and
+    timestamp go with it. When nothing moved, the old ones stay and correctly describe the run that
+    produced these numbers rather than the latest run that recomputed them.
+    """
+
+    def test_an_unchanged_summary_is_not_rewritten(self, tmp_path: Path) -> None:
+        output = tmp_path / "quality.json"
+        payload = {"tests": {"passed": 10}, "generated_at": "then", "commit": "old"}
+        assert quality.write_if_changed(output, payload, ("generated_at", "commit")) is True
+        again = {"tests": {"passed": 10}, "generated_at": "now", "commit": "new"}
+        assert quality.write_if_changed(output, again, ("generated_at", "commit")) is False
+
+    def test_the_old_provenance_survives(self, tmp_path: Path) -> None:
+        """The point of not rewriting. The stored timestamp describes when the numbers were
+        measured, which is what a reader needs, not when they were last recomputed."""
+        output = tmp_path / "quality.json"
+        quality.write_if_changed(
+            output, {"tests": {"passed": 10}, "generated_at": "then"}, ("generated_at",)
+        )
+        quality.write_if_changed(
+            output, {"tests": {"passed": 10}, "generated_at": "now"}, ("generated_at",)
+        )
+        assert json.loads(output.read_text(encoding="utf-8"))["generated_at"] == "then"
+
+    def test_a_real_change_is_written_with_new_provenance(self, tmp_path: Path) -> None:
+        output = tmp_path / "quality.json"
+        quality.write_if_changed(
+            output, {"tests": {"passed": 10}, "generated_at": "then"}, ("generated_at",)
+        )
+        assert quality.write_if_changed(
+            output, {"tests": {"passed": 11}, "generated_at": "now"}, ("generated_at",)
+        )
+        written = json.loads(output.read_text(encoding="utf-8"))
+        assert written["tests"]["passed"] == 11
+        assert written["generated_at"] == "now"
+
+    def test_a_missing_file_is_written(self, tmp_path: Path) -> None:
+        output = tmp_path / "nested" / "quality.json"
+        assert quality.write_if_changed(output, {"a": 1}, ("generated_at",))
+        assert output.is_file()
+
+    def test_an_unreadable_existing_file_is_replaced(self, tmp_path: Path) -> None:
+        """A corrupt file must not make the generator refuse to fix it."""
+        output = tmp_path / "quality.json"
+        output.write_text("{not json", encoding="utf-8")
+        assert quality.write_if_changed(output, {"a": 1}, ("generated_at",))
+        assert json.loads(output.read_text(encoding="utf-8")) == {"a": 1}
+
+
 class TestTheCommittedSummaryIsCurrent:
     def test_it_exists_and_reports_a_plausible_suite(self) -> None:
         """Written by `make test`, so it cannot describe a different tree than the tested one.
