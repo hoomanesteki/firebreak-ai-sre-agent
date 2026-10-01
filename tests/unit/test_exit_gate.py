@@ -86,6 +86,35 @@ def test_removing_last_claim_also_removes_root_cause():
     assert outcome.report.abstained
 
 
+def test_numeric_prose_requires_structured_provenance():
+    item = record(facts=(Fact(field="score", value=12.5, unit="z"),))
+    held = store(item)
+    for text in (
+        "payment scored 999999 deviations",
+        "payment scored 1e6 deviations",
+        "payment affected twenty services",
+    ):
+        outcome = run_exit_gate(
+            report(claims=(Claim(text=text, evidence_ids=(item.id,)),)),
+            notebook(),
+            held,
+            held,
+        )
+        assert not outcome.report.claims
+        assert outcome.report.abstained
+
+
+def test_numeric_units_must_match_the_fact():
+    item = record(facts=(Fact(field="latency", value=12.5, unit="ms"),))
+    held = store(item)
+    claim = Claim(
+        text="latency reached 12.5 seconds",
+        evidence_ids=(item.id,),
+        numbers=(CitedNumber(value=12.5, unit="seconds", evidence_id=item.id, field="latency"),),
+    )
+    assert not run_exit_gate(report(claims=(claim,)), notebook(), held, held).report.claims
+
+
 def record(
     kind=EvidenceKind.METRIC,
     query="list_anomalies",

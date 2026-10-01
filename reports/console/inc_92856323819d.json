@@ -94,6 +94,7 @@
         "passed": true
       }
     ],
+    "initial_checks": [],
     "passed": true,
     "removed_claims": 0,
     "repaired": false

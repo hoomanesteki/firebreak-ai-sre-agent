@@ -5,55 +5,55 @@
         "at": null,
         "claim_type": "mechanism",
         "evidence_ids": [
-          "ev_metric_af3a54c22b78",
-          "ev_log_3da67ef05f00",
-          "ev_trace_232f6a362c71",
-          "ev_change_1c9e53f7562c",
-          "ev_topology_2ef693933c41"
+          "ev_metric_5e74f329961f",
+          "ev_log_cf26229ecf2e",
+          "ev_trace_cc0363a4c449",
+          "ev_change_a461149c98bd",
+          "ev_topology_9ac58b96efa0"
         ],
         "numbers": [],
-        "text": "cart is the most likely root cause, with 5 piece(s) of supporting evidence."
+        "text": "checkout is the most likely root cause in the cited evidence."
       },
       {
         "at": null,
         "claim_type": "mechanism",
         "evidence_ids": [
-          "ev_metric_af3a54c22b78"
+          "ev_metric_5e74f329961f"
         ],
         "numbers": [],
-        "text": "metrics_analyst found signal for cart in 1 evidence record(s)."
+        "text": "metrics_analyst found signal for checkout in the cited evidence records."
       },
       {
         "at": null,
         "claim_type": "mechanism",
         "evidence_ids": [
-          "ev_log_3da67ef05f00"
+          "ev_log_cf26229ecf2e"
         ],
         "numbers": [],
-        "text": "logs_analyst found signal for cart in 1 evidence record(s)."
+        "text": "logs_analyst found signal for checkout in the cited evidence records."
       },
       {
         "at": null,
         "claim_type": "mechanism",
         "evidence_ids": [
-          "ev_trace_232f6a362c71"
+          "ev_trace_cc0363a4c449"
         ],
         "numbers": [],
-        "text": "traces_analyst found signal for cart in 1 evidence record(s)."
+        "text": "traces_analyst found signal for checkout in the cited evidence records."
       },
       {
         "at": null,
         "claim_type": "mechanism",
         "evidence_ids": [
-          "ev_change_1c9e53f7562c",
-          "ev_topology_2ef693933c41"
+          "ev_change_a461149c98bd",
+          "ev_topology_9ac58b96efa0"
         ],
         "numbers": [],
-        "text": "change_analyst found signal for cart in 2 evidence record(s)."
+        "text": "change_analyst found signal for checkout in the cited evidence records."
       }
     ],
     "confidence": "medium",
-    "root_cause_service": "cart"
+    "root_cause_service": "checkout"
   },
   "model": "stub",
   "purpose": "reporter",

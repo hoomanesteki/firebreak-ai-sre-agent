@@ -1,7 +1,7 @@
 {
   "answer": {
     "confidence": "medium",
-    "summary": "metrics_analyst found signal for payment in 1 evidence record(s).",
+    "summary": "metrics_analyst found signal for payment in the cited evidence records.",
     "supports": true
   },
   "model": "stub",

@@ -23,6 +23,7 @@ produce a verifiable claim spend the budget discovering that.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from enum import StrEnum
 from itertools import pairwise
@@ -42,6 +43,14 @@ MIN_SIGNAL_TYPES_FOR_HIGH_CONFIDENCE = 2
 # check 2. Counts are integers and a count that is nearly right is wrong.
 COUNT_UNITS = frozenset({"count", "rows", "services"})
 RELATIVE_TOLERANCE = 0.01
+
+NUMERIC_LITERAL = re.compile(r"(?<![\w.])[+-]?(?:\d[\d,]*\.?\d*|\.\d+)(?:[eE][+-]?\d+)?(?![\w.])")
+NUMBER_WORD = re.compile(
+    r"\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
+    r"thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|"
+    r"thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion)\b",
+    re.IGNORECASE,
+)
 
 
 def tolerance_for(unit: str, value: float) -> float:
@@ -258,6 +267,19 @@ def check_numbers(report: Report, evidence: dict[str, EvidenceRecord]) -> CheckR
     failed = []
     reasons = []
     for index, claim in enumerate(report.claims):
+        prose = claim.text
+        if claim.at is not None:
+            prose = prose.replace(claim.at.isoformat(), "")
+        literals = [float(value.replace(",", "")) for value in NUMERIC_LITERAL.findall(prose)]
+        if NUMBER_WORD.search(prose) or any(
+            not any(
+                abs(value - number.value) <= tolerance_for(number.unit, number.value)
+                for number in claim.numbers
+            )
+            for value in literals
+        ):
+            failed.append(index)
+            reasons.append(f"claim {index} has a number without structured provenance; use digits")
         for number in claim.numbers:
             if number.evidence_id not in claim.evidence_ids:
                 failed.append(index)
@@ -279,7 +301,7 @@ def check_numbers(report: Report, evidence: dict[str, EvidenceRecord]) -> CheckR
                     f"{number.evidence_id} does not report"
                 )
                 continue
-            if not _matches(fact, number.value):
+            if fact.unit != number.unit or not _matches(fact, number.value):
                 failed.append(index)
                 reasons.append(
                     f"claim {index} states {number.value} for {number.field} where the "

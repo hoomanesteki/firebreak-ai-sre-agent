@@ -5,51 +5,51 @@
         "at": null,
         "claim_type": "mechanism",
         "evidence_ids": [
-          "ev_metric_94c86da7dc42",
-          "ev_log_2878c614ac8c",
-          "ev_trace_50a327c3a8a9",
-          "ev_change_025eddd6b394",
-          "ev_topology_21d15f0ae298"
+          "ev_metric_0eee97dcec41",
+          "ev_log_bb90209251de",
+          "ev_trace_6ff733380456",
+          "ev_change_a80ecc46112b",
+          "ev_topology_2659d51c3c4e"
         ],
         "numbers": [],
-        "text": "payment is the most likely root cause, with 5 piece(s) of supporting evidence."
+        "text": "payment is the most likely root cause in the cited evidence."
       },
       {
         "at": null,
         "claim_type": "mechanism",
         "evidence_ids": [
-          "ev_metric_94c86da7dc42"
+          "ev_metric_0eee97dcec41"
         ],
         "numbers": [],
-        "text": "metrics_analyst found signal for payment in 1 evidence record(s)."
+        "text": "metrics_analyst found signal for payment in the cited evidence records."
       },
       {
         "at": null,
         "claim_type": "mechanism",
         "evidence_ids": [
-          "ev_log_2878c614ac8c"
+          "ev_log_bb90209251de"
         ],
         "numbers": [],
-        "text": "logs_analyst found signal for payment in 1 evidence record(s)."
+        "text": "logs_analyst found signal for payment in the cited evidence records."
       },
       {
         "at": null,
         "claim_type": "mechanism",
         "evidence_ids": [
-          "ev_trace_50a327c3a8a9"
+          "ev_trace_6ff733380456"
         ],
         "numbers": [],
-        "text": "traces_analyst found signal for payment in 1 evidence record(s)."
+        "text": "traces_analyst found signal for payment in the cited evidence records."
       },
       {
         "at": null,
         "claim_type": "mechanism",
         "evidence_ids": [
-          "ev_change_025eddd6b394",
-          "ev_topology_21d15f0ae298"
+          "ev_change_a80ecc46112b",
+          "ev_topology_2659d51c3c4e"
         ],
         "numbers": [],
-        "text": "change_analyst found signal for payment in 2 evidence record(s)."
+        "text": "change_analyst found signal for payment in the cited evidence records."
       }
     ],
     "confidence": "medium",

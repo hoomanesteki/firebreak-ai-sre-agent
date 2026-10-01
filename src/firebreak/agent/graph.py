@@ -112,7 +112,7 @@ def stub_handlers() -> dict[str, Any]:
         return {
             "summary": (
                 f"{payload.get('specialist')} found {verdict} {service} in "
-                f"{len(payload.get('evidence', []))} evidence record(s)."
+                "the cited evidence records."
             )[:600],
             "supports": bool(mentioned),
             "confidence": "medium" if mentioned else "low",
@@ -172,8 +172,7 @@ def stub_handlers() -> dict[str, Any]:
             0,
             {
                 "text": (
-                    f"{leader['service']} is the most likely root cause, with "
-                    f"{supporting} piece(s) of supporting evidence."
+                    f"{leader['service']} is the most likely root cause in the cited evidence."
                 ),
                 "evidence_ids": list(leader.get("supporting_evidence") or []),
             },

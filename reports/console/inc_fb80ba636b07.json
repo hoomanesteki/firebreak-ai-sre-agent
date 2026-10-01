@@ -12,7 +12,7 @@
         "ev_topology_bd4852bff334"
       ],
       "numbers": [],
-      "text": "shipping is the most likely root cause, with 5 piece(s) of supporting evidence."
+      "text": "shipping is the most likely root cause in the cited evidence."
     },
     {
       "at": null,
@@ -21,7 +21,7 @@
         "ev_metric_9dad47a0dc6d"
       ],
       "numbers": [],
-      "text": "metrics_analyst found signal for shipping in 1 evidence record(s)."
+      "text": "metrics_analyst found signal for shipping in the cited evidence records."
     },
     {
       "at": null,
@@ -30,7 +30,7 @@
         "ev_log_0417d5f3748c"
       ],
       "numbers": [],
-      "text": "logs_analyst found signal for shipping in 1 evidence record(s)."
+      "text": "logs_analyst found signal for shipping in the cited evidence records."
     },
     {
       "at": null,
@@ -39,7 +39,7 @@
         "ev_trace_a7191109c929"
       ],
       "numbers": [],
-      "text": "traces_analyst found signal for shipping in 1 evidence record(s)."
+      "text": "traces_analyst found signal for shipping in the cited evidence records."
     },
     {
       "at": null,
@@ -49,7 +49,7 @@
         "ev_topology_bd4852bff334"
       ],
       "numbers": [],
-      "text": "change_analyst found signal for shipping in 2 evidence record(s)."
+      "text": "change_analyst found signal for shipping in the cited evidence records."
     }
   ],
   "confidence": "medium",
@@ -576,6 +576,7 @@
         "passed": true
       }
     ],
+    "initial_checks": [],
     "passed": true,
     "removed_claims": 0,
     "repaired": false

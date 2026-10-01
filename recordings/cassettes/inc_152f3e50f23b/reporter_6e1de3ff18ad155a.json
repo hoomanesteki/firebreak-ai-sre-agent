@@ -5,55 +5,55 @@
         "at": null,
         "claim_type": "mechanism",
         "evidence_ids": [
-          "ev_metric_0eee97dcec41",
-          "ev_log_bb90209251de",
-          "ev_trace_6ff733380456",
-          "ev_change_a80ecc46112b",
-          "ev_topology_2659d51c3c4e"
+          "ev_metric_af3a54c22b78",
+          "ev_log_3da67ef05f00",
+          "ev_trace_232f6a362c71",
+          "ev_change_1c9e53f7562c",
+          "ev_topology_2ef693933c41"
         ],
         "numbers": [],
-        "text": "payment is the most likely root cause, with 5 piece(s) of supporting evidence."
+        "text": "cart is the most likely root cause in the cited evidence."
       },
       {
         "at": null,
         "claim_type": "mechanism",
         "evidence_ids": [
-          "ev_metric_0eee97dcec41"
+          "ev_metric_af3a54c22b78"
         ],
         "numbers": [],
-        "text": "metrics_analyst found signal for payment in 1 evidence record(s)."
+        "text": "metrics_analyst found signal for cart in the cited evidence records."
       },
       {
         "at": null,
         "claim_type": "mechanism",
         "evidence_ids": [
-          "ev_log_bb90209251de"
+          "ev_log_3da67ef05f00"
         ],
         "numbers": [],
-        "text": "logs_analyst found signal for payment in 1 evidence record(s)."
+        "text": "logs_analyst found signal for cart in the cited evidence records."
       },
       {
         "at": null,
         "claim_type": "mechanism",
         "evidence_ids": [
-          "ev_trace_6ff733380456"
+          "ev_trace_232f6a362c71"
         ],
         "numbers": [],
-        "text": "traces_analyst found signal for payment in 1 evidence record(s)."
+        "text": "traces_analyst found signal for cart in the cited evidence records."
       },
       {
         "at": null,
         "claim_type": "mechanism",
         "evidence_ids": [
-          "ev_change_a80ecc46112b",
-          "ev_topology_2659d51c3c4e"
+          "ev_change_1c9e53f7562c",
+          "ev_topology_2ef693933c41"
         ],
         "numbers": [],
-        "text": "change_analyst found signal for payment in 2 evidence record(s)."
+        "text": "change_analyst found signal for cart in the cited evidence records."
       }
     ],
     "confidence": "medium",
-    "root_cause_service": "payment"
+    "root_cause_service": "cart"
   },
   "model": "stub",
   "purpose": "reporter",

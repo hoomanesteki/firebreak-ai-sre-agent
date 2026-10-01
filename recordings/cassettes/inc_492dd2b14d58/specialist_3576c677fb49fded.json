@@ -1,7 +1,7 @@
 {
   "answer": {
     "confidence": "medium",
-    "summary": "change_analyst found signal for checkout in 2 evidence record(s).",
+    "summary": "change_analyst found signal for checkout in the cited evidence records.",
     "supports": true
   },
   "model": "stub",

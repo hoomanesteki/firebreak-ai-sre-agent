@@ -12,7 +12,7 @@
         "ev_topology_9ac58b96efa0"
       ],
       "numbers": [],
-      "text": "checkout is the most likely root cause, with 5 piece(s) of supporting evidence."
+      "text": "checkout is the most likely root cause in the cited evidence."
     },
     {
       "at": null,
@@ -21,7 +21,7 @@
         "ev_metric_5e74f329961f"
       ],
       "numbers": [],
-      "text": "metrics_analyst found signal for checkout in 1 evidence record(s)."
+      "text": "metrics_analyst found signal for checkout in the cited evidence records."
     },
     {
       "at": null,
@@ -30,7 +30,7 @@
         "ev_log_cf26229ecf2e"
       ],
       "numbers": [],
-      "text": "logs_analyst found signal for checkout in 1 evidence record(s)."
+      "text": "logs_analyst found signal for checkout in the cited evidence records."
     },
     {
       "at": null,
@@ -39,7 +39,7 @@
         "ev_trace_cc0363a4c449"
       ],
       "numbers": [],
-      "text": "traces_analyst found signal for checkout in 1 evidence record(s)."
+      "text": "traces_analyst found signal for checkout in the cited evidence records."
     },
     {
       "at": null,
@@ -49,7 +49,7 @@
         "ev_topology_9ac58b96efa0"
       ],
       "numbers": [],
-      "text": "change_analyst found signal for checkout in 2 evidence record(s)."
+      "text": "change_analyst found signal for checkout in the cited evidence records."
     }
   ],
   "confidence": "medium",
@@ -572,6 +572,7 @@
         "passed": true
       }
     ],
+    "initial_checks": [],
     "passed": true,
     "removed_claims": 0,
     "repaired": false
