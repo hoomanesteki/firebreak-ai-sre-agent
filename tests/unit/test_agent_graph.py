@@ -269,12 +269,8 @@ class TestExitGate:
     matter to the graph rather than to the gate: what a stripped report keeps,
     and what it loses."""
 
-    def test_the_root_cause_survives_losing_every_claim(self) -> None:
-        """The ranking behind it is deterministic and did not come from a model.
-
-        What a stripped report loses is the prose, which is the right thing to
-        lose.
-        """
+    def test_the_root_cause_is_removed_when_every_claim_fails(self) -> None:
+        """An unverified conclusion must not survive the removal of its support."""
         notebook = Notebook(
             hypotheses=(
                 Hypothesis(
@@ -292,7 +288,7 @@ class TestExitGate:
         )
         outcome = run_exit_gate(report, notebook, {}, {})
         assert outcome.report.claims == ()
-        assert outcome.report.root_cause_service == "payment"
+        assert outcome.report.root_cause_service is None
 
     def test_a_root_cause_the_notebook_does_not_support_does_not_survive(self) -> None:
         """Check 6. A named service nothing in the notebook backs is exactly what

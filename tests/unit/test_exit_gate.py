@@ -44,6 +44,48 @@ WINDOW = TimeRange(start=datetime(2025, 1, 1, tzinfo=UTC), end=datetime(2025, 1,
 FABRICATED = "ev_metric_deadbeefdead"
 
 
+def test_publication_abstains_when_root_conflicts_with_notebook():
+    item = record()
+    held = store(item)
+    outcome = run_exit_gate(
+        report(
+            root_cause_service="cart", claims=(Claim(text="cart broke", evidence_ids=(item.id,)),)
+        ),
+        notebook(),
+        held,
+        held,
+    )
+    assert outcome.passed
+    assert outcome.report.abstained
+
+
+def test_publication_lowers_single_signal_confidence():
+    item = record()
+    held = store(item)
+    outcome = run_exit_gate(
+        report(
+            confidence=Confidence.HIGH,
+            claims=(Claim(text="payment broke", evidence_ids=(item.id,)),),
+        ),
+        notebook(),
+        held,
+        held,
+    )
+    assert outcome.passed
+    assert outcome.report.confidence is not Confidence.HIGH
+
+
+def test_removing_last_claim_also_removes_root_cause():
+    outcome = run_exit_gate(
+        report(claims=(Claim(text="payment broke", evidence_ids=(FABRICATED,)),)),
+        notebook(),
+        {},
+        {},
+    )
+    assert outcome.passed
+    assert outcome.report.abstained
+
+
 def record(
     kind=EvidenceKind.METRIC,
     query="list_anomalies",
@@ -617,8 +659,9 @@ class TestTheGateCannotBeBypassed:
             report(confidence=Confidence.HIGH, claims=claims), notebook(), held, held
         )
         assert outcome.removed == 1
-        assert not outcome.passed
-        assert CheckName.CONFIDENCE_SANITY in outcome.failed_checks
+        assert outcome.passed
+        assert outcome.report.confidence is Confidence.MEDIUM
+        assert any(not r.passed for r in outcome.initial_results)
 
     def test_repair_can_be_switched_off_for_inspection(self) -> None:
         held = store(record())

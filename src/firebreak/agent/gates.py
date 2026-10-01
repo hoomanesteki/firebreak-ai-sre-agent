@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from itertools import pairwise
 
-from firebreak.agent.state import ClaimType, Notebook, Report
+from firebreak.agent.state import ClaimType, Confidence, Notebook, Report
 from firebreak.tools.evidence import BackendMode, EvidenceKind, EvidenceRecord, Fact
 
 # SPEC.md Section 6.9 check 5: a report claiming more than this must rest on at
@@ -97,6 +97,7 @@ class GateOutcome:
     results: list[CheckResult] = field(default_factory=list)
     removed: int = 0
     repaired: bool = False
+    initial_results: tuple[CheckResult, ...] = ()
 
     @property
     def passed(self) -> bool:
@@ -112,6 +113,7 @@ class GateOutcome:
             "removed_claims": self.removed,
             "repaired": self.repaired,
             "checks": [r.as_dict() for r in self.results],
+            "initial_checks": [r.as_dict() for r in self.initial_results],
         }
 
     @property
@@ -405,6 +407,8 @@ def check_abstention(report: Report, notebook: Notebook, min_support: int) -> Ch
     """
     if report.root_cause_service is None:
         return CheckResult(CheckName.ABSTENTION, True, "the report already names nobody")
+    if not report.claims:
+        return CheckResult(CheckName.ABSTENTION, False, "no verified claims support a root cause")
     leader = notebook.leader
     support = leader.support if leader else 0
     if support >= min_support:
@@ -462,7 +466,7 @@ def run_exit_gate(
     """
     results = run_all_checks(report, notebook, evidence, rerun, min_support)
     offending, abstain = _what_to_repair(results)
-    if not offending and not abstain:
+    if all(result.passed for result in results):
         return GateOutcome(report, results, 0, False)
     if not repair:
         # Reports what is wrong and changes nothing. An earlier version stripped
@@ -471,6 +475,15 @@ def run_exit_gate(
         return GateOutcome(report, results, 0, False)
 
     working = report
+    leader = notebook.leader
+    if (
+        working.root_cause_service is not None
+        and leader is not None
+        and working.root_cause_service != leader.service
+    ):
+        # The prose may repeat the conflicting conclusion, so it must not survive either.
+        offending.update(range(len(working.claims)))
+        abstain = True
     if abstain:
         # Converted to insufficient evidence, keeping the claims: the ranked
         # candidates and what was checked are exactly what makes an abstention
@@ -480,13 +493,24 @@ def run_exit_gate(
     removed = len(working.claims) - len(kept)
     working = working.model_copy(update={"claims": kept})
 
-    # Re-checked, and published with whatever the second pass says. Removing
-    # claims can break a check that passed on the larger report: a high
-    # confidence report that loses its second signal type is still a high
-    # confidence report resting on one signal.
-    return GateOutcome(
-        working, run_all_checks(working, notebook, evidence, rerun, min_support), removed, True
-    )
+    if not working.claims:
+        working = working.model_copy(update={"root_cause_service": None, "confidence": None})
+    if not check_confidence_sanity(working, evidence).passed:
+        working = working.model_copy(update={"confidence": Confidence.MEDIUM})
+    checked = run_all_checks(working, notebook, evidence, rerun, min_support)
+    if not all(item.passed for item in checked):
+        # A failed repair cannot publish a claim merely because the repair allowance ended.
+        removed = len(report.claims)
+        working = working.model_copy(
+            update={
+                "root_cause_service": None,
+                "confidence": None,
+                "claims": (),
+                "notes": (*working.notes, "Verification failed; insufficient evidence to publish."),
+            }
+        )
+        checked = run_all_checks(working, notebook, evidence, rerun, min_support)
+    return GateOutcome(working, checked, removed, True, tuple(results))
 
 
 def _what_to_repair(results: list[CheckResult]) -> tuple[set[int], bool]:
