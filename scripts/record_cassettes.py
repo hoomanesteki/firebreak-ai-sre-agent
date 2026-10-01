@@ -97,6 +97,14 @@ class RecordingClient:
 
     # `LlmClient`'s other surface, forwarded so the graph cannot tell it is wrapped.
     @property
+    def budget(self) -> Any:
+        return self.inner.budget
+
+    @budget.setter
+    def budget(self, value: Any) -> None:
+        self.inner.budget = value
+
+    @property
     def mode(self) -> LlmMode:
         return self.inner.mode
 

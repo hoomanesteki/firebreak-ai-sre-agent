@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from firebreak.agent.budget import BudgetLimits, BudgetState, StopReason
+from firebreak.agent.budget import BudgetExceededError, BudgetLimits, BudgetState, StopReason
 from firebreak.agent.floor import FloorReason, build_floor_report
 from firebreak.agent.gates import GateOutcome, run_exit_gate
 from firebreak.agent.llm import LlmClient, LlmError, Tier, configured_client
@@ -294,8 +294,10 @@ def investigate(
         baseline_start=triage.baseline.start,
         baseline_end=triage.baseline.end,
         triage=triage,
-        budget=BudgetState(limits=limits or BudgetLimits()),
+        budget=BudgetState(limits=limits or BudgetLimits(), started_at=started),
     )
+
+    client.budget = state.budget
 
     recorder = SpanRecorder(
         options=TracingOptions(
@@ -323,25 +325,38 @@ def investigate(
 
         with recorder.node("seed_hypotheses"):
             state = seed_hypotheses(state)
-        with recorder.node("consult_memory"):
-            state = consult_memory(state, context)
         if state.status is Status.ABSTAINED:
             return _finish(state, _abstention_report(state), StopReason.COMPLETE, started, context)
 
         try:
+            state.budget.require_available()
+            with recorder.node("consult_memory"):
+                state = consult_memory(state, context)
             return _investigate_with_models(state, context, started, chosen.use_critic)
-        except LlmError as error:
+        except (LlmError, BudgetExceededError) as error:
             # SPEC.md Section 6.7's deterministic floor. Every model failing is a
             # bad day, not a bug, and an on-call engineer still gets a ranked list
             # with re-runnable evidence. A stack trace here is how a tool stops
             # being opened.
             context.notes.append(f"falling back to deterministic triage: {error}")
-            floor = build_floor_report(bundle_dir, FloorReason.MODELS_UNAVAILABLE, verify=False)
-            failed = state.model_copy(update={"stopped_because": StopReason.COMPLETE})
+            reason = (
+                error.reason
+                if isinstance(error, BudgetExceededError)
+                else StopReason.MODEL_UNAVAILABLE
+            )
+            floor = build_floor_report(
+                bundle_dir,
+                FloorReason.BUDGET_EXHAUSTED
+                if isinstance(error, BudgetExceededError)
+                else FloorReason.MODELS_UNAVAILABLE,
+                verify=False,
+            )
+            floor_report = floor.report.model_copy(update={"stopped_because": reason})
+            failed = state.model_copy(update={"stopped_because": reason})
             return _finish(
                 failed,
-                floor.report,
-                StopReason.COMPLETE,
+                floor_report,
+                reason,
                 started,
                 context,
                 evidence=dict(floor.b0.evidence),

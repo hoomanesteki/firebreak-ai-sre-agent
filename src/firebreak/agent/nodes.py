@@ -226,6 +226,7 @@ def consult_memory(state: InvestigationState, context: NodeContext) -> Investiga
         for candidate in triage.candidates[:MAX_HYPOTHESES]
     )
     services = tuple(candidate.service for candidate in triage.candidates[:MAX_HYPOTHESES])
+    state.budget.note_tool_call("similar_incidents")
     try:
         result = context.registry.call(
             "similar_incidents",
@@ -292,7 +293,8 @@ def commander(state: InvestigationState, context: NodeContext) -> CommanderPlan:
             escalated=completion.escalated,
             repaired=completion.repaired,
         )
-    state.budget.note_tokens(completion.tokens_in, completion.tokens_out, completion.usd)
+    if context.llm.budget is None:
+        state.budget.note_tokens(completion.tokens_in, completion.tokens_out, completion.usd)
     return plan
 
 
@@ -335,7 +337,8 @@ def run_specialist(
             escalated=completion.escalated,
             repaired=completion.repaired,
         )
-    state.budget.note_tokens(completion.tokens_in, completion.tokens_out, completion.usd)
+    if context.llm.budget is None:
+        state.budget.note_tokens(completion.tokens_in, completion.tokens_out, completion.usd)
     return Finding(
         specialist=specialist,
         hypothesis_id=hypothesis.id,
@@ -507,7 +510,8 @@ def critic(state: InvestigationState, context: NodeContext) -> Critique | None:
         ],
     }
     verdict, completion = context.llm.complete("critic", payload, CriticVerdict, tier=Tier.STRONG)
-    state.budget.note_tokens(completion.tokens_in, completion.tokens_out, completion.usd)
+    if context.llm.budget is None:
+        state.budget.note_tokens(completion.tokens_in, completion.tokens_out, completion.usd)
     if verdict.convinced:
         return None
     return Critique(
@@ -551,7 +555,8 @@ def reporter(state: InvestigationState, context: NodeContext) -> Report:
     written, completion = context.llm.complete(
         "reporter", payload, ReporterOutput, tier=Tier.STRONG
     )
-    state.budget.note_tokens(completion.tokens_in, completion.tokens_out, completion.usd)
+    if context.llm.budget is None:
+        state.budget.note_tokens(completion.tokens_in, completion.tokens_out, completion.usd)
 
     confidence = written.confidence
     if state.stopped_because is not None and state.stopped_because.lowers_confidence:

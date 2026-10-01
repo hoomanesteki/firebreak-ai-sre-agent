@@ -6,6 +6,7 @@ import httpx
 import pytest
 from pydantic import BaseModel
 
+from firebreak.agent.budget import BudgetExceededError, BudgetLimits, BudgetState
 from firebreak.agent.llm import LlmClient, Tier
 from firebreak.agent.models import ModelSpec, TierConfig, load_model_config
 from firebreak.settings import LlmMode
@@ -89,3 +90,22 @@ def test_rate_limit_is_retried_without_escalation():
 
     client(handler).complete("specialist", {}, Answer)
     assert calls == ["test-small", "test-small"]
+
+
+def test_token_budget_refuses_request_before_sending():
+    requests = []
+    llm = client(lambda request: requests.append(request) or response('{"answer":"ok"}'))
+    llm.budget = BudgetState(limits=BudgetLimits(max_tokens=1))
+    with pytest.raises(BudgetExceededError):
+        llm.complete("specialist", {}, Answer)
+    assert not requests
+
+
+def test_failed_schema_responses_remain_in_budget():
+    llm = client(lambda _: response("invalid"))
+    llm.budget = BudgetState()
+    from firebreak.agent.llm import ModelUnavailableError
+
+    with pytest.raises(ModelUnavailableError):
+        llm.complete("specialist", {}, Answer)
+    assert llm.budget.tokens == 64

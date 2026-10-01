@@ -12,6 +12,7 @@ from typing import Any
 import httpx
 from pydantic import ValidationError
 
+from firebreak.agent.budget import BudgetExceededError, StopReason
 from firebreak.agent.cascade import AllModelsFailedError, TransportError, call_with_fallback
 from firebreak.agent.llm import Completion, LlmClient, ModelT, ModelUnavailableError, Tier
 from firebreak.agent.models import ModelConfigError, ModelSpec, load_model_config
@@ -54,6 +55,14 @@ def complete_remote(
     tiers = [tier]
     if tier is Tier.SMALL and client.tier_override is None:
         tiers.append(Tier.STRONG)
+
+    def wait(delay: float) -> None:
+        if client.budget is not None:
+            client.budget.require_available()
+            if delay >= client.budget.limits.max_wall_clock_seconds - client.budget.elapsed_seconds:
+                raise BudgetExceededError(StopReason.BUDGET_WALL_CLOCK)
+        client.sleep(delay)
+
     headers = {"Authorization": f"Bearer {key}"} if key else {}
     with httpx.Client(
         timeout=client.timeout_seconds,
@@ -71,6 +80,29 @@ def complete_remote(
                 def request(model: ModelSpec) -> object:
                     nonlocal selected
                     selected = model
+                    output_limit = 4096
+                    timeout = client.timeout_seconds
+                    if client.budget is not None:
+                        budget = client.budget
+                        budget.require_available()
+                        # UTF-8 bytes plus framing is a conservative context bound.
+                        incoming_bound = len(json.dumps(messages).encode()) + 256
+                        remaining = budget.limits.max_tokens - budget.tokens - incoming_bound
+                        if remaining < 1:
+                            raise BudgetExceededError(StopReason.BUDGET_TOKENS)
+                        output_limit = min(output_limit, remaining)
+                        if model.price is None and client.mode is LlmMode.API:
+                            raise ModelUnavailableError(
+                                "a hosted model needs a sourced price to enforce the dollar budget"
+                            )
+                        if model.price is not None:
+                            remaining_usd = budget.limits.max_usd - budget.usd
+                            bound = model.price.cost_usd(incoming_bound, output_limit)
+                            if bound > remaining_usd:
+                                raise BudgetExceededError(StopReason.BUDGET_USD)
+                        timeout = min(
+                            timeout, budget.limits.max_wall_clock_seconds - budget.elapsed_seconds
+                        )
                     try:
                         response = http.post(
                             f"{base.rstrip('/')}/chat/completions",
@@ -78,7 +110,9 @@ def complete_remote(
                                 "model": model.id,
                                 "messages": messages,
                                 "response_format": {"type": "json_object"},
+                                "max_tokens": output_limit,
                             },
+                            timeout=timeout,
                         )
                     except httpx.TransportError as error:
                         raise TransportError(type(error).__name__) from error
@@ -95,7 +129,7 @@ def complete_remote(
                         candidates,
                         config.fallback,
                         request,
-                        sleep=client.sleep,
+                        sleep=wait,
                     )
                 except (AllModelsFailedError, ValueError) as error:
                     raise ModelUnavailableError(str(error)) from error
@@ -111,6 +145,12 @@ def complete_remote(
                     tokens_out += outgoing
                     if selected.price:
                         usd += selected.price.cost_usd(incoming, outgoing)
+                    if client.budget is not None:
+                        client.budget.note_tokens(
+                            incoming,
+                            outgoing,
+                            selected.price.cost_usd(incoming, outgoing) if selected.price else 0.0,
+                        )
                     content = raw["choices"][0]["message"]["content"]
                     parsed = schema.model_validate_json(content)
                 except (KeyError, IndexError, TypeError, ValueError, ValidationError):

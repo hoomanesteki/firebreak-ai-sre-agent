@@ -46,6 +46,22 @@ FAULTED = "payment-failure-50pct-20u"
 NO_FAULT = "no-fault-flood-homepage-sr5-20u"
 
 
+def test_tool_budget_is_enforced_before_each_call(faulted_bundle):
+    result = investigate(faulted_bundle, limits=BudgetLimits(max_tool_calls=1))
+    assert result.state.budget.tool_calls <= 1
+    assert result.stopped_because is StopReason.BUDGET_TOOL_CALLS
+
+
+def test_wall_budget_prevents_model_calls(faulted_bundle):
+    client = LlmClient(stub_handlers=stub_handlers())
+    result = investigate(
+        faulted_bundle, llm=client, limits=BudgetLimits(max_wall_clock_seconds=0.000001)
+    )
+    assert not client.calls
+    assert result.stopped_because is StopReason.BUDGET_WALL_CLOCK
+    assert result.state.budget.elapsed_seconds > 0
+
+
 @pytest.fixture(scope="module")
 def library():  # type: ignore[no-untyped-def]
     return load_library(SPECS_DIR)

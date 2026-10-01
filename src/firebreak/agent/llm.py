@@ -35,6 +35,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 import httpx
 from pydantic import BaseModel, ValidationError
 
+from firebreak.agent.budget import BudgetState
 from firebreak.settings import LlmMode
 
 if TYPE_CHECKING:
@@ -103,6 +104,7 @@ class LlmClient:
     transport: httpx.BaseTransport | None = field(default=None, repr=False)
     sleep: Callable[[float], None] = time.sleep
     timeout_seconds: float = 60.0
+    budget: BudgetState | None = None
     stub_handlers: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = field(
         default_factory=dict
     )
@@ -135,13 +137,18 @@ class LlmClient:
         used, so a stub handler and a replay cassette key off the same thing and
         a prompt can be rewritten without invalidating either.
         """
+        if self.budget is not None:
+            self.budget.require_available()
         self.calls.append(purpose)
         self.tiers_requested.append(tier)
         tier = self.effective_tier(tier)
         if self.mode is LlmMode.STUB:
             return self._stub(purpose, payload, schema, tier)
         if self.mode is LlmMode.REPLAY:
-            return self._replay(purpose, payload, schema, tier)
+            answer, completion = self._replay(purpose, payload, schema, tier)
+            if self.budget is not None:
+                self.budget.note_tokens(completion.tokens_in, completion.tokens_out, completion.usd)
+            return answer, completion
         from firebreak.agent.transport import complete_remote
 
         return complete_remote(self, purpose, payload, schema, tier)

@@ -610,6 +610,6 @@
   "root_cause_service": "shipping",
   "rounds": 1,
   "stopped_because": "complete",
-  "tool_calls": 5,
+  "tool_calls": 6,
   "wall_clock_seconds": null
 }

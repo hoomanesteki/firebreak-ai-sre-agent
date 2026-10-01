@@ -36,7 +36,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from firebreak.agent.budget import BudgetLimits, BudgetState, StopReason
+from firebreak.agent.budget import BudgetExceededError, BudgetLimits, BudgetState, StopReason
 from firebreak.agent.gates import GateOutcome, run_exit_gate
 from firebreak.agent.llm import LlmClient, LlmError, Tier, configured_client
 from firebreak.agent.reexecute import re_execute
@@ -140,7 +140,8 @@ def investigate_react(
     """
     started = time.monotonic()
     client = llm or configured_client(react_stub_handlers())
-    budget = BudgetState(limits=limits or BudgetLimits())
+    budget = BudgetState(limits=limits or BudgetLimits(), started_at=started)
+    client.budget = budget
     notes: list[str] = []
 
     reader = BundleReader(bundle_dir, verify=verify)
@@ -171,20 +172,27 @@ def investigate_react(
                 "step": steps,
             }
             try:
-                decision, completion = client.complete(
+                decision, _completion = client.complete(
                     "react_step", payload, NextCall, tier=Tier.STRONG
                 )
-            except LlmError as error:
+            except (LlmError, BudgetExceededError) as error:
                 notes.append(f"the model could not choose a next step: {error}")
-                stop = StopReason.COMPLETE
+                stop = (
+                    error.reason
+                    if isinstance(error, BudgetExceededError)
+                    else StopReason.MODEL_UNAVAILABLE
+                )
                 break
-            budget.note_tokens(completion.tokens_in, completion.tokens_out, completion.usd)
 
             if not decision.tool:
                 stop = StopReason.COMPLETE
                 break
 
-            observation = _call(registry, tools, budget, decision)
+            try:
+                observation = _call(registry, tools, budget, decision)
+            except BudgetExceededError as error:
+                stop = error.reason
+                break
             transcript.append(observation)
             steps += 1
             budget.end_round(len(tools.evidence))
@@ -277,10 +285,10 @@ def _write_report(
         "stopped_because": stop.value,
     }
     try:
-        written, completion = client.complete(
+        written, _completion = client.complete(
             "react_report", payload, ReactReport, tier=Tier.STRONG
         )
-    except LlmError as error:
+    except (LlmError, BudgetExceededError) as error:
         notes.append(f"the model could not write a report: {error}")
         return Report(
             incident_id=bundle_id,
@@ -288,7 +296,6 @@ def _write_report(
             stopped_because=stop,
             notes=("The model could not produce a report.",),
         )
-    budget.note_tokens(completion.tokens_in, completion.tokens_out, completion.usd)
     confidence = written.confidence
     if stop.lowers_confidence:
         confidence = Confidence.LOW

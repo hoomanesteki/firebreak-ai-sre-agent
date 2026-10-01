@@ -2,59 +2,7 @@
   "bundle_id": "inc_ceeb6b2238f2",
   "claims": [],
   "confidence": null,
-  "evidence": {
-    "ev_memory_cac09de8fab7": {
-      "arguments": {
-        "limit": 3,
-        "services": [
-          "checkout",
-          "product-catalog",
-          "recommendation"
-        ],
-        "symptoms": "checkout anomaly 1.0; product-catalog anomaly 0.5; recommendation anomaly 0.9"
-      },
-      "facts": [
-        {
-          "field": "matches",
-          "subject": null,
-          "unit": "count",
-          "value": 0.0
-        },
-        {
-          "field": "closest_similarity",
-          "subject": null,
-          "unit": "ratio",
-          "value": 0.0
-        }
-      ],
-      "fingerprint": {
-        "format_version": 2,
-        "identity": "inc_ceeb6b2238f2",
-        "mode": "bundle"
-      },
-      "id": "ev_memory_cac09de8fab7",
-      "kind": "memory",
-      "parameters": {
-        "limit": 3,
-        "services": [
-          "checkout",
-          "product-catalog",
-          "recommendation"
-        ],
-        "symptoms": "checkout anomaly 1.0; product-catalog anomaly 0.5; recommendation anomaly 0.9"
-      },
-      "query": "similar_incidents",
-      "result_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "row_count": 0,
-      "rows": [],
-      "tool": "similar_incidents",
-      "truncated": false,
-      "window": {
-        "end": "1970-01-01T00:00:00Z",
-        "start": "1970-01-01T00:00:00Z"
-      }
-    }
-  },
+  "evidence": {},
   "gate": {
     "checks": [
       {
