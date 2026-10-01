@@ -38,12 +38,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from firebreak.agent.budget import BudgetLimits, BudgetState, StopReason
 from firebreak.agent.gates import GateOutcome, run_exit_gate
-from firebreak.agent.llm import LlmClient, LlmError, Tier
+from firebreak.agent.llm import LlmClient, LlmError, Tier, configured_client
 from firebreak.agent.reexecute import re_execute
 from firebreak.agent.state import Claim, Confidence, Notebook, Report
 from firebreak.backends.bundle_duckdb import BundleBackend
 from firebreak.lab.bundle import BundleReader
-from firebreak.settings import LlmMode
 from firebreak.tools.base import ToolContext, ToolError, ToolRegistry
 from firebreak.tools.registry import GRAPH_TOOLS, build_registry
 from firebreak.triage.pipeline import choose_windows
@@ -140,7 +139,7 @@ def investigate_react(
     evidence and needs the backend still open.
     """
     started = time.monotonic()
-    client = llm or LlmClient(mode=LlmMode.STUB, stub_handlers=react_stub_handlers())
+    client = llm or configured_client(react_stub_handlers())
     budget = BudgetState(limits=limits or BudgetLimits())
     notes: list[str] = []
 

@@ -25,15 +25,20 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
+import httpx
 from pydantic import BaseModel, ValidationError
 
 from firebreak.settings import LlmMode
+
+if TYPE_CHECKING:
+    from firebreak.agent.models import ModelConfig
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -92,6 +97,12 @@ class LlmClient:
     """
 
     mode: LlmMode = LlmMode.STUB
+    base_url: str | None = None
+    api_key: str | None = field(default=None, repr=False)
+    model_config: ModelConfig | None = None
+    transport: httpx.BaseTransport | None = field(default=None, repr=False)
+    sleep: Callable[[float], None] = time.sleep
+    timeout_seconds: float = 60.0
     stub_handlers: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = field(
         default_factory=dict
     )
@@ -131,10 +142,9 @@ class LlmClient:
             return self._stub(purpose, payload, schema, tier)
         if self.mode is LlmMode.REPLAY:
             return self._replay(purpose, payload, schema, tier)
-        raise ModelUnavailableError(
-            f"{self.mode.value} mode needs a configured endpoint; set LLM_BASE_URL and "
-            "LLM_API_KEY, or run in stub mode"
-        )
+        from firebreak.agent.transport import complete_remote
+
+        return complete_remote(self, purpose, payload, schema, tier)
 
     def effective_tier(self, requested: Tier) -> Tier:
         """The tier a call actually runs at, after any ablation override.
@@ -220,3 +230,19 @@ def cassette_key(purpose: str, payload: dict[str, Any]) -> str:
     body = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
     digest = hashlib.sha256(f"{purpose}\x00{body}".encode()).hexdigest()
     return f"{purpose}_{digest[:16]}"
+
+
+def configured_client(
+    handlers: dict[str, Callable[[dict[str, Any]], dict[str, Any]]],
+) -> LlmClient:
+    """Use the selected mode at every public investigation entry point."""
+    from firebreak.settings import Settings
+
+    settings = Settings()
+    return LlmClient(
+        mode=settings.llm_mode,
+        stub_handlers=handlers,
+        base_url=settings.llm_base_url,
+        api_key=settings.llm_api_key,
+        recordings_dir=settings.recordings_dir,
+    )

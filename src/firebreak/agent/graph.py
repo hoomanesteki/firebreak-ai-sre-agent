@@ -32,7 +32,7 @@ from typing import Any
 from firebreak.agent.budget import BudgetLimits, BudgetState, StopReason
 from firebreak.agent.floor import FloorReason, build_floor_report
 from firebreak.agent.gates import GateOutcome, run_exit_gate
-from firebreak.agent.llm import LlmClient, LlmError, Tier
+from firebreak.agent.llm import LlmClient, LlmError, Tier, configured_client
 from firebreak.agent.nodes import (
     MIN_SUPPORT_TO_CONCLUDE,
     NodeContext,
@@ -57,7 +57,6 @@ from firebreak.agent.state import (
 )
 from firebreak.backends.bundle_duckdb import BundleBackend
 from firebreak.lab.bundle import BundleReader
-from firebreak.settings import LlmMode
 from firebreak.telemetry.spans import SpanRecorder, TracingOptions, record_gate
 from firebreak.tools.base import ToolContext
 from firebreak.tools.registry import ALL_TOOLS, build_registry
@@ -276,7 +275,7 @@ def investigate(
     """
     started = time.monotonic()
     chosen = options or AgentOptions()
-    client = llm or LlmClient(mode=LlmMode.STUB, stub_handlers=stub_handlers())
+    client = llm or configured_client(stub_handlers())
     if chosen.tier_override is not None:
         # Set on the client the caller passed rather than on a copy of it. A copy
         # applied the ablation to an object the caller could not see, so a caller

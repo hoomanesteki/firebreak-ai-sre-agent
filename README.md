@@ -109,10 +109,16 @@ demo that rots. Two of the ten abstain, which is the right answer for them.
 With a local model, any OpenAI-compatible endpoint including Ollama:
 
 ```bash
+export FIREBREAK_LLM_MODE=local
 export LLM_BASE_URL=http://localhost:11434/v1
 export LLM_API_KEY=ollama
 make demo
 ```
+
+Configure the exact installed model ids under `small` and `strong` in
+`config/models.yaml`. For a hosted compatible endpoint, select `FIREBREAK_LLM_MODE=api`.
+The client sends chat completions, validates JSON, and accounts for repair attempts.
+An unconfigured tier fails explicitly rather than guessing a model id.
 
 `make demo` also runs against the live stack when one is up; it reports which it chose and what
 would have changed the choice. `make live` starts the pinned OpenTelemetry Demo and needs Docker
