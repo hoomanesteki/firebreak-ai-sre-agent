@@ -96,6 +96,10 @@ class ReactResult:
     wall_clock_seconds: float = 0.0
     # Set for B2 and None for B1, which is the whole difference between them.
     gate: GateOutcome | None = None
+    model_mode: str = "unknown"
+    model_ids: tuple[str, ...] = ()
+    model_calls: int = 0
+    used_floor: bool = False
 
 
 def notebook_from(report: Report) -> Notebook:
@@ -232,6 +236,10 @@ def investigate_react(
         notes=notes,
         wall_clock_seconds=time.monotonic() - started,
         gate=outcome,
+        model_mode=client.mode.value,
+        model_ids=tuple(sorted(client.models_used)),
+        model_calls=client.successful_calls,
+        used_floor=any("model could not" in note for note in notes),
     )
 
 

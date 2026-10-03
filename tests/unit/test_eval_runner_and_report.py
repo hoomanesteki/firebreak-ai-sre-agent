@@ -349,3 +349,36 @@ def _minimal_report(commit: str):  # type: ignore[no-untyped-def]
         overall=compute_metrics([], [], trials_per_task=1, resamples=10),
         by_family={},
     )
+
+
+def test_recorded_stub_cannot_be_quoted_as_model_performance():
+    from dataclasses import replace
+
+    report = replace(
+        _minimal_report("audit"),
+        configuration="fb-v1",
+        split="test_id",
+        recorded_scenarios=29,
+        total_scenarios=29,
+    )
+    assert not report.quotable
+
+
+def test_real_model_provenance_is_required_and_fallback_is_disclosed():
+    from dataclasses import replace
+
+    report = replace(
+        _minimal_report("audit"),
+        configuration="fb-v1",
+        split="test_id",
+        recorded_scenarios=29,
+        total_scenarios=29,
+        evaluated_scenarios=29,
+        model_modes=("api",),
+        model_ids=("test-model",),
+        model_calls=87,
+    )
+    assert report.quotable
+    assert not replace(report, fallback_trials=1).quotable
+    assert not replace(report, model_modes=("stub",)).quotable
+    assert not replace(report, evaluated_scenarios=1).quotable

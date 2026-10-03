@@ -256,6 +256,10 @@ class InvestigationResult:
     # report that lost four statements and a report that passed cleanly look the
     # same afterwards, and the difference is what an eval measures.
     gate: GateOutcome
+    model_mode: str = "unknown"
+    model_ids: tuple[str, ...] = ()
+    model_calls: int = 0
+    used_floor: bool = False
 
 
 def investigate(
@@ -514,6 +518,10 @@ def _finish(
         notes=list(context.notes),
         wall_clock_seconds=time.monotonic() - started,
         gate=outcome,
+        model_mode=context.llm.mode.value,
+        model_ids=tuple(sorted(getattr(context.llm, "models_used", ()))),
+        model_calls=getattr(context.llm, "successful_calls", 0),
+        used_floor=any("Automated triage only" in note for note in final.notes),
     )
 
 

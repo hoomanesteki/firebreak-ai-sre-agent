@@ -105,6 +105,8 @@ class LlmClient:
     sleep: Callable[[float], None] = time.sleep
     timeout_seconds: float = 60.0
     budget: BudgetState | None = None
+    models_used: set[str] = field(default_factory=set)
+    successful_calls: int = 0
     stub_handlers: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = field(
         default_factory=dict
     )

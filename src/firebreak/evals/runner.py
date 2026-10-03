@@ -157,6 +157,10 @@ def _fb_outcome(result: InvestigationResult) -> tuple[InvestigationOutcome, set[
         tokens_out=result.state.budget.tokens_out,
         usd=result.state.budget.usd,
         wall_clock_seconds=result.wall_clock_seconds,
+        model_mode=result.model_mode,
+        model_ids=result.model_ids,
+        model_calls=result.model_calls,
+        used_floor=result.used_floor,
         notes={"stopped_because": result.stopped_because.value},
     )
     return outcome, set(result.state.evidence)
@@ -187,6 +191,10 @@ def _react_outcome(result: ReactResult) -> tuple[InvestigationOutcome, set[str]]
             tokens_out=result.budget.tokens_out,
             usd=result.budget.usd,
             wall_clock_seconds=result.wall_clock_seconds,
+            model_mode=result.model_mode,
+            model_ids=result.model_ids,
+            model_calls=result.model_calls,
+            used_floor=result.used_floor,
             notes={"stopped_because": result.stopped_because.value},
         ),
         set(result.evidence),
@@ -398,10 +406,14 @@ def split_coverage(split: Split) -> tuple[int, int]:
     total = sum(1 for spec in library.values() if spec.split is split)
     labels = load_labels()
     recorded = {path.name for path in iter_bundles(BUNDLES_DIR)} if BUNDLES_DIR.is_dir() else set()
-    covered = sum(
-        1
-        for bundle_id in recorded
-        if (label := labels.get(bundle_id)) is not None and label.split == split.value
+    covered = len(
+        {
+            label.scenario_id
+            for bundle_id in recorded
+            if (label := labels.get(bundle_id)) is not None
+            and label.split == split.value
+            and label.scenario_id in library
+        }
     )
     return covered, total
 

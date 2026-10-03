@@ -174,6 +174,8 @@ def complete_remote(
                     and probability < config.cascade.escalate_below_confidence
                 ):
                     break
+                client.models_used.add(selected.id)
+                client.successful_calls += 1
                 return parsed, Completion(
                     text=content,
                     model=selected.id,

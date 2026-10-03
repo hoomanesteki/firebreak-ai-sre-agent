@@ -87,7 +87,18 @@ class Report:
 
     @property
     def quotable(self) -> bool:
-        return bool(self.payload.get("quotable_as_a_result"))
+        if not self.payload.get("quotable_as_a_result"):
+            return False
+        if self.configuration == "b0":
+            return True
+        modes = self.payload.get("model_modes") or []
+        return bool(
+            modes
+            and set(modes) <= {"api", "local"}
+            and self.payload.get("model_ids")
+            and self.payload.get("model_calls", 0) > 0
+            and self.payload.get("fallback_trials") == 0
+        )
 
     @property
     def data_source(self) -> str:

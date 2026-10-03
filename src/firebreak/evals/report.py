@@ -122,6 +122,11 @@ class EvalReport:
     by_family: dict[str, SplitMetrics]
     recorded_scenarios: int = 0
     total_scenarios: int = 0
+    evaluated_scenarios: int = 0
+    model_modes: tuple[str, ...] = ()
+    model_ids: tuple[str, ...] = ()
+    model_calls: int = 0
+    fallback_trials: int = 0
     # One score per task per grader, keyed by bundle id, so two runs can be
     # compared after the fact with a paired bootstrap.
     #
@@ -145,6 +150,20 @@ class EvalReport:
             self.using_recorded_bundles
             and self.split in RESULT_SPLITS
             and not self.partial_coverage
+            and self.total_scenarios > 0
+            and self.evaluated_scenarios == self.total_scenarios
+            and self.model_provenance_valid
+        )
+
+    @property
+    def model_provenance_valid(self) -> bool:
+        """Recorded telemetry alone is not evidence that a model ran."""
+        return self.configuration == "b0" or (
+            bool(self.model_modes)
+            and set(self.model_modes) <= {"api", "local"}
+            and bool(self.model_ids)
+            and self.model_calls > 0
+            and self.fallback_trials == 0
         )
 
     @property
@@ -155,6 +174,12 @@ class EvalReport:
     @property
     def caveats(self) -> tuple[str, ...]:
         notes = []
+        if not self.model_provenance_valid:
+            notes.append(
+                "No complete real-model provenance: stub, replay, unknown mode or fallback."
+            )
+        if self.evaluated_scenarios != self.total_scenarios:
+            notes.append("The run did not evaluate every scenario in the split.")
         if not self.using_recorded_bundles:
             notes.append(SYNTHETIC_WARNING)
         if self.partial_coverage:
@@ -180,6 +205,11 @@ class EvalReport:
             "data_source": self.data_source,
             "recorded_scenarios": self.recorded_scenarios,
             "total_scenarios": self.total_scenarios,
+            "evaluated_scenarios": self.evaluated_scenarios,
+            "model_modes": list(self.model_modes),
+            "model_ids": list(self.model_ids),
+            "model_calls": self.model_calls,
+            "fallback_trials": self.fallback_trials,
             "quotable_as_a_result": self.quotable,
             "caveats": list(self.caveats),
             "generated_at": self.generated_at,
@@ -214,6 +244,11 @@ def build_report(result: RunResult, resamples: int = BOOTSTRAP_RESAMPLES) -> Eva
         by_family=by_family,
         recorded_scenarios=result.recorded_scenarios,
         total_scenarios=result.total_scenarios,
+        evaluated_scenarios=len({t.scenario_id for t in result.trials}),
+        model_modes=tuple(sorted({o.model_mode for o in result.outcomes})),
+        model_ids=tuple(sorted({name for o in result.outcomes for name in o.model_ids})),
+        model_calls=sum(o.model_calls for o in result.outcomes),
+        fallback_trials=sum(o.used_floor for o in result.outcomes),
     )
 
 
