@@ -27,12 +27,13 @@ survives a restart between them.
 
 from __future__ import annotations
 
+import sqlite3
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, TypedDict
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, StateGraph
 from langgraph.types import Command, interrupt
 
@@ -103,9 +104,22 @@ class ApprovalWorkflow:
     sample_signal: Callable[[Proposal], float | None] | None = None
     baseline_for: Callable[[Proposal], float | None] | None = None
     checkpointer: BaseCheckpointSaver[Any] | None = None
+    _connection: sqlite3.Connection | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
+        if self.checkpointer is None:
+            path = self.service.audit.path.with_suffix(".checkpoints.sqlite3")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self._connection = sqlite3.connect(str(path), check_same_thread=False)
+            self._connection.execute("PRAGMA synchronous=FULL")
+            self.checkpointer = SqliteSaver(self._connection)
         self._graph = self._build()
+
+    def close(self) -> None:
+        """Release the owned connection; injected checkpointers belong to the caller."""
+        if self._connection is not None:
+            self._connection.close()
+            self._connection = None
 
     def _build(self) -> Any:
         builder: StateGraph[ApprovalState, None, ApprovalState, ApprovalState] = StateGraph(
@@ -120,7 +134,7 @@ class ApprovalWorkflow:
         builder.add_edge("await_approval", "carry_out")
         builder.add_edge("carry_out", "check_recovery")
         builder.add_edge("check_recovery", END)
-        return builder.compile(checkpointer=self.checkpointer or InMemorySaver())
+        return builder.compile(checkpointer=self.checkpointer)
 
     def _record_proposal(self, state: ApprovalState) -> ApprovalState:
         proposal = Proposal.model_validate(state["proposal"])

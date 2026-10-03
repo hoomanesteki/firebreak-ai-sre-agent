@@ -35,6 +35,38 @@ FLAG = RemediationSpec(
 ALLOWLIST = {FLAG.id: FLAG}
 
 
+def test_pending_approval_resumes_after_restarting_process(tmp_path):
+    import os
+    import subprocess
+    import sys
+
+    proposal = a_proposal()
+    workflow = ApprovalWorkflow(open_service(tmp_path / "audit.jsonl", ALLOWLIST))
+    workflow.start(proposal)
+    script = """
+import sys
+from pathlib import Path
+from firebreak.graph.knowledge import RemediationKind, RemediationSpec
+from firebreak.remediation.approval import open_service
+from firebreak.remediation.workflow import ApprovalWorkflow, ApprovalDecision
+spec = RemediationSpec(id="disable-flag", kind=RemediationKind.DISABLE_FEATURE_FLAG,
+ title="disable", description="disable", blast_radius="one flag", reversible=True,
+ requires_approval=True)
+workflow = ApprovalWorkflow(open_service(Path(sys.argv[1]), {spec.id: spec}))
+assert workflow.pending(sys.argv[2]) is not None
+result = workflow.resume(sys.argv[2], ApprovalDecision("reject", "owner", "keep unchanged"))
+assert result["outcome"] == "rejected"
+"""
+    environment = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[2] / "src"))
+    completed = subprocess.run(
+        [sys.executable, "-c", script, str(tmp_path / "audit.jsonl"), proposal.id],
+        capture_output=True,
+        text=True,
+        env=environment,
+    )
+    assert completed.returncode == 0, completed.stderr
+
+
 def a_proposal() -> Proposal:
     return build_proposal(
         incident_id="inc_000000000000",
