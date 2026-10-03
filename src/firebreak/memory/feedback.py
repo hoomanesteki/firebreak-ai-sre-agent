@@ -27,6 +27,8 @@ it did not do.
 from __future__ import annotations
 
 import json
+import re
+import secrets
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -183,6 +185,9 @@ def promote(
     bundle_exists: bool,
     scenario_id: str | None = None,
     now: datetime | None = None,
+    *,
+    fault_class: str = "unknown",
+    confirmed_no_fault: bool = False,
 ) -> PromotionResult:
     """Turn reviewed feedback into a labelled eval task.
 
@@ -210,20 +215,38 @@ def promote(
             "label it with"
         )
 
+    if split not in {"train", "validation", "test_id", "test_ood"}:
+        raise FeedbackError("choose a declared evaluation split")
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", feedback.incident_id):
+        raise FeedbackError("incident id must be a safe file name")
+    if feedback.true_root_cause is None and not confirmed_no_fault:
+        raise FeedbackError(
+            "confirm the root cause or explicitly confirm no fault before promotion"
+        )
+    if confirmed_no_fault and feedback.true_root_cause is not None:
+        raise FeedbackError("no-fault confirmation contradicts the named root cause")
     target = feedback.true_root_cause
     label = {
-        "incident_id": feedback.incident_id,
+        "bundle_id": feedback.incident_id,
+        "run_id": "feedback",
+        "fault_class": "none" if confirmed_no_fault else fault_class,
+        "canary": "fbcanary-" + secrets.token_hex(16),
         "scenario_id": scenario_id or f"promoted-{feedback.incident_id}",
         "split": split,
         "target_service": target,
-        "source": "feedback",
-        "reviewer": feedback.reviewer,
-        "verdict": feedback.verdict.value,
-        "promoted_at": (now or datetime.now(UTC)).isoformat(),
+        "notes": json.dumps(
+            {
+                "source": "feedback",
+                "reviewer": feedback.reviewer,
+                "verdict": feedback.verdict.value,
+                "promoted_at": (now or datetime.now(UTC)).isoformat(),
+            }
+        ),
     }
     path = labels_root / "promoted" / f"{feedback.incident_id}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(label, indent=2) + "\n", encoding="utf-8")
+    with path.open("x", encoding="utf-8") as handle:
+        handle.write(json.dumps(label, indent=2) + "\n")
 
     remaining = []
     if not bundle_exists:
