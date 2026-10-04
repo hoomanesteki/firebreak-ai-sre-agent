@@ -44,7 +44,7 @@ MIN_SIGNAL_TYPES_FOR_HIGH_CONFIDENCE = 2
 COUNT_UNITS = frozenset({"count", "rows", "services"})
 RELATIVE_TOLERANCE = 0.01
 
-NUMERIC_LITERAL = re.compile(r"(?<![\w.])[+-]?(?:\d[\d,]*\.?\d*|\.\d+)(?:[eE][+-]?\d+)?(?![\w.])")
+NUMERIC_LITERAL = re.compile(r"(?<![\w.])[+-]?(?:\d[\d,]*\.?\d*|\.\d+)(?:[eE][+-]?\d+)?(?!\w)")
 NUMBER_WORD = re.compile(
     r"\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
     r"thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|"

@@ -91,6 +91,7 @@ def test_numeric_prose_requires_structured_provenance():
     held = store(item)
     for text in (
         "payment scored 999999 deviations",
+        "payment scored 999999.123.",
         "payment scored 1e6 deviations",
         "payment affected twenty services",
     ):

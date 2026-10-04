@@ -150,6 +150,7 @@ class EvalReport:
             self.using_recorded_bundles
             and self.split in RESULT_SPLITS
             and not self.partial_coverage
+            and self.recorded_scenarios == self.total_scenarios
             and self.total_scenarios > 0
             and self.evaluated_scenarios == self.total_scenarios
             and self.model_provenance_valid

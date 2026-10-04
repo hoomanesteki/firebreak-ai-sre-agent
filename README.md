@@ -10,13 +10,15 @@ behind it, and is benchmarked on fault-injected incidents from the OpenTelemetry
 
 ## Status
 
-All 13 phases are complete (SPEC.md Section 17). The system is built, tested end to end, and
-**has not been measured**.
+Implementation reports exist for all 13 phases (SPEC.md Section 17), but
+**Phase 12 release validation is incomplete**. The offline workflow is tested;
+held-out model performance has not been measured. `make release-check` reports
+the missing recordings and evaluations and exits unsuccessfully until they exist.
 
 Two things are missing, and every page and report says so where a number would go:
 
-- **No model has run.** No credentials are configured, so the deterministic floor publishes
-  triage's answer with a label saying no AI analysis happened.
+- **No model has run.** The repository supplies no credentials or model choices, so the live
+  deterministic floor publishes triage's answer with a label saying no AI analysis happened.
 - **Both held-out test splits have no recordings.** The library is 114
   scenario specs and only one tuning split is partly recorded.
 

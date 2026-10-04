@@ -382,3 +382,4 @@ def test_real_model_provenance_is_required_and_fallback_is_disclosed():
     assert not replace(report, fallback_trials=1).quotable
     assert not replace(report, model_modes=("stub",)).quotable
     assert not replace(report, evaluated_scenarios=1).quotable
+    assert not replace(report, recorded_scenarios=0).quotable

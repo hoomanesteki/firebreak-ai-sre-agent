@@ -109,3 +109,64 @@ def test_failed_schema_responses_remain_in_budget():
     with pytest.raises(ModelUnavailableError):
         llm.complete("specialist", {}, Answer)
     assert llm.budget.tokens == 64
+
+
+def test_exhausted_provider_timeouts_fail_with_no_secret_body():
+    from firebreak.agent.llm import ModelUnavailableError
+
+    def timeout(request):
+        raise httpx.ReadTimeout("private incident content", request=request)
+
+    llm = client(timeout)
+    llm.budget = BudgetState()
+    with pytest.raises(ModelUnavailableError) as caught:
+        llm.complete("specialist", {}, Answer)
+    assert "private incident" not in str(caught.value)
+
+
+def test_hosted_budget_refuses_unknown_price():
+    from firebreak.agent.llm import ModelUnavailableError
+
+    llm = client(lambda _: pytest.fail("must not spend without a price"))
+    llm.mode = LlmMode.API
+    llm.budget = BudgetState()
+    with pytest.raises(ModelUnavailableError, match="sourced price"):
+        llm.complete("specialist", {}, Answer)
+
+
+def test_dollar_budget_checks_before_spending_and_charges_actual_usage():
+    from firebreak.agent.models import Price
+
+    llm = client(lambda _: response('{"answer":"ok"}'))
+    price = Price(
+        input_per_million_usd=10,
+        output_per_million_usd=20,
+        source="https://example.test/test-price",
+        checked_on="2026-10-03",
+    )
+    llm.model_config = llm.model_config.model_copy(
+        update={
+            "tiers": {
+                tier.value: TierConfig(
+                    models=(ModelSpec(id="test-model", provider="test", price=price),)
+                )
+                for tier in Tier
+            }
+        }
+    )
+    llm.budget = BudgetState(limits=BudgetLimits(max_usd=0.000001))
+    with pytest.raises(BudgetExceededError):
+        llm.complete("specialist", {}, Answer)
+    assert llm.budget.usd == 0
+    llm.budget = BudgetState()
+    _, completion = llm.complete("specialist", {}, Answer)
+    assert llm.budget.usd == completion.usd == price.cost_usd(12, 4)
+
+
+def test_empty_tier_refuses_to_guess_a_model():
+    from firebreak.agent.llm import ModelUnavailableError
+
+    llm = client(lambda _: pytest.fail("no configured model"))
+    llm.model_config = load_model_config()
+    with pytest.raises(ModelUnavailableError, match="no models configured"):
+        llm.complete("specialist", {}, Answer)
