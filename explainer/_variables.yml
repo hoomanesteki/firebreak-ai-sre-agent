@@ -14,6 +14,6 @@ recorded_root_cause_correct: 1
 recorded_root_cause_applicable: 7
 recorded_abstention_correct: 3
 recorded_abstention_trials: 8
-tests_passed: 2131
+tests_passed: 2257
 tests_skipped: 24
-coverage_percent: 85.59
+coverage_percent: 85.6

@@ -7,8 +7,8 @@
     "root_cause_correct": 1,
     "source": "reports/eval/b0/validation/2026-09-26_bd113c8b3ed2.json"
   },
-  "commit": "82e471f71853cb68d565e117b6f751cf4ee8db30-dirty",
-  "generated_at": "2026-10-05T01:57:25.748524+00:00",
+  "commit": "1eaf21947655beb547339f9e2c1cc4dc73fc9fb8-dirty",
+  "generated_at": "2026-10-05T03:00:51.058967+00:00",
   "honesty": "A metric is published as a number only when its report says quotable_as_a_result. Everything else is a stated absence with its reason. 5 of 5 metrics are unmeasured.",
   "library": {
     "recordings_note": "Recordings are not in this repository. Bundles average 7.6 MB and bundles/ is git-ignored; they ship as a release asset with checksums.",
@@ -98,10 +98,10 @@
   },
   "quality": {
     "available": true,
-    "coverage_percent": 85.59,
-    "measured_at_commit": "82e471f71853cb68d565e117b6f751cf4ee8db30",
+    "coverage_percent": 85.6,
+    "measured_at_commit": "1eaf21947655beb547339f9e2c1cc4dc73fc9fb8-dirty",
     "source": "reports/quality.json",
-    "tests_passed": 2131,
+    "tests_passed": 2257,
     "tests_skipped": 24
   },
   "readme_rows": [

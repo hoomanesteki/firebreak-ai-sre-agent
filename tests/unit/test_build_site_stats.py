@@ -22,7 +22,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
@@ -508,3 +508,85 @@ class TestTheGeneratedFileMatchesTheRepository:
             for key in ("generated_at", "commit", "local"):
                 payload.pop(key, None)
         assert committed == fresh
+
+
+class TestTheReadmeRegionsAreGeneratedNotTyped:
+    """The README's engineering line was typed by hand and said 2131 tests when the run
+    reported 2246. `scripts/check_repo_hygiene.py` can now catch that, but a rule with no
+    generator just moves the work: somebody still has to retype the figure correctly. This
+    writes it, from the same renderers the checker compares against."""
+
+    SAMPLE: ClassVar[dict[str, Any]] = {
+        "readme_rows": [{"metric": "m", "value": "1", "source": "s"}],
+        "quality": {
+            "available": True,
+            "tests_passed": 7,
+            "tests_skipped": 1,
+            "coverage_percent": 90.0,
+        },
+    }
+
+    def readme(self, tmp_path: Path, stats_body: str, engineering_body: str) -> Path:
+        path = tmp_path / "README.md"
+        path.write_text(
+            f"# Title\n\n<!-- stats:start -->\n{stats_body}\n<!-- stats:end -->\n\n"
+            f"## Development\n\n<!-- engineering:start -->\n{engineering_body}\n"
+            "<!-- engineering:end -->\n\nTrailing prose.\n",
+            encoding="utf-8",
+        )
+        return path
+
+    def test_it_replaces_a_stale_figure(self, tmp_path: Path) -> None:
+        path = self.readme(tmp_path, "stale table", "1 test passing")
+        assert stats.write_readme_regions(self.SAMPLE, path) is True
+        body = path.read_text(encoding="utf-8")
+        assert "7 tests passing, 1 skipped, 90.0% coverage" in body
+        assert "1 test passing" not in body
+
+    def test_it_leaves_everything_outside_the_markers_alone(self, tmp_path: Path) -> None:
+        path = self.readme(tmp_path, "stale table", "1 test passing")
+        stats.write_readme_regions(self.SAMPLE, path)
+        body = path.read_text(encoding="utf-8")
+        assert body.startswith("# Title\n")
+        assert body.endswith("Trailing prose.\n")
+        assert "## Development" in body
+
+    def test_it_reports_no_change_when_the_regions_already_match(self, tmp_path: Path) -> None:
+        """So `make site-stats` does not dirty the tree on a run that changed nothing, which
+        is the same reason `write_if_changed` exists for the JSON."""
+        path = self.readme(tmp_path, "stale table", "1 test passing")
+        stats.write_readme_regions(self.SAMPLE, path)
+        before = path.read_text(encoding="utf-8")
+        assert stats.write_readme_regions(self.SAMPLE, path) is False
+        assert path.read_text(encoding="utf-8") == before
+
+    def test_missing_markers_are_an_error_rather_than_a_silent_skip(self, tmp_path: Path) -> None:
+        path = tmp_path / "README.md"
+        path.write_text("# Title\n\nNo markers here.\n", encoding="utf-8")
+        with pytest.raises(stats.StatsError, match="markers"):
+            stats.write_readme_regions(self.SAMPLE, path)
+
+    def test_what_it_writes_is_what_the_hygiene_check_accepts(self, tmp_path: Path) -> None:
+        """The contract test. Two functions had to agree about the README and did not; this
+        asserts the agreement rather than trusting it."""
+        import check_repo_hygiene
+
+        path = self.readme(tmp_path, "stale table", "1 test passing")
+        stats.write_readme_regions(self.SAMPLE, path)
+        stats_path = tmp_path / "site_stats.json"
+        stats_path.write_text(json.dumps(self.SAMPLE), encoding="utf-8")
+        assert check_repo_hygiene.check_readme_stats(path, stats_path) == []
+
+    def test_the_committed_readme_is_what_the_generator_would_write(self) -> None:
+        """Not an assertion about this run's numbers, which would be circular. It asserts
+        that the committed README matches the committed report, which are both inputs."""
+        import check_repo_hygiene
+
+        committed = json.loads((REPO_ROOT / "reports" / "site_stats.json").read_text())
+        assert (
+            check_repo_hygiene.check_readme_stats(
+                REPO_ROOT / "README.md", REPO_ROOT / "reports" / "site_stats.json"
+            )
+            == []
+        )
+        assert committed["quality"]["available"] is True

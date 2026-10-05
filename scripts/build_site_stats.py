@@ -46,6 +46,7 @@ BUNDLES_DIR = REPO_ROOT / "bundles"
 SPECS_DIR = REPO_ROOT / "scenarios" / "specs"
 OUTPUT = REPO_ROOT / "reports" / "site_stats.json"
 QUALITY_PATH = REPO_ROOT / "reports" / "quality.json"
+README_PATH = REPO_ROOT / "README.md"
 # Quarto reads `_variables.yml` and substitutes `{{< var name >}}` in any page, so the explainer
 # site needs no code execution to show a generated number. That matters for more than tidiness:
 # an executable block would make the site render depend on a Python kernel being present, and CI
@@ -655,6 +656,40 @@ def write_if_changed(path: Path, payload: dict[str, Any], provenance: tuple[str,
     return True
 
 
+def write_readme_regions(stats: dict[str, Any], readme_path: Path = README_PATH) -> bool:
+    """Write the README's two generated regions, using the renderers the checker uses.
+
+    `scripts/check_repo_hygiene.py` compares these regions against the same two functions, so
+    this is the generator side of a rule that previously had no generator. The README's test
+    count was typed by hand, and it was wrong by 115 tests before anyone noticed, because the
+    only thing that could have caught it was a reader who happened to remember the real figure.
+    """
+    from check_repo_hygiene import (
+        ENGINEERING_END,
+        ENGINEERING_START,
+        STATS_END,
+        STATS_START,
+        render_engineering_block,
+        render_stats_block,
+    )
+
+    original = readme_path.read_text(encoding="utf-8")
+    updated = original
+    for start, end, body in (
+        (STATS_START, STATS_END, render_stats_block(stats)),
+        (ENGINEERING_START, ENGINEERING_END, render_engineering_block(stats)),
+    ):
+        if start not in updated or end not in updated:
+            raise StatsError(f"README.md is missing the {start} and {end} markers")
+        head = updated[: updated.index(start) + len(start)]
+        tail = updated[updated.index(end) :]
+        updated = f"{head}\n{body}\n{tail}"
+    if updated == original:
+        return False
+    readme_path.write_text(updated, encoding="utf-8")
+    return True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=OUTPUT)
@@ -701,11 +736,14 @@ def main() -> int:
     # change hides in the noise. `local` is excluded too, since it describes the build machine.
     wrote = write_if_changed(arguments.output, stats, ("generated_at", "commit", "local"))
     write_variables(stats)
+    readme_changed = write_readme_regions(stats)
     if wrote:
         print(f"site stats: wrote {arguments.output.relative_to(REPO_ROOT)}")
     else:
         print("site stats: unchanged, so the existing file and its provenance stand")
     print(f"  and {VARIABLES_PATH.relative_to(REPO_ROOT)} for the explainer site")
+    if readme_changed:
+        print("  and README.md, whose generated regions were stale")
     print(f"  {stats['honesty']}")
     local = stats["local"]
     if not local["bundles_present"]:

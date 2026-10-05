@@ -2,7 +2,8 @@
 
 Enforces SPEC.md Section 19.4: no em or en dashes in tracked text files, no
 filler words in prose, no AI attribution in commit messages, only allowed
-commit authors, and a README stats block that matches the generated report.
+commit authors, and the README's generated regions matching the reports they
+come from.
 
 Run over the whole repository with no arguments, or over a list of files
 (which is how pre-commit calls it).
@@ -27,6 +28,8 @@ STATS_PATH = REPO_ROOT / "reports" / "site_stats.json"
 README_PATH = REPO_ROOT / "README.md"
 STATS_START = "<!-- stats:start -->"
 STATS_END = "<!-- stats:end -->"
+ENGINEERING_START = "<!-- engineering:start -->"
+ENGINEERING_END = "<!-- engineering:end -->"
 
 
 class HygieneError(Exception):
@@ -255,35 +258,81 @@ def render_stats_block(stats: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
-def check_readme_stats(
-    readme_path: Path = README_PATH, stats_path: Path = STATS_PATH
+def render_engineering_block(stats: dict[str, object]) -> str:
+    """Render the README's engineering line from reports/site_stats.json.
+
+    These are facts about the repository, not results about the system, so they live apart
+    from the results table above. They are generated for the same reason: a test count typed
+    by hand is correct on the day it is typed and wrong by the next commit.
+    """
+    quality = stats.get("quality")
+    if not isinstance(quality, dict):
+        raise HygieneError("site_stats.json has no 'quality' mapping")
+    if not quality.get("available"):
+        return "Test and coverage figures are not available; run `make verify`."
+    missing = [
+        key for key in ("tests_passed", "tests_skipped", "coverage_percent") if key not in quality
+    ]
+    if missing:
+        raise HygieneError(f"site_stats.json quality is missing {', '.join(missing)}")
+    return (
+        f"{quality['tests_passed']} tests passing, {quality['tests_skipped']} skipped, "
+        f"{quality['coverage_percent']}% coverage against a floor of 85%."
+    )
+
+
+def check_readme_region(
+    rule: str,
+    start_marker: str,
+    end_marker: str,
+    expected: str,
+    readme: str,
 ) -> list[Finding]:
-    """Fail when the README stats block does not match the generated report."""
-    if not stats_path.exists() or not readme_path.exists():
-        return []
-    readme = readme_path.read_text(encoding="utf-8")
-    if STATS_START not in readme or STATS_END not in readme:
+    """Compare one marked README region against what the generator would write."""
+    if start_marker not in readme or end_marker not in readme:
         return [
             Finding(
-                rule="readme-stats",
+                rule=rule,
                 location="README.md",
-                message=f"missing {STATS_START} and {STATS_END} markers",
+                message=f"missing {start_marker} and {end_marker} markers",
             )
         ]
-    stats = json.loads(stats_path.read_text(encoding="utf-8"))
-    expected = render_stats_block(stats).strip()
-    start = readme.index(STATS_START) + len(STATS_START)
-    end = readme.index(STATS_END)
-    actual = readme[start:end].strip()
-    if actual != expected:
+    start = readme.index(start_marker) + len(start_marker)
+    end = readme.index(end_marker)
+    if readme[start:end].strip() != expected.strip():
         return [
             Finding(
-                rule="readme-stats",
+                rule=rule,
                 location="README.md",
-                message="stats block is stale; run scripts/build_site_stats.py",
+                message=f"{rule} region is stale; run scripts/build_site_stats.py",
             )
         ]
     return []
+
+
+def check_readme_stats(
+    readme_path: Path = README_PATH, stats_path: Path = STATS_PATH
+) -> list[Finding]:
+    """Fail when a generated README region does not match the generated report.
+
+    Both regions are checked here because both have the same failure mode: the README is
+    the first thing anyone reads and the last thing anyone regenerates.
+    """
+    if not stats_path.exists() or not readme_path.exists():
+        return []
+    readme = readme_path.read_text(encoding="utf-8")
+    stats = json.loads(stats_path.read_text(encoding="utf-8"))
+    findings = check_readme_region(
+        "readme-stats", STATS_START, STATS_END, render_stats_block(stats), readme
+    )
+    findings += check_readme_region(
+        "readme-engineering",
+        ENGINEERING_START,
+        ENGINEERING_END,
+        render_engineering_block(stats),
+        readme,
+    )
+    return findings
 
 
 def collect_findings(

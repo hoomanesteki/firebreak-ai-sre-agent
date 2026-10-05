@@ -20,6 +20,7 @@ from check_repo_hygiene import (
     is_excluded,
     load_config,
     matches_any_glob,
+    render_engineering_block,
     render_stats_block,
 )
 
@@ -130,6 +131,18 @@ def test_is_excluded_allows_source():
     assert not is_excluded("src/firebreak/agent/graph.py", CONFIG.excluded_paths)
 
 
+QUALITY = {"available": True, "tests_passed": 7, "tests_skipped": 1, "coverage_percent": 90.0}
+
+
+def write_readme(path: Path, stats_block: str, engineering_block: str) -> None:
+    """Write a README carrying both generated regions."""
+    path.write_text(
+        f"<!-- stats:start -->\n{stats_block}\n<!-- stats:end -->\n"
+        f"<!-- engineering:start -->\n{engineering_block}\n<!-- engineering:end -->\n",
+        encoding="utf-8",
+    )
+
+
 def test_render_stats_block_builds_table():
     stats = {
         "readme_rows": [
@@ -158,37 +171,75 @@ def test_check_readme_stats_skips_when_no_report(tmp_path: Path):
 
 
 def test_check_readme_stats_flags_stale_block(tmp_path: Path):
+    rows = [{"metric": "m", "value": "1", "source": "s"}]
     stats_path = tmp_path / "site_stats.json"
-    stats_path.write_text(
-        json.dumps({"readme_rows": [{"metric": "m", "value": "1", "source": "s"}]}),
-        encoding="utf-8",
-    )
+    stats_path.write_text(json.dumps({"readme_rows": rows, "quality": QUALITY}), encoding="utf-8")
     readme = tmp_path / "README.md"
-    readme.write_text("<!-- stats:start -->\nstale content\n<!-- stats:end -->\n", encoding="utf-8")
+    write_readme(readme, "stale content", render_engineering_block({"quality": QUALITY}))
     findings = check_readme_stats(readme, stats_path)
-    assert findings and findings[0].rule == "readme-stats"
+    assert [f.rule for f in findings] == ["readme-stats"]
 
 
 def test_check_readme_stats_accepts_matching_block(tmp_path: Path):
     rows = [{"metric": "m", "value": "1", "source": "s"}]
+    stats = {"readme_rows": rows, "quality": QUALITY}
     stats_path = tmp_path / "site_stats.json"
-    stats_path.write_text(json.dumps({"readme_rows": rows}), encoding="utf-8")
-    block = render_stats_block({"readme_rows": rows})
+    stats_path.write_text(json.dumps(stats), encoding="utf-8")
     readme = tmp_path / "README.md"
-    readme.write_text(f"<!-- stats:start -->\n{block}\n<!-- stats:end -->\n", encoding="utf-8")
+    write_readme(readme, render_stats_block(stats), render_engineering_block(stats))
     assert check_readme_stats(readme, stats_path) == []
 
 
 def test_check_readme_stats_flags_missing_markers(tmp_path: Path):
     stats_path = tmp_path / "site_stats.json"
     stats_path.write_text(
-        json.dumps({"readme_rows": [{"metric": "m", "value": "1", "source": "s"}]}),
+        json.dumps(
+            {"readme_rows": [{"metric": "m", "value": "1", "source": "s"}], "quality": QUALITY}
+        ),
         encoding="utf-8",
     )
     readme = tmp_path / "README.md"
     readme.write_text("# Firebreak\n", encoding="utf-8")
     findings = check_readme_stats(readme, stats_path)
-    assert findings and "markers" in findings[0].message
+    assert {f.rule for f in findings} == {"readme-stats", "readme-engineering"}
+    assert all("markers" in f.message for f in findings)
+
+
+class TestTheEngineeringRegionCannotDriftFromTheReport:
+    """The defect this closes: the README said 2131 tests and 85.59% coverage, typed by hand,
+    while the run reported 2246 and 85.58%. Nothing compared the two, so the figure was wrong
+    from the commit after the one that wrote it. The results table above already had this
+    protection; the engineering line did not."""
+
+    def test_a_stale_figure_is_a_finding(self, tmp_path: Path):
+        stats = {"readme_rows": [], "quality": QUALITY}
+        stats_path = tmp_path / "site_stats.json"
+        stats_path.write_text(json.dumps(stats), encoding="utf-8")
+        readme = tmp_path / "README.md"
+        write_readme(readme, render_stats_block(stats), "6 tests passing, 0 skipped.")
+        findings = check_readme_stats(readme, stats_path)
+        assert [f.rule for f in findings] == ["readme-engineering"]
+
+    def test_the_rendered_line_carries_every_figure(self):
+        line = render_engineering_block({"quality": QUALITY})
+        assert "7 tests passing" in line
+        assert "1 skipped" in line
+        assert "90.0% coverage" in line
+
+    def test_an_unavailable_report_says_so_rather_than_inventing_a_number(self):
+        line = render_engineering_block({"quality": {"available": False}})
+        assert "not available" in line
+        assert not any(character.isdigit() for character in line.replace("85", ""))
+
+    def test_a_partial_report_is_an_error_not_a_blank(self):
+        """A missing key must not render as an empty figure, because an empty figure in a
+        README reads as a real one."""
+        with pytest.raises(HygieneError):
+            render_engineering_block({"quality": {"available": True, "tests_passed": 7}})
+
+    def test_a_report_with_no_quality_section_is_an_error(self):
+        with pytest.raises(HygieneError):
+            render_engineering_block({"readme_rows": []})
 
 
 def test_config_is_a_dataclass_instance():
