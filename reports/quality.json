@@ -1,12 +1,12 @@
 {
-  "commit": "2515ac7c7883bcfa35fb5a87170024c981c48607-dirty",
-  "coverage_percent": 85.58,
-  "generated_at": "2026-10-03T13:20:55.959504+00:00",
+  "commit": "82e471f71853cb68d565e117b6f751cf4ee8db30",
+  "coverage_percent": 85.59,
+  "generated_at": "2026-10-05T01:57:25.123199+00:00",
   "note": "Facts about this repository rather than results about the system. A passing test says the code does what a test says it should; it says nothing about whether Firebreak identifies root causes, which is unmeasured and reported as such.",
   "tests": {
     "failed": 0,
-    "passed": 2130,
+    "passed": 2131,
     "skipped": 24,
-    "total": 2154
+    "total": 2155
   }
 }

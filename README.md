@@ -210,7 +210,7 @@ fine-tuning, and multi-tenant deployment. See SPEC.md Section 3.2.
 
 ## Development
 
-2095 tests, 85.46% coverage against an exact 85%
+2131 tests, 85.59% coverage against an exact 85%
 floor, three-platform type checking, and a hygiene gate that refuses em dashes, filler words and
 AI attribution.
 
