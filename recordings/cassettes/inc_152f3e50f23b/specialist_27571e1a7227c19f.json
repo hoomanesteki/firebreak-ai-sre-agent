@@ -1,7 +1,7 @@
 {
   "answer": {
     "confidence": "medium",
-    "summary": "change_analyst found signal for cart in 2 evidence record(s).",
+    "summary": "change_analyst found signal for cart in the cited evidence records.",
     "supports": true
   },
   "model": "stub",

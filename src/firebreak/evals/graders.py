@@ -167,6 +167,8 @@ def grade_fault_class(outcome: InvestigationOutcome, label: IncidentLabel) -> Gr
     says nothing about mechanism. Scoring that as incorrect would report
     classic triage as wrong about something it never asserted.
     """
+    if label.fault_class == "unknown":
+        return GradeResult("fault_class", Verdict.NOT_APPLICABLE, "fault class was not confirmed")
     if outcome.fault_class is None:
         return GradeResult(
             "fault_class", Verdict.NOT_APPLICABLE, "the outcome claims no fault class"

@@ -18,9 +18,9 @@ same backend and shows the reviewer what comes back now, with the proposal's own
 rationale alongside rather than instead.
 
 **Executing at most once, across restarts.** The idempotency key is the proposal
-id, which is a hash of the action and its target. The executed record in the audit
-log is the state, so a service that crashed between approving and executing knows
-which it did, and a second approval of the same proposal executes nothing. A
+id, which is a hash of the action and its target. A durable reservation beside the audit
+log is committed before execution. A crash with no completion record leaves an
+uncertain outcome that cannot execute again without operator reconciliation. A
 process-local set would forget across a restart, which is exactly when a human
 approves again.
 """
@@ -64,6 +64,7 @@ class Outcome(StrEnum):
     REJECTED = "rejected"
     RECORDED_ONLY = "recorded_only"
     FAILED = "failed"
+    EXECUTION_UNCERTAIN = "execution_uncertain"
 
 
 @dataclass(frozen=True)
@@ -201,6 +202,13 @@ class ApprovalService:
                 at=at,
             )
             return Outcome.RECORDED_ONLY
+
+        if not self.audit.reserve_execution(proposal.id):
+            return (
+                Outcome.ALREADY_EXECUTED
+                if self.audit.was_executed(proposal.id)
+                else Outcome.EXECUTION_UNCERTAIN
+            )
 
         try:
             detail = executor(proposal)

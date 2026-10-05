@@ -10,19 +10,22 @@ behind it, and is benchmarked on fault-injected incidents from the OpenTelemetry
 
 ## Status
 
-All 13 phases are complete (SPEC.md Section 17). The system is built, tested end to end, and
-**has not been measured**.
+All 13 phases are implemented and the offline path is tested end to end. **Held-out model
+performance is not measured yet**, and the project is built to say so rather than to imply
+otherwise:
 
-Two things are missing, and every page and report says so where a number would go:
+- `make release-check` lists the evaluations still missing and exits unsuccessfully until they
+  exist, so "ready to release" is a machine-checkable claim here rather than an opinion.
+- Every report in `reports/eval/` is marked `quotable_as_a_result: false` with its reason, and
+  both sites refuse to publish a figure from any of them. Two figures in this repository look
+  quotable and are not: a synthetic fixture run, and a partly recorded split that was also used
+  for tuning.
 
-- **No model has run.** No credentials are configured, so the deterministic floor publishes
-  triage's answer with a label saying no AI analysis happened.
-- **Both held-out test splits have no recordings.** The library is 114
-  scenario specs and only one tuning split is partly recorded.
-
-Every eval report in `reports/eval/` is marked `quotable_as_a_result: false` with its reason, and
-the site build refuses to publish a figure from any of them. That is deliberate: two figures in
-this repository look quotable and are not.
+Two inputs close the gap and neither is an engineering task: **model credentials** (without them
+the deterministic floor publishes triage's answer, labelled as having had no AI analysis), and
+**recordings for the held-out splits** (the library is 114 scenario specs, with one tuning split
+partly recorded). After those, `make eval` and `make site-stats` fill every surface with no
+template edited.
 
 ## The problem
 
@@ -109,10 +112,16 @@ demo that rots. Two of the ten abstain, which is the right answer for them.
 With a local model, any OpenAI-compatible endpoint including Ollama:
 
 ```bash
+export FIREBREAK_LLM_MODE=local
 export LLM_BASE_URL=http://localhost:11434/v1
 export LLM_API_KEY=ollama
 make demo
 ```
+
+Configure the exact installed model ids under `small` and `strong` in
+`config/models.yaml`. For a hosted compatible endpoint, select `FIREBREAK_LLM_MODE=api`.
+The client sends chat completions, validates JSON, and accounts for repair attempts.
+An unconfigured tier fails explicitly rather than guessing a model id.
 
 `make demo` also runs against the live stack when one is up; it reports which it chose and what
 would have changed the choice. `make live` starts the pinned OpenTelemetry Demo and needs Docker
@@ -201,7 +210,7 @@ fine-tuning, and multi-tenant deployment. See SPEC.md Section 3.2.
 
 ## Development
 
-2095 tests, 85.46% coverage against an exact 85%
+2131 tests, 85.59% coverage against an exact 85%
 floor, three-platform type checking, and a hygiene gate that refuses em dashes, filler words and
 AI attribution.
 

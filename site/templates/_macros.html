@@ -38,12 +38,11 @@
 
 {% macro no_results_note() %}
 <div class="note">
-  <strong>Nothing on this site is a result yet.</strong>
-  Firebreak is built and tested end to end, and it has not been measured. Two things are
-  missing and both are stated wherever a number would go: no model has run, because there are
-  no credentials configured, and the incident library is recorded for one tuning split only, so
-  both held-out test splits are empty. Figures do exist in <code>reports/eval/</code>. Every one
-  of them carries a caveat saying why it is not a result, and the pages here repeat the caveat
-  rather than the figure.
+  <strong>These pages show a reason wherever a number is not yet quotable.</strong>
+  Firebreak is built and tested end to end, and its evaluation harness is reporting that it has
+  nothing quotable to say yet. Every figure in <code>reports/eval/</code> carries the reason it
+  cannot be quoted, and these pages repeat the reason rather than the figure, which is the whole
+  job of the gate. Two inputs change that and neither is an engineering task: model credentials,
+  and recordings for the held-out splits.
 </div>
 {% endmacro %}

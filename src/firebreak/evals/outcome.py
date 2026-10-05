@@ -76,6 +76,10 @@ class InvestigationOutcome:
     # Cost and speed, for SPEC.md Section 9.3 metric 6. Carried on the
     # outcome because every configuration has them and a report that compares
     # quality without cost is half an answer.
+    model_mode: str = "unknown"
+    model_ids: tuple[str, ...] = ()
+    model_calls: int = 0
+    used_floor: bool = False
     tool_calls: int = 0
     tokens_in: int = 0
     tokens_out: int = 0

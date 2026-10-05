@@ -16,6 +16,7 @@ import pytest
 
 from firebreak.memory.feedback import (
     Feedback,
+    FeedbackError,
     FeedbackStore,
     Verdict,
     promote,
@@ -289,6 +290,24 @@ class TestFeedback:
 
 
 class TestPromotion:
+    def test_promoted_label_loads_in_the_eval_runner(self, tmp_path):
+        from firebreak.evals.runner import load_labels
+
+        result = promote(self.feedback(), "train", tmp_path, True)
+        labels = load_labels(tmp_path)
+        assert result.runnable
+        assert labels["inc_live_001"].target_service == "payment"
+        assert labels["inc_live_001"].canary == load_labels(tmp_path)["inc_live_001"].canary
+
+    def test_correct_without_a_cause_is_not_a_healthy_label(self, tmp_path):
+        with pytest.raises(FeedbackError, match="confirm"):
+            promote(
+                self.feedback(verdict=Verdict.CORRECT, true_root_cause=None),
+                "train",
+                tmp_path,
+                True,
+            )
+
     def feedback(self, **overrides) -> Feedback:  # type: ignore[no-untyped-def]
         fields = {
             "incident_id": "inc_live_001",

@@ -2,13 +2,16 @@
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
 
-.PHONY: help setup verify lint format types test test-cov hygiene leakage clean unhide \
+.PHONY: help setup verify release-check lint format types test test-cov hygiene leakage clean unhide \
         live live-config live-down live-logs lab-flags lab-library lab-bundles lab-package lab-verify lab-smoke lab-webhook lab-record lab-record-library \
         graph-up graph-down graph-logs graph-load graph-check knowledge measure-ranking baseline-b0 compare-log-templates eval-b0 eval eval-compare eval-gate eval-regression cost-table optimize prompts cassettes demo-offline demo console spec-check site site-reference site-stats site-stats-check site-check verify-clean ci-status
 
 help:  ## Show the available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $$1, $$2}'
+
+release-check:  ## Require complete held-out measurements before release approval
+	PYTHONPATH=src uv run python scripts/check_release_readiness.py $(if $(COMMIT),--commit $(COMMIT),)
 
 setup:  ## Install dependencies, git hooks, and a starter .env
 	uv sync

@@ -3,20 +3,6 @@ title: "An AI SRE that cites evidence you can re-run"
 subtitle: "Firebreak investigates a production incident, names a cause or refuses to, and links every sentence to the query behind it."
 ---
 
-::: {.callout-important}
-## Nothing here is a measured result yet
-
-Firebreak is built, tested end to end, and **has never been measured**. Two things are
-missing, and every page says so where a number would go:
-
-- **No model has run.** There are no credentials configured.
-- **Both held-out test splits have no recordings.** The library is {{< var specs >}} scenario
-  specs and only one tuning split is partly recorded.
-
-Figures do exist in `reports/eval/`. Every one of them is marked `quotable_as_a_result: false`
-with the reason attached, and the build refuses to publish any of them.
-:::
-
 ## The problem
 
 The expensive part of an incident is not the fix. It is the twenty minutes spent deciding
@@ -117,6 +103,37 @@ file under `reports/`. No page on this site types a figure, and a figure that fi
 is one no page may state. A count of recorded bundles is deliberately absent: it describes
 whichever machine ran the build, since `bundles/` is git-ignored.
 :::
+
+## How well does it work
+
+Honestly: that is not measured yet, and this page will not show you a number it cannot stand
+behind.
+
+Firebreak is built and tested end to end, and so is its evaluation harness. The harness is
+currently reporting that it has nothing quotable to say, which is the harness working rather
+than failing. `reports/eval/` holds eight reports, every one marked
+`quotable_as_a_result: false` with its reason attached, and the build refuses to publish a figure
+from any of them.
+
+::: {.callout-note}
+## Two of those figures look excellent and are not
+
+One is a run over synthetic fixtures. One is a partly recorded split that was also used for
+tuning. Either would make a good screenshot, and publishing either would be the project's own
+honesty rule broken in its own interface, so the build will not do it.
+
+The one comparison worth having is on [Measurement](metrics.qmd): the same deterministic triage
+names nearly every fault on fixtures and {{< var recorded_root_cause_correct >}} of
+{{< var recorded_root_cause_applicable >}} on real recordings. Fixtures are a different scale of
+difficulty, not an easier version of the same thing, and that gap is the single most useful thing
+this project has learned.
+:::
+
+Two inputs turn this into numbers, and neither is an engineering task: **model credentials**, and
+**recordings for the held-out splits**. After those, `make eval` and `make site-stats` fill every
+surface here with no template edited, because the pages are built so a stated absence becomes a
+stated figure the moment its report says it may be quoted. [What is next](next.qmd) has the
+order.
 
 ## Try it
 

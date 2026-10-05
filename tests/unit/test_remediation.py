@@ -44,6 +44,49 @@ NOW = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 EVIDENCE = ("ev_metric_000000000001",)
 
 
+def test_crash_after_side_effect_cannot_execute_again(tmp_path, monkeypatch):
+    built = proposal()
+    executed = []
+    executors = {built.kind: lambda p: executed.append(p.id) or "done"}
+    service = open_service(tmp_path / "audit.jsonl", allowlist(), executors)
+    append = service.audit.append
+
+    def crash(decision, *args, **kwargs):
+        if decision is Decision.EXECUTED:
+            raise OSError("interrupted before audit persistence")
+        return append(decision, *args, **kwargs)
+
+    monkeypatch.setattr(service.audit, "append", crash)
+    with pytest.raises(OSError):
+        service.approve(built, "owner", "fix incident")
+    restarted = open_service(tmp_path / "audit.jsonl", allowlist(), executors)
+    outcome = restarted.approve(built, "owner", "retry")
+    assert len(executed) == 1
+    assert outcome.value == "execution_uncertain"
+
+
+def test_concurrent_approvals_reserve_one_execution(tmp_path):
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    built = proposal()
+    executed = []
+
+    def execute(p):
+        executed.append(p.id)
+        time.sleep(0.05)
+        return "done"
+
+    def approve(_):
+        service = open_service(tmp_path / "audit.jsonl", allowlist(), {built.kind: execute})
+        return service.approve(built, "owner", "fix incident")
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        list(pool.map(approve, range(2)))
+    assert len(executed) == 1
+    assert verify_chain(AuditLog(tmp_path / "audit.jsonl").records()) is None
+
+
 def spec(
     remediation_id: str = "disable-flag",
     kind: RemediationKind = RemediationKind.DISABLE_FEATURE_FLAG,
@@ -485,8 +528,8 @@ class TestAFailedExecutionIsRecorded:
         assert records[-1].decision is Decision.FAILED
         assert "flagd refused the write" in records[-1].reason
 
-    def test_a_failed_execution_may_be_retried(self, tmp_path: Path) -> None:
-        """Nothing was changed, so the idempotency key must not block a retry."""
+    def test_a_failed_execution_requires_reconciliation(self, tmp_path: Path) -> None:
+        """An exception does not prove that the target was unchanged."""
         attempts: list[str] = []
 
         def sometimes(proposal_object) -> str:  # type: ignore[no-untyped-def]
@@ -502,8 +545,8 @@ class TestAFailedExecutionIsRecorded:
         )
         built = proposal()
         assert service.approve(built, actor="alice", reason="down") is Outcome.FAILED
-        assert service.approve(built, actor="alice", reason="retry") is Outcome.EXECUTED
-        assert len(attempts) == 2
+        assert service.approve(built, actor="alice", reason="retry") is Outcome.EXECUTION_UNCERTAIN
+        assert len(attempts) == 1
 
 
 class TestTheReviewerSeesRawEvidence:

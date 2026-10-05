@@ -66,6 +66,7 @@ class TestItChoosesTheRightDemo:
         monkeypatch.setattr(demo, "has_credentials", lambda: True)
         assert demo.main() == 0
         assert ran and "firebreak.cli.app" in ran[0]
+        assert ran[0][-1] == "investigate-live"
 
     def test_it_says_which_one_it_chose(
         self, ran: list[tuple[str, ...]], monkeypatch: pytest.MonkeyPatch, capsys: Any

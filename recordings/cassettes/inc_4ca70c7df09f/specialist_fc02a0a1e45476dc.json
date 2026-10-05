@@ -1,7 +1,7 @@
 {
   "answer": {
     "confidence": "medium",
-    "summary": "traces_analyst found signal for shipping in 1 evidence record(s).",
+    "summary": "traces_analyst found signal for shipping in the cited evidence records.",
     "supports": true
   },
   "model": "stub",

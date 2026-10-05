@@ -46,6 +46,22 @@ FAULTED = "payment-failure-50pct-20u"
 NO_FAULT = "no-fault-flood-homepage-sr5-20u"
 
 
+def test_tool_budget_is_enforced_before_each_call(faulted_bundle):
+    result = investigate(faulted_bundle, limits=BudgetLimits(max_tool_calls=1))
+    assert result.state.budget.tool_calls <= 1
+    assert result.stopped_because is StopReason.BUDGET_TOOL_CALLS
+
+
+def test_wall_budget_prevents_model_calls(faulted_bundle):
+    client = LlmClient(stub_handlers=stub_handlers())
+    result = investigate(
+        faulted_bundle, llm=client, limits=BudgetLimits(max_wall_clock_seconds=0.000001)
+    )
+    assert not client.calls
+    assert result.stopped_because is StopReason.BUDGET_WALL_CLOCK
+    assert result.state.budget.elapsed_seconds > 0
+
+
 @pytest.fixture(scope="module")
 def library():  # type: ignore[no-untyped-def]
     return load_library(SPECS_DIR)
@@ -269,12 +285,8 @@ class TestExitGate:
     matter to the graph rather than to the gate: what a stripped report keeps,
     and what it loses."""
 
-    def test_the_root_cause_survives_losing_every_claim(self) -> None:
-        """The ranking behind it is deterministic and did not come from a model.
-
-        What a stripped report loses is the prose, which is the right thing to
-        lose.
-        """
+    def test_the_root_cause_is_removed_when_every_claim_fails(self) -> None:
+        """An unverified conclusion must not survive the removal of its support."""
         notebook = Notebook(
             hypotheses=(
                 Hypothesis(
@@ -292,7 +304,7 @@ class TestExitGate:
         )
         outcome = run_exit_gate(report, notebook, {}, {})
         assert outcome.report.claims == ()
-        assert outcome.report.root_cause_service == "payment"
+        assert outcome.report.root_cause_service is None
 
     def test_a_root_cause_the_notebook_does_not_support_does_not_survive(self) -> None:
         """Check 6. A named service nothing in the notebook backs is exactly what

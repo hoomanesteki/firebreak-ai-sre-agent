@@ -24,7 +24,7 @@ from enum import StrEnum
 from pathlib import Path
 
 from firebreak.agent.budget import StopReason
-from firebreak.agent.state import Claim, ClaimType, Confidence, Report
+from firebreak.agent.state import CitedNumber, Claim, ClaimType, Confidence, Report
 from firebreak.triage.report import B0Report, build_b0_report
 
 # The exact wording SPEC.md Section 6.7 requires. A constant because it appears
@@ -114,12 +114,18 @@ def build_floor_report(
     report = b0 or build_b0_report(bundle_dir, verify=verify)
     claims = tuple(
         Claim(
-            text=section.body,
-            claim_type=ClaimType.MEASUREMENT if section.evidence_ids else ClaimType.MECHANISM,
-            evidence_ids=tuple(section.evidence_ids),
+            text=f"{fact.subject or report.named_service or 'Signal'}: {fact.field} = "
+            f"{fact.value} {fact.unit}.",
+            claim_type=ClaimType.MEASUREMENT,
+            evidence_ids=(record.id,),
+            numbers=(
+                CitedNumber(
+                    value=fact.value, unit=fact.unit, evidence_id=record.id, field=fact.field
+                ),
+            ),
         )
-        for section in report.sections
-        if section.evidence_ids
+        for record in report.evidence.values()
+        for fact in record.facts[:1]
     )
     published = Report(
         incident_id=report.bundle_id,

@@ -12,7 +12,7 @@
         "ev_topology_18129b937eaa"
       ],
       "numbers": [],
-      "text": "payment is the most likely root cause, with 5 piece(s) of supporting evidence."
+      "text": "payment is the most likely root cause in the cited evidence."
     },
     {
       "at": null,
@@ -21,7 +21,7 @@
         "ev_metric_0cde118e5c1d"
       ],
       "numbers": [],
-      "text": "metrics_analyst found signal for payment in 1 evidence record(s)."
+      "text": "metrics_analyst found signal for payment in the cited evidence records."
     },
     {
       "at": null,
@@ -30,7 +30,7 @@
         "ev_log_2fdd84fe5699"
       ],
       "numbers": [],
-      "text": "logs_analyst found signal for payment in 1 evidence record(s)."
+      "text": "logs_analyst found signal for payment in the cited evidence records."
     },
     {
       "at": null,
@@ -39,7 +39,7 @@
         "ev_trace_d75c57bd365e"
       ],
       "numbers": [],
-      "text": "traces_analyst found signal for payment in 1 evidence record(s)."
+      "text": "traces_analyst found signal for payment in the cited evidence records."
     },
     {
       "at": null,
@@ -49,7 +49,7 @@
         "ev_topology_18129b937eaa"
       ],
       "numbers": [],
-      "text": "change_analyst found signal for payment in 2 evidence record(s)."
+      "text": "change_analyst found signal for payment in the cited evidence records."
     }
   ],
   "confidence": "medium",
@@ -565,6 +565,7 @@
         "passed": true
       }
     ],
+    "initial_checks": [],
     "passed": true,
     "removed_claims": 0,
     "repaired": false
@@ -598,6 +599,6 @@
   "root_cause_service": "payment",
   "rounds": 1,
   "stopped_because": "complete",
-  "tool_calls": 5,
+  "tool_calls": 6,
   "wall_clock_seconds": null
 }

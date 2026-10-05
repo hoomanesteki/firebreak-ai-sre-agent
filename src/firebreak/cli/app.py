@@ -28,6 +28,28 @@ app.add_typer(graph_app, name="graph")
 app.add_typer(eval_app, name="eval")
 
 
+@app.command("investigate-live")
+def investigate_live() -> None:
+    """Capture current telemetry and investigate it without injecting a fault."""
+    import httpx
+
+    from firebreak.lab.export import LiveExporter
+    from firebreak.lab.live import snapshot_and_investigate
+
+    settings = load_settings()
+    with httpx.Client(timeout=60.0) as client:
+        result, path = snapshot_and_investigate(
+            LiveExporter(client),
+            settings.bundles_dir,
+            settings.reports_dir / "console",
+        )
+    console.print(f"Investigation: {result.report.incident_id}")
+    console.print(f"Root cause: {result.report.root_cause_service or 'insufficient evidence'}")
+    for note in result.report.notes:
+        console.print(note)
+    console.print(f"Report: {path}")
+
+
 @app.command()
 def version() -> None:
     """Print the installed Firebreak version."""

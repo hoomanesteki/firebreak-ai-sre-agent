@@ -25,15 +25,21 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
+import httpx
 from pydantic import BaseModel, ValidationError
 
+from firebreak.agent.budget import BudgetState
 from firebreak.settings import LlmMode
+
+if TYPE_CHECKING:
+    from firebreak.agent.models import ModelConfig
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -92,6 +98,15 @@ class LlmClient:
     """
 
     mode: LlmMode = LlmMode.STUB
+    base_url: str | None = None
+    api_key: str | None = field(default=None, repr=False)
+    model_config: ModelConfig | None = None
+    transport: httpx.BaseTransport | None = field(default=None, repr=False)
+    sleep: Callable[[float], None] = time.sleep
+    timeout_seconds: float = 60.0
+    budget: BudgetState | None = None
+    models_used: set[str] = field(default_factory=set)
+    successful_calls: int = 0
     stub_handlers: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = field(
         default_factory=dict
     )
@@ -124,17 +139,21 @@ class LlmClient:
         used, so a stub handler and a replay cassette key off the same thing and
         a prompt can be rewritten without invalidating either.
         """
+        if self.budget is not None:
+            self.budget.require_available()
         self.calls.append(purpose)
         self.tiers_requested.append(tier)
         tier = self.effective_tier(tier)
         if self.mode is LlmMode.STUB:
             return self._stub(purpose, payload, schema, tier)
         if self.mode is LlmMode.REPLAY:
-            return self._replay(purpose, payload, schema, tier)
-        raise ModelUnavailableError(
-            f"{self.mode.value} mode needs a configured endpoint; set LLM_BASE_URL and "
-            "LLM_API_KEY, or run in stub mode"
-        )
+            answer, completion = self._replay(purpose, payload, schema, tier)
+            if self.budget is not None:
+                self.budget.note_tokens(completion.tokens_in, completion.tokens_out, completion.usd)
+            return answer, completion
+        from firebreak.agent.transport import complete_remote
+
+        return complete_remote(self, purpose, payload, schema, tier)
 
     def effective_tier(self, requested: Tier) -> Tier:
         """The tier a call actually runs at, after any ablation override.
@@ -220,3 +239,19 @@ def cassette_key(purpose: str, payload: dict[str, Any]) -> str:
     body = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
     digest = hashlib.sha256(f"{purpose}\x00{body}".encode()).hexdigest()
     return f"{purpose}_{digest[:16]}"
+
+
+def configured_client(
+    handlers: dict[str, Callable[[dict[str, Any]], dict[str, Any]]],
+) -> LlmClient:
+    """Use the selected mode at every public investigation entry point."""
+    from firebreak.settings import Settings
+
+    settings = Settings()
+    return LlmClient(
+        mode=settings.llm_mode,
+        stub_handlers=handlers,
+        base_url=settings.llm_base_url,
+        api_key=settings.llm_api_key,
+        recordings_dir=settings.recordings_dir,
+    )

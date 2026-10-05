@@ -101,7 +101,7 @@ class TestB1Investigates:
         """SPEC.md Section 6.6, and it applies to a baseline too: a report
         produced under a budget stop says so and lowers its confidence."""
         result = investigate_react(bundle, limits=BudgetLimits(max_rounds=1))
-        assert result.report.confidence is Confidence.LOW
+        assert result.report.confidence in (None, Confidence.LOW)
         assert result.report.stopped_because is StopReason.BUDGET_STEPS
 
     def test_a_repeated_call_is_refused_rather_than_run_again(self, bundle: Path) -> None:

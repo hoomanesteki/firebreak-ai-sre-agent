@@ -95,7 +95,7 @@ def main() -> int:
                 "  labelled as having had no AI analysis. Set LLM_BASE_URL and LLM_API_KEY\n"
                 "  for the full loop."
             )
-        return run((sys.executable, "-m", "firebreak.cli.app", "lab", "verify"))
+        return run((sys.executable, "-m", "firebreak.cli.app", "investigate-live"))
 
     print("\nNo live stack, so running the offline showcase instead.")
     print("  It replays recorded answers against bundles rebuilt from scenario specs, with")

@@ -42,6 +42,18 @@ def _load() -> Any:
 stats = _load()
 
 
+def test_site_refuses_stub_even_when_report_claims_to_be_quotable():
+    report = a_report()
+    report.payload["model_modes"] = ["stub"]
+    assert not stats.accuracy_metric("k", "Label", report, "root_cause", None).quotable
+
+
+def test_legacy_report_without_model_provenance_is_not_publishable():
+    report = a_report()
+    del report.payload["model_modes"]
+    assert not report.quotable
+
+
 def a_report(
     *,
     configuration: str = "fb-v1",
@@ -57,6 +69,10 @@ def a_report(
     payload: dict[str, Any] = {
         "generated_at": "2026-09-27T10:00:00+00:00",
         "quotable_as_a_result": quotable,
+        "model_modes": ["api"],
+        "model_ids": ["test-model"],
+        "model_calls": 1,
+        "fallback_trials": 0,
         "data_source": data_source,
         "recorded_scenarios": recorded,
         "total_scenarios": total,

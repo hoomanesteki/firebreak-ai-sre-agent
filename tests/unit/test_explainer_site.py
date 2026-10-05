@@ -123,10 +123,33 @@ class TestNoPageRunsCode:
 
 
 class TestTheHonestyIsOnThePage:
-    def test_the_overview_says_nothing_is_measured(self) -> None:
+    def test_the_overview_says_performance_is_not_measured(self) -> None:
+        """Asserted on substance rather than on a sentence.
+
+        The first version matched the exact phrase "has never been measured", which made the
+        wording unchangeable without a test failure, and the wording needed changing: it led the
+        page with a red box about absence before a reader knew what the project was. What has to
+        hold is that the page states the gap and names the gate, not that it does so in one
+        particular set of words.
+        """
         body = source(EXPLAINER / "index.qmd")
-        assert "has never been measured" in body
-        assert "quotable_as_a_result" in body
+        assert "not measured" in body, "the overview does not say performance is unmeasured"
+        assert "quotable_as_a_result" in body, "the overview does not name the gate"
+        # Both inputs, because naming one and not the other implies the other is done.
+        assert "credentials" in body
+        assert "recordings for the held-out splits" in body
+
+    def test_the_overview_does_not_open_with_the_disclosure(self) -> None:
+        """A reader should know what the thing is before learning what it has not proved.
+
+        The disclosure used to be the first element on the page, above the problem statement, in
+        a red callout. It is the same information either way; placed first it reads as a warning
+        about the project rather than a property of its evaluation harness.
+        """
+        body = source(EXPLAINER / "index.qmd")
+        problem = body.index("## The problem")
+        disclosure = body.index("## How well does it work")
+        assert problem < disclosure, "the disclosure precedes the problem statement again"
 
     def test_the_measurement_page_separates_engineering_from_performance(self) -> None:
         """A passing test says the code does what a test says it should. Conflating that with

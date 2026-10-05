@@ -36,14 +36,13 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from firebreak.agent.budget import BudgetLimits, BudgetState, StopReason
+from firebreak.agent.budget import BudgetExceededError, BudgetLimits, BudgetState, StopReason
 from firebreak.agent.gates import GateOutcome, run_exit_gate
-from firebreak.agent.llm import LlmClient, LlmError, Tier
+from firebreak.agent.llm import LlmClient, LlmError, Tier, configured_client
 from firebreak.agent.reexecute import re_execute
 from firebreak.agent.state import Claim, Confidence, Notebook, Report
 from firebreak.backends.bundle_duckdb import BundleBackend
 from firebreak.lab.bundle import BundleReader
-from firebreak.settings import LlmMode
 from firebreak.tools.base import ToolContext, ToolError, ToolRegistry
 from firebreak.tools.registry import GRAPH_TOOLS, build_registry
 from firebreak.triage.pipeline import choose_windows
@@ -97,6 +96,10 @@ class ReactResult:
     wall_clock_seconds: float = 0.0
     # Set for B2 and None for B1, which is the whole difference between them.
     gate: GateOutcome | None = None
+    model_mode: str = "unknown"
+    model_ids: tuple[str, ...] = ()
+    model_calls: int = 0
+    used_floor: bool = False
 
 
 def notebook_from(report: Report) -> Notebook:
@@ -140,8 +143,9 @@ def investigate_react(
     evidence and needs the backend still open.
     """
     started = time.monotonic()
-    client = llm or LlmClient(mode=LlmMode.STUB, stub_handlers=react_stub_handlers())
-    budget = BudgetState(limits=limits or BudgetLimits())
+    client = llm or configured_client(react_stub_handlers())
+    budget = BudgetState(limits=limits or BudgetLimits(), started_at=started)
+    client.budget = budget
     notes: list[str] = []
 
     reader = BundleReader(bundle_dir, verify=verify)
@@ -172,20 +176,27 @@ def investigate_react(
                 "step": steps,
             }
             try:
-                decision, completion = client.complete(
+                decision, _completion = client.complete(
                     "react_step", payload, NextCall, tier=Tier.STRONG
                 )
-            except LlmError as error:
+            except (LlmError, BudgetExceededError) as error:
                 notes.append(f"the model could not choose a next step: {error}")
-                stop = StopReason.COMPLETE
+                stop = (
+                    error.reason
+                    if isinstance(error, BudgetExceededError)
+                    else StopReason.MODEL_UNAVAILABLE
+                )
                 break
-            budget.note_tokens(completion.tokens_in, completion.tokens_out, completion.usd)
 
             if not decision.tool:
                 stop = StopReason.COMPLETE
                 break
 
-            observation = _call(registry, tools, budget, decision)
+            try:
+                observation = _call(registry, tools, budget, decision)
+            except BudgetExceededError as error:
+                stop = error.reason
+                break
             transcript.append(observation)
             steps += 1
             budget.end_round(len(tools.evidence))
@@ -225,6 +236,10 @@ def investigate_react(
         notes=notes,
         wall_clock_seconds=time.monotonic() - started,
         gate=outcome,
+        model_mode=client.mode.value,
+        model_ids=tuple(sorted(client.models_used)),
+        model_calls=client.successful_calls,
+        used_floor=any("model could not" in note for note in notes),
     )
 
 
@@ -278,10 +293,10 @@ def _write_report(
         "stopped_because": stop.value,
     }
     try:
-        written, completion = client.complete(
+        written, _completion = client.complete(
             "react_report", payload, ReactReport, tier=Tier.STRONG
         )
-    except LlmError as error:
+    except (LlmError, BudgetExceededError) as error:
         notes.append(f"the model could not write a report: {error}")
         return Report(
             incident_id=bundle_id,
@@ -289,7 +304,6 @@ def _write_report(
             stopped_because=stop,
             notes=("The model could not produce a report.",),
         )
-    budget.note_tokens(completion.tokens_in, completion.tokens_out, completion.usd)
     confidence = written.confidence
     if stop.lowers_confidence:
         confidence = Confidence.LOW

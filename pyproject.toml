@@ -29,6 +29,7 @@ dependencies = [
     # Console's one write path. Floored well above PYSEC-2024-207, the denial of service in
     # its multipart parser, since a form on a loopback port is still a parser taking input.
     "python-multipart>=0.0.18",
+    "langgraph-checkpoint-sqlite>=3.1.1",
 ]
 
 [project.scripts]

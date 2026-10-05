@@ -44,6 +44,78 @@ WINDOW = TimeRange(start=datetime(2025, 1, 1, tzinfo=UTC), end=datetime(2025, 1,
 FABRICATED = "ev_metric_deadbeefdead"
 
 
+def test_publication_abstains_when_root_conflicts_with_notebook():
+    item = record()
+    held = store(item)
+    outcome = run_exit_gate(
+        report(
+            root_cause_service="cart", claims=(Claim(text="cart broke", evidence_ids=(item.id,)),)
+        ),
+        notebook(),
+        held,
+        held,
+    )
+    assert outcome.passed
+    assert outcome.report.abstained
+
+
+def test_publication_lowers_single_signal_confidence():
+    item = record()
+    held = store(item)
+    outcome = run_exit_gate(
+        report(
+            confidence=Confidence.HIGH,
+            claims=(Claim(text="payment broke", evidence_ids=(item.id,)),),
+        ),
+        notebook(),
+        held,
+        held,
+    )
+    assert outcome.passed
+    assert outcome.report.confidence is not Confidence.HIGH
+
+
+def test_removing_last_claim_also_removes_root_cause():
+    outcome = run_exit_gate(
+        report(claims=(Claim(text="payment broke", evidence_ids=(FABRICATED,)),)),
+        notebook(),
+        {},
+        {},
+    )
+    assert outcome.passed
+    assert outcome.report.abstained
+
+
+def test_numeric_prose_requires_structured_provenance():
+    item = record(facts=(Fact(field="score", value=12.5, unit="z"),))
+    held = store(item)
+    for text in (
+        "payment scored 999999 deviations",
+        "payment scored 999999.123.",
+        "payment scored 1e6 deviations",
+        "payment affected twenty services",
+    ):
+        outcome = run_exit_gate(
+            report(claims=(Claim(text=text, evidence_ids=(item.id,)),)),
+            notebook(),
+            held,
+            held,
+        )
+        assert not outcome.report.claims
+        assert outcome.report.abstained
+
+
+def test_numeric_units_must_match_the_fact():
+    item = record(facts=(Fact(field="latency", value=12.5, unit="ms"),))
+    held = store(item)
+    claim = Claim(
+        text="latency reached 12.5 seconds",
+        evidence_ids=(item.id,),
+        numbers=(CitedNumber(value=12.5, unit="seconds", evidence_id=item.id, field="latency"),),
+    )
+    assert not run_exit_gate(report(claims=(claim,)), notebook(), held, held).report.claims
+
+
 def record(
     kind=EvidenceKind.METRIC,
     query="list_anomalies",
@@ -617,8 +689,9 @@ class TestTheGateCannotBeBypassed:
             report(confidence=Confidence.HIGH, claims=claims), notebook(), held, held
         )
         assert outcome.removed == 1
-        assert not outcome.passed
-        assert CheckName.CONFIDENCE_SANITY in outcome.failed_checks
+        assert outcome.passed
+        assert outcome.report.confidence is Confidence.MEDIUM
+        assert any(not r.passed for r in outcome.initial_results)
 
     def test_repair_can_be_switched_off_for_inspection(self) -> None:
         held = store(record())

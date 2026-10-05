@@ -28,6 +28,7 @@ the most misleading artefact this system could produce.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from enum import StrEnum
 
@@ -120,6 +121,13 @@ class BudgetState:
     tokens_out: int = 0
     usd: float = 0.0
     elapsed_seconds: float = 0.0
+    started_at: float = field(default_factory=time.monotonic, repr=False)
+
+    def require_available(self) -> None:
+        """Check before work, including calls within a round and transport retries."""
+        reason = self.exhausted()
+        if reason is not None:
+            raise BudgetExceededError(reason)
 
     # How many times each identical tool call has been made. Keyed by a
     # fingerprint the caller supplies, so this module does not need to know how
@@ -142,6 +150,7 @@ class BudgetState:
         explanation first. Rounds and tool calls are what a developer can act
         on; cost and wall clock are consequences of them.
         """
+        self.elapsed_seconds = max(self.elapsed_seconds, time.monotonic() - self.started_at)
         if self.rounds >= self.limits.max_rounds:
             return StopReason.BUDGET_STEPS
         if self.tool_calls >= self.limits.max_tool_calls:
@@ -162,6 +171,7 @@ class BudgetState:
         putting the policy here as well would split one decision across two
         modules.
         """
+        self.require_available()
         self.tool_calls += 1
         self.call_counts[fingerprint] = self.call_counts.get(fingerprint, 0) + 1
         return self.call_counts[fingerprint]
@@ -231,3 +241,11 @@ class BudgetState:
             },
             "evidence_by_round": list(self.evidence_by_round),
         }
+
+
+class BudgetExceededError(Exception):
+    """The next action would exceed an investigation limit."""
+
+    def __init__(self, reason: StopReason) -> None:
+        self.reason = reason
+        super().__init__(reason.value)

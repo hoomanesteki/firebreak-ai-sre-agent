@@ -5,55 +5,55 @@
         "at": null,
         "claim_type": "mechanism",
         "evidence_ids": [
-          "ev_metric_ff22951ed025",
-          "ev_log_88b66e5cc01a",
-          "ev_trace_bc50d91cfbbf",
-          "ev_change_92def5aa68e7",
-          "ev_topology_6bba84754066"
+          "ev_metric_519b56562ae3",
+          "ev_log_00b8f7a15296",
+          "ev_trace_e132af25e92c",
+          "ev_change_e7dd3ee2c7d2",
+          "ev_topology_a857061d526a"
         ],
         "numbers": [],
-        "text": "payment is the most likely root cause, with 5 piece(s) of supporting evidence."
+        "text": "shipping is the most likely root cause in the cited evidence."
       },
       {
         "at": null,
         "claim_type": "mechanism",
         "evidence_ids": [
-          "ev_metric_ff22951ed025"
+          "ev_metric_519b56562ae3"
         ],
         "numbers": [],
-        "text": "metrics_analyst found signal for payment in 1 evidence record(s)."
+        "text": "metrics_analyst found signal for shipping in the cited evidence records."
       },
       {
         "at": null,
         "claim_type": "mechanism",
         "evidence_ids": [
-          "ev_log_88b66e5cc01a"
+          "ev_log_00b8f7a15296"
         ],
         "numbers": [],
-        "text": "logs_analyst found signal for payment in 1 evidence record(s)."
+        "text": "logs_analyst found signal for shipping in the cited evidence records."
       },
       {
         "at": null,
         "claim_type": "mechanism",
         "evidence_ids": [
-          "ev_trace_bc50d91cfbbf"
+          "ev_trace_e132af25e92c"
         ],
         "numbers": [],
-        "text": "traces_analyst found signal for payment in 1 evidence record(s)."
+        "text": "traces_analyst found signal for shipping in the cited evidence records."
       },
       {
         "at": null,
         "claim_type": "mechanism",
         "evidence_ids": [
-          "ev_change_92def5aa68e7",
-          "ev_topology_6bba84754066"
+          "ev_change_e7dd3ee2c7d2",
+          "ev_topology_a857061d526a"
         ],
         "numbers": [],
-        "text": "change_analyst found signal for payment in 2 evidence record(s)."
+        "text": "change_analyst found signal for shipping in the cited evidence records."
       }
     ],
     "confidence": "medium",
-    "root_cause_service": "payment"
+    "root_cause_service": "shipping"
   },
   "model": "stub",
   "purpose": "reporter",

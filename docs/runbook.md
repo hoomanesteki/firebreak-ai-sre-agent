@@ -406,3 +406,17 @@ Re-record. It is roughly 36 hours of wall clock for the full library and there i
 compressing it: each scenario's baseline, incident and recovery have to actually happen. Record
 in split order, since a partly recorded library is still useful if the recorded part is a whole
 split rather than a scattering.
+
+## Uncertain remediation execution
+
+Keep the audit JSON Lines file and its adjacent `.sqlite3` reservation database together.
+An `execution_uncertain` outcome means an earlier attempt may have changed the target.
+Inspect the target and audit before making another proposal. Do not delete the reservation
+or automatically retry: absence of a success record is not proof that nothing happened.
+A failed executor is also reserved because it may have changed the target before raising.
+
+Pending approvals are stored in the audit file's adjacent `.checkpoints.sqlite3`
+database by default. Keep it with the audit and reservation database when restarting
+or backing up the service. Resume with the same proposal id; do not start a replacement
+workflow to recover a pending decision. Call `ApprovalWorkflow.close()` when disposing
+of a workflow. An explicitly supplied checkpointer remains the caller's responsibility.

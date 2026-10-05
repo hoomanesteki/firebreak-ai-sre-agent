@@ -61,7 +61,10 @@ def variables_the_code_tells_users_to_set() -> set[str]:
     read only the FIREBREAK_ prefixed forms, so following the instruction did
     nothing and the process stayed in stub mode.
     """
-    text = (REPO_ROOT / "src" / "firebreak" / "agent" / "llm.py").read_text(encoding="utf-8")
+    text = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (REPO_ROOT / "src" / "firebreak" / "agent").glob("*.py")
+    )
     return set(re.findall(r"\b(LLM_[A-Z_]+)\b", text))
 
 

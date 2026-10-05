@@ -29,10 +29,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from firebreak.agent.budget import BudgetLimits, BudgetState, StopReason
+from firebreak.agent.budget import BudgetExceededError, BudgetLimits, BudgetState, StopReason
 from firebreak.agent.floor import FloorReason, build_floor_report
 from firebreak.agent.gates import GateOutcome, run_exit_gate
-from firebreak.agent.llm import LlmClient, LlmError, Tier
+from firebreak.agent.llm import LlmClient, LlmError, Tier, configured_client
 from firebreak.agent.nodes import (
     MIN_SUPPORT_TO_CONCLUDE,
     NodeContext,
@@ -57,7 +57,6 @@ from firebreak.agent.state import (
 )
 from firebreak.backends.bundle_duckdb import BundleBackend
 from firebreak.lab.bundle import BundleReader
-from firebreak.settings import LlmMode
 from firebreak.telemetry.spans import SpanRecorder, TracingOptions, record_gate
 from firebreak.tools.base import ToolContext
 from firebreak.tools.registry import ALL_TOOLS, build_registry
@@ -113,7 +112,7 @@ def stub_handlers() -> dict[str, Any]:
         return {
             "summary": (
                 f"{payload.get('specialist')} found {verdict} {service} in "
-                f"{len(payload.get('evidence', []))} evidence record(s)."
+                "the cited evidence records."
             )[:600],
             "supports": bool(mentioned),
             "confidence": "medium" if mentioned else "low",
@@ -173,8 +172,7 @@ def stub_handlers() -> dict[str, Any]:
             0,
             {
                 "text": (
-                    f"{leader['service']} is the most likely root cause, with "
-                    f"{supporting} piece(s) of supporting evidence."
+                    f"{leader['service']} is the most likely root cause in the cited evidence."
                 ),
                 "evidence_ids": list(leader.get("supporting_evidence") or []),
             },
@@ -258,6 +256,10 @@ class InvestigationResult:
     # report that lost four statements and a report that passed cleanly look the
     # same afterwards, and the difference is what an eval measures.
     gate: GateOutcome
+    model_mode: str = "unknown"
+    model_ids: tuple[str, ...] = ()
+    model_calls: int = 0
+    used_floor: bool = False
 
 
 def investigate(
@@ -276,7 +278,7 @@ def investigate(
     """
     started = time.monotonic()
     chosen = options or AgentOptions()
-    client = llm or LlmClient(mode=LlmMode.STUB, stub_handlers=stub_handlers())
+    client = llm or configured_client(stub_handlers())
     if chosen.tier_override is not None:
         # Set on the client the caller passed rather than on a copy of it. A copy
         # applied the ablation to an object the caller could not see, so a caller
@@ -296,8 +298,10 @@ def investigate(
         baseline_start=triage.baseline.start,
         baseline_end=triage.baseline.end,
         triage=triage,
-        budget=BudgetState(limits=limits or BudgetLimits()),
+        budget=BudgetState(limits=limits or BudgetLimits(), started_at=started),
     )
+
+    client.budget = state.budget
 
     recorder = SpanRecorder(
         options=TracingOptions(
@@ -325,25 +329,38 @@ def investigate(
 
         with recorder.node("seed_hypotheses"):
             state = seed_hypotheses(state)
-        with recorder.node("consult_memory"):
-            state = consult_memory(state, context)
         if state.status is Status.ABSTAINED:
             return _finish(state, _abstention_report(state), StopReason.COMPLETE, started, context)
 
         try:
+            state.budget.require_available()
+            with recorder.node("consult_memory"):
+                state = consult_memory(state, context)
             return _investigate_with_models(state, context, started, chosen.use_critic)
-        except LlmError as error:
+        except (LlmError, BudgetExceededError) as error:
             # SPEC.md Section 6.7's deterministic floor. Every model failing is a
             # bad day, not a bug, and an on-call engineer still gets a ranked list
             # with re-runnable evidence. A stack trace here is how a tool stops
             # being opened.
             context.notes.append(f"falling back to deterministic triage: {error}")
-            floor = build_floor_report(bundle_dir, FloorReason.MODELS_UNAVAILABLE, verify=False)
-            failed = state.model_copy(update={"stopped_because": StopReason.COMPLETE})
+            reason = (
+                error.reason
+                if isinstance(error, BudgetExceededError)
+                else StopReason.MODEL_UNAVAILABLE
+            )
+            floor = build_floor_report(
+                bundle_dir,
+                FloorReason.BUDGET_EXHAUSTED
+                if isinstance(error, BudgetExceededError)
+                else FloorReason.MODELS_UNAVAILABLE,
+                verify=False,
+            )
+            floor_report = floor.report.model_copy(update={"stopped_because": reason})
+            failed = state.model_copy(update={"stopped_because": reason})
             return _finish(
                 failed,
-                floor.report,
-                StopReason.COMPLETE,
+                floor_report,
+                reason,
                 started,
                 context,
                 evidence=dict(floor.b0.evidence),
@@ -501,6 +518,10 @@ def _finish(
         notes=list(context.notes),
         wall_clock_seconds=time.monotonic() - started,
         gate=outcome,
+        model_mode=context.llm.mode.value,
+        model_ids=tuple(sorted(getattr(context.llm, "models_used", ()))),
+        model_calls=getattr(context.llm, "successful_calls", 0),
+        used_floor=any("Automated triage only" in note for note in final.notes),
     )
 
 

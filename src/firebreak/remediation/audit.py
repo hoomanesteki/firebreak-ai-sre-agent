@@ -25,6 +25,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -198,25 +202,56 @@ class AuditLog:
     ) -> AuditRecord:
         """Seal a record onto the chain and write it.
 
-        Reads the head before writing, so two processes appending at once produce a
-        detectable break rather than a silently forked chain. A single writer is the
-        intended deployment; this makes the unintended one visible.
+        Serializes the head read and append across processes. The file is flushed
+        before releasing the writer lock, so subsequent writers see a complete record.
         """
-        existing = self.records()
-        record = AuditRecord.sealed(
-            sequence=len(existing),
-            decision=decision,
-            proposal_id=proposal_id,
-            actor=actor,
-            previous_hash=existing[-1].record_hash if existing else GENESIS,
-            reason=reason,
-            detail=detail,
-            at=at,
-        )
+        with self._transaction():
+            existing = self.records()
+            record = AuditRecord.sealed(
+                sequence=len(existing),
+                decision=decision,
+                proposal_id=proposal_id,
+                actor=actor,
+                previous_hash=existing[-1].record_hash if existing else GENESIS,
+                reason=reason,
+                detail=detail,
+                at=at,
+            )
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            with self._path.open("a", encoding="utf-8") as handle:
+                handle.write(record.model_dump_json() + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            return record
+
+    @contextmanager
+    def _transaction(self) -> Iterator[sqlite3.Connection]:
+        """Serialize writers and persist reservations before any external action."""
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        with self._path.open("a", encoding="utf-8") as handle:
-            handle.write(record.model_dump_json() + "\n")
-        return record
+        connection = sqlite3.connect(str(self._path) + ".sqlite3", timeout=30)
+        try:
+            connection.execute("PRAGMA synchronous=FULL")
+            connection.execute("BEGIN IMMEDIATE")
+            yield connection
+            connection.commit()
+        except BaseException:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
+    def reserve_execution(self, proposal_id: str) -> bool:
+        """An uncertain previous attempt requires reconciliation, never automatic retry.
+
+        A process may die after the target changes but before the audit records success.
+        Reserving first closes that window at the cost of refusing ambiguous retries.
+        """
+        with self._transaction() as connection:
+            connection.execute("CREATE TABLE IF NOT EXISTS executions (id TEXT PRIMARY KEY)")
+            cursor = connection.execute(
+                "INSERT OR IGNORE INTO executions VALUES (?)", (proposal_id,)
+            )
+            return cursor.rowcount == 1
 
     def decisions_for(self, proposal_id: str) -> list[AuditRecord]:
         return [record for record in self.records() if record.proposal_id == proposal_id]
