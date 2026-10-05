@@ -1,168 +1,161 @@
 ---
 title: "How it works"
-subtitle: "Deterministic statistics first, then a bounded agent loop, then a gate that removes claims it cannot verify."
+subtitle: "Statistics first, then a bounded agent loop, then a gate that deletes claims it cannot verify."
 ---
 
-## The shape of it
+## The whole pipeline
 
 ```{mermaid}
 flowchart TB
-  subgraph replay["Replay, so a result is reproducible"]
-    BUNDLE["Incident bundle<br/><small>Parquet, read through DuckDB</small>"]
-  end
-
-  subgraph deterministic["Deterministic, no model"]
-    ANOM["Robust anomaly scores<br/><small>median and MAD</small>"]
-    RANK["Personalised PageRank<br/><small>over the service graph</small>"]
-    ABST{"Above the<br/>abstention<br/>threshold?"}
-  end
-
-  subgraph agent["Agent loop, budgeted"]
-    CMD["Commander<br/><small>picks the next hypothesis</small>"]
-    SPEC["4 specialists<br/><small>metrics, logs, traces, change</small>"]
-    BOARD["Hypothesis board"]
-    CRIT["Critic<br/><small>argues against the leader</small>"]
-    REP["Reporter"]
-  end
-
-  subgraph verify["Verification"]
-    GATE["Exit gate<br/><small>6 checks</small>"]
-  end
-
-  BUNDLE --> ANOM --> RANK --> ABST
-  ABST -->|no| OUT2["Abstain, naming the<br/>threshold it failed"]
-  ABST -->|yes| CMD
-  CMD --> SPEC --> BOARD --> CRIT
-  CRIT -->|"more to test"| CMD
-  CRIT -->|"settled"| REP --> GATE
-  GATE -->|"claims survive"| OUT1["Report, every claim cited"]
-  GATE -->|"support too thin"| OUT2
+  BUNDLE[Incident recording in Parquet] --> SCORE[Score every service]
+  SCORE --> RANK[Walk the call graph]
+  RANK --> GATE1{Unusual enough?}
+  GATE1 -->|No| OUT2[Abstain, naming the threshold]
+  GATE1 -->|Yes| LOOP[Agent loop]
+  LOOP --> GATE2[Six verification checks]
+  GATE2 -->|Claims survive| OUT1[Report with citations]
+  GATE2 -->|Support too thin| OUT2
 ```
 
-## Why the statistics come first
+The first three boxes use no model at all.
 
-Two reasons, and the second is the one that matters.
+## Why statistics run first
 
-**Cost.** A model that reads forty services to find one is forty times the tokens of a model
-that reads three.
+Two reasons.
 
-**A floor you can compare against.** `b0` is the deterministic triage alone, with no model at
-all. It is the baseline every agent configuration must beat. A multi-agent system that cannot
-beat a page of statistics is a multi-agent system that should not exist, and the comparison is
-reported whichever way it comes out.
+**Cost.** Reading forty services to find one costs forty times the tokens of reading three.
 
-::: {.callout-note}
-## Median and MAD, not mean and standard deviation
+**A baseline you can compare against.** The statistics step alone is a configuration called
+`b0`. Every agent configuration has to beat it. A multi-agent system that cannot beat a page of
+statistics should not exist, and that comparison is reported either way.
 
-A fault is a spike. A spike moves a mean, and it inflates a standard deviation, so the
-z-score of the spike against statistics that include the spike is smaller than it should be.
-Median and median absolute deviation are barely moved by it, so the anomaly stays visible.
-:::
+### Median instead of mean
 
-## Why PageRank over the service graph
+A fault is a spike. A spike pulls the mean towards itself and inflates the standard deviation,
+so scoring the spike against statistics that include it makes the spike look smaller than it is.
 
-The service that looks worst is usually downstream of the one that broke. If payment starts
-failing, the frontend's error rate goes up too, and the frontend is louder because it takes
-every request.
+Firebreak uses the median and the median absolute deviation instead. A spike barely moves
+either, so it stays visible.
 
-Personalised PageRank walks the call graph from the anomalous services and asks which service
-best *explains* the pattern, rather than which one shows it most.
+## Why the call graph matters
 
-::: {.callout-important}
-## And on real recordings it does not work yet
-
-On the eight recordings available, the ranking blames `frontend` for all three payment
-failures. That is the symptom over the cause, which is the exact thing this mechanism exists to
-prevent. It is the second largest open problem in the project, recorded in the phase reports
-with the evidence.
-:::
-
-## The four roles, and what each cannot do
-
-The constraints are more interesting than the capabilities.
-
-| Role | Does | **Cannot** | Why the limit |
-|---|---|---|---|
-| Commander | Chooses the next hypothesis and which specialist tests it | Call an evidence tool | Separates deciding what to look at from looking |
-| Specialists | Gather evidence on one hypothesis, one question each | See each other's answers | Four independent looks, not one conversation converging on the first guess |
-| Critic | Argues against the leading hypothesis | Gather new evidence | It cannot build its own case, only test the one on the table |
-| Reporter | Writes claims, each naming its evidence | Cite a record no tool produced | The gate re-runs every citation, so an invented one fails |
-
-## Typed tools, not free-form queries
-
-A model never writes a query. It picks a tool and supplies validated arguments; the tool builds
-the query.
+When payment breaks, the frontend's error rate rises too, because every request passes through
+it. The frontend looks worse and is not the cause.
 
 ```{mermaid}
 flowchart LR
-  M["Model picks a tool<br/>and supplies arguments"] --> V["Pydantic model<br/><small>extra=forbid</small>"]
-  V --> Q["Tool builds the query"]
-  Q --> B[("Backend<br/><small>Prometheus, Jaeger,<br/>OpenSearch, or the bundle</small>")]
-  B --> C["Cap applied"]
-  C --> E["Evidence record<br/><small>query, window, backend fingerprint,<br/>row hash, arguments to re-run it</small>"]
-  E --> ID["ev_&lt;kind&gt;_&lt;sha256[:12]&gt;"]
+  USER[Requests] --> FRONTEND[frontend]
+  FRONTEND --> CHECKOUT[checkout]
+  CHECKOUT --> PAYMENT[payment is broken]
+  FRONTEND --> OTHER[other services are fine]
 ```
 
-This buys three things:
+Firebreak walks this graph from the services that look unusual and asks which single service best
+explains the whole pattern.
+
+::: {.callout-important}
+## On real recordings this does not work yet
+
+On the eight recordings available, the ranking blames `frontend` for all three payment failures.
+That is the symptom winning over the cause, which is the exact thing this step exists to prevent.
+
+It is the second largest open problem in the project, and it is recorded with its evidence rather
+than smoothed over.
+:::
+
+## The four roles
+
+What each one cannot do matters more than what it does.
+
+| Role | Does | Cannot | Why the limit exists |
+|---|---|---|---|
+| Commander | Picks the next theory and who tests it | Call an evidence tool | Separates deciding what to look at from looking |
+| Specialists | Gather evidence, one question each | See each other's answers | Four independent looks, not a conversation converging on the first guess |
+| Critic | Argues against the leading theory | Gather new evidence | It can only test the case on the table, not build its own |
+| Reporter | Writes claims naming their evidence | Cite a record no tool produced | The gate re-runs every citation, so an invented one fails |
+
+## How a tool call works
+
+A model never writes a query. It chooses a tool and supplies arguments; the tool builds the
+query.
+
+```{mermaid}
+flowchart LR
+  PICK[Model picks a tool] --> VALID[Arguments validated]
+  VALID --> BUILD[Tool builds the query]
+  BUILD --> DB[(Backend)]
+  DB --> CAP[Row cap applied]
+  CAP --> REC[Evidence record saved]
+```
+
+The evidence record holds the query, the time window, a fingerprint of the backend, a hash of the
+rows, and the arguments needed to run it again. Its identifier is a hash of what was asked and
+what came back.
+
+That buys three things:
 
 1. **A query nobody can inject into.** The realistic attack here is a log line, not a prompt.
-2. **A cap on every call**, so one tool cannot fill a context window.
-3. **An evidence id that is a hash of what was asked and what came back**, which is what makes
-   re-execution meaningful.
+2. **A cap on every call**, so one tool cannot fill the context window.
+3. **An identifier that makes re-execution meaningful**, which is what the gate depends on.
 
-## The exit gate
+## The six checks
 
-Six checks on the finished report. A claim that fails one is removed.
+```{mermaid}
+flowchart LR
+  CLAIM[A claim] --> IDS[Its evidence ids]
+  IDS --> RERUN[Re-run each query]
+  RERUN --> SAME{Same row hash?}
+  SAME -->|Yes| KEEP[Claim kept]
+  SAME -->|No| DROP[Claim deleted]
+```
 
-| Check | Refuses |
+| Check | Rejects |
 |---|---|
-| `coverage` | A claim citing an evidence id nothing recorded |
-| `re_execution` | A citation that does not re-run to the same hash |
-| `numbers` | A number in prose that its cited evidence does not contain |
-| `consistency` | A report that disagrees with the notebook or the timeline |
-| `confidence_sanity` | A confidence the evidence does not support |
+| `coverage` | A claim citing an id nothing recorded |
+| `re_execution` | A citation that no longer returns the same rows |
+| `numbers` | A number in prose that its evidence does not contain |
+| `consistency` | A report that disagrees with the investigation log |
+| `confidence_sanity` | Confidence the evidence does not support |
 | `abstention` | Naming a service whose support is below the threshold |
 
 ::: {.callout-warning}
 ## What the gate cannot check
 
-Whether a claim says anything.
+Whether a claim says anything useful.
 
-All forty claims across the ten showcase reports are true, cited, re-runnable, and
-uninformative: four of five describe the investigation rather than the incident. Six checks ask
-whether a claim is **supported**; none asks whether it is **informative**, and a report of
-supported tautologies passes cleanly.
+All 40 claims across the ten demo reports are true, cited, re-runnable and uninformative. Four
+of every five describe the investigation rather than the incident, because they come from a
+deterministic stub rather than a model.
 
-The cause is the deterministic stub rather than the system. It still means the only end-to-end
-exercise of the gate that CI runs is one where the numbers check verifies zero numbers. Whether
-to add a seventh check is an open question rather than a change made quietly.
+Six checks ask whether a claim is *supported*. None asks whether it is *informative*. Whether to
+add a seventh is an open question, not a quiet change.
 :::
 
 ## Keeping the answer away from the agent
 
-The benchmark is worthless if the agent can see the label. That is not something to be careful
-about; it is made mechanically impossible.
+A benchmark is worthless if the system under test can read the answer. This is made impossible
+rather than discouraged.
 
 ```{mermaid}
 flowchart LR
-  L[("Labels<br/><small>separate package</small>")] -.->|"import forbidden,<br/>enforced by a graph walk"| A["Agent packages"]
-  L --> EV["Eval code only"]
-  CAN["Random canary<br/>in every label"] --> SCAN["Every prompt scanned"]
-  FLAG["Fault flag flips"] -.->|"excluded"| CHG["Change log the agent reads"]
-  style L fill:#fff8e8,stroke:#e6cf9a
+  LABELS[(Ground truth labels)] --> EVAL[Evaluation code only]
+  LABELS -. import blocked .-> AGENT[Agent packages]
+  CANARY[Canary string in every label] --> SCAN[Every prompt scanned]
+  FLAGS[Fault flag changes] -. removed .-> LOG[Change log the agent reads]
 ```
 
-Six controls, of which these are the load-bearing ones:
+Four controls carry most of the weight:
 
-- Labels live outside the bundles, in a package only the eval code may import, enforced by a
-  test that **walks the import graph** rather than grepping, so an alias cannot hide.
-- Each label carries a random canary string, and every prompt is scanned for it.
-- The change log the agent reads excludes fault flag flips, because otherwise the answer is in
-  the evidence.
-- Memory is writable on train scenarios only, since a memory of "payment failed like this last
-  time" is ground truth wearing a different hat.
+1. Labels live in a separate package that only the evaluation code may import, enforced by a test
+   that walks the import graph rather than searching text, so an alias cannot hide.
+2. Every label contains a random canary string, and every prompt sent to a model is scanned for
+   it.
+3. The change log the agent reads has fault flag changes removed, or the answer would be sitting
+   in the evidence.
+4. Memory may only be written for training scenarios, because "payment failed like this last
+   time" is the answer wearing a different hat.
 
-That import-graph test has caught two real routes during development. Neither was a leak;
-both were routes a leak could later travel.
+That import test has caught two real paths during development. Neither was a leak; both were
+routes a leak could later have travelled.
 
-Next: [what has and has not been measured](metrics.qmd).
+Next: [what is and is not measured](metrics.qmd).

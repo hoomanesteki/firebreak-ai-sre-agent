@@ -7,12 +7,12 @@ subtitle: "Two inputs stand between a built system and a measured one. Everythin
 
 ```{mermaid}
 flowchart TB
-  C["Model credentials<br/><small>minutes</small>"] --> E
-  R["Record the library<br/><small>~30 hours, mains power</small>"] --> E
-  E["make eval CONFIG=fb-v1 SPLIT=test_id<br/><small>the first publishable number</small>"] --> S["make site-stats<br/><small>the front page fills itself</small>"]
-  E --> G["Cost table, cascade comparison,<br/>judge calibration, GEPA, ablation A6"]
-  style C fill:#fff8e8,stroke:#e6cf9a
-  style R fill:#fff8e8,stroke:#e6cf9a
+  C["Model credentials"] --> E
+  R["Record the library"] --> E
+  E["make eval CONFIG=fb-v1 SPLIT=test_id"] --> S["make site-stats"]
+  E --> G["Cost table, cascade comparison, judge calibration, GEPA, ablation A6"]
+  style C fill:#fff8e8
+  style R fill:#fff8e8
 ```
 
 Nothing on the right can move until both boxes on the left are done, and neither is an
