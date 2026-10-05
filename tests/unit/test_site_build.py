@@ -112,8 +112,15 @@ class TestNoUnquotableNumberReachesAPage:
                 assert not re.search(r"\d+\.\d+", card), f"{name} shows a number in an absent card"
 
     def test_the_pages_say_plainly_that_nothing_is_a_result(self, pages: dict[str, str]) -> None:
-        assert "Nothing on this site is a result yet" in pages["index.html"]
-        assert "Nothing on this site is a result yet" in pages["evaluation.html"]
+        """Substance, not wording. The first version matched one sentence, which froze the
+        phrasing; what matters is that both pages carry the reason a figure is absent and name
+        the gate that withheld it."""
+        for name in ("index.html", "evaluation.html"):
+            html = pages[name]
+            assert "not yet quotable" in html or "nothing quotable" in html, (
+                f"{name} does not say a figure is unavailable"
+            )
+            assert "reports/eval/" in html, f"{name} does not say where the figures live"
 
     def test_the_demo_figures_are_labelled_as_stub_replays(self, pages: dict[str, str]) -> None:
         """The demo's per-incident results are far better than the measured ones because they

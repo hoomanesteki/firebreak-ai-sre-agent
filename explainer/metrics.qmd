@@ -5,9 +5,12 @@ subtitle: "What is measured, what is not, and why a figure that exists can still
 
 ## The short version
 
-There is no result yet. Not a bad result, not a provisional one: **none**. Every eval report in
-the repository is marked `quotable_as_a_result: false`, and the site build refuses to publish a
-figure from any of them.
+The harness decides what may be published, and right now it is saying "not this". Every eval
+report in the repository is marked `quotable_as_a_result: false` with its reason, and the build
+refuses to publish a figure from any of them.
+
+That gate is the point of this page. A benchmark that only reports when the answer is flattering
+is not a benchmark, so this one reports the reason instead of the number.
 
 ```{mermaid}
 flowchart LR
@@ -19,8 +22,9 @@ flowchart LR
   style N stroke-dasharray: 4 3
 ```
 
-The dashed path has never been taken. `{{< var unmeasured_metrics >}}` of
-`{{< var total_metrics >}}` headline metrics are unmeasured.
+The dashed path has not been taken yet: `{{< var unmeasured_metrics >}}` of
+`{{< var total_metrics >}}` headline metrics are still waiting on the two inputs below. The left
+path is what the pages show today, and it carries the reason rather than a blank.
 
 ## Why a figure can exist and not be a result
 

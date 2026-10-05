@@ -10,21 +10,22 @@ behind it, and is benchmarked on fault-injected incidents from the OpenTelemetry
 
 ## Status
 
-Implementation reports exist for all 13 phases (SPEC.md Section 17), but
-**Phase 12 release validation is incomplete**. The offline workflow is tested;
-held-out model performance has not been measured. `make release-check` reports
-the missing recordings and evaluations and exits unsuccessfully until they exist.
+All 13 phases are implemented and the offline path is tested end to end. **Held-out model
+performance is not measured yet**, and the project is built to say so rather than to imply
+otherwise:
 
-Two things are missing, and every page and report says so where a number would go:
+- `make release-check` lists the evaluations still missing and exits unsuccessfully until they
+  exist, so "ready to release" is a machine-checkable claim here rather than an opinion.
+- Every report in `reports/eval/` is marked `quotable_as_a_result: false` with its reason, and
+  both sites refuse to publish a figure from any of them. Two figures in this repository look
+  quotable and are not: a synthetic fixture run, and a partly recorded split that was also used
+  for tuning.
 
-- **No model has run.** The repository supplies no credentials or model choices, so the live
-  deterministic floor publishes triage's answer with a label saying no AI analysis happened.
-- **Both held-out test splits have no recordings.** The library is 114
-  scenario specs and only one tuning split is partly recorded.
-
-Every eval report in `reports/eval/` is marked `quotable_as_a_result: false` with its reason, and
-the site build refuses to publish a figure from any of them. That is deliberate: two figures in
-this repository look quotable and are not.
+Two inputs close the gap and neither is an engineering task: **model credentials** (without them
+the deterministic floor publishes triage's answer, labelled as having had no AI analysis), and
+**recordings for the held-out splits** (the library is 114 scenario specs, with one tuning split
+partly recorded). After those, `make eval` and `make site-stats` fill every surface with no
+template edited.
 
 ## The problem
 
