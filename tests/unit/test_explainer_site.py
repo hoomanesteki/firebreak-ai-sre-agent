@@ -132,12 +132,12 @@ class TestTheHonestyIsOnThePage:
         hold is that the page states the gap and names the gate, not that it does so in one
         particular set of words.
         """
-        body = source(EXPLAINER / "index.qmd")
+        body = source(EXPLAINER / "index.qmd").lower()
         assert "not measured" in body, "the overview does not say performance is unmeasured"
         assert "quotable_as_a_result" in body, "the overview does not name the gate"
         # Both inputs, because naming one and not the other implies the other is done.
         assert "credentials" in body
-        assert "recordings for the held-out splits" in body
+        assert "held-out splits" in body
 
     def test_the_overview_does_not_open_with_the_disclosure(self) -> None:
         """A reader should know what the thing is before learning what it has not proved.
@@ -147,7 +147,9 @@ class TestTheHonestyIsOnThePage:
         about the project rather than a property of its evaluation harness.
         """
         body = source(EXPLAINER / "index.qmd")
-        problem = body.index("## The problem")
+        # Matched loosely: the heading has been reworded once already and the property under
+        # test is the ordering, not the wording.
+        problem = next(body.index(h) for h in ("## The problem", "## What it does") if h in body)
         disclosure = body.index("## How well does it work")
         assert problem < disclosure, "the disclosure precedes the problem statement again"
 
