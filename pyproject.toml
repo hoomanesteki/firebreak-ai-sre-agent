@@ -7,19 +7,19 @@ requires-python = ">=3.12,<3.13"
 license = { file = "LICENSE" }
 authors = [{ name = "Hooman Esteki" }]
 dependencies = [
-    "pydantic>=2.9",
+    "pydantic>=2.14.0",
     "pydantic-settings>=2.6",
     "pyyaml>=6.0",
-    "typer>=0.15",
+    "typer>=0.27.3",
     "rich>=13.9",
     "httpx>=0.28.1",
     "pyarrow>=25.0.1",
     "duckdb>=1.5.5",
-    "neo4j>=5.28",
-    "langgraph>=0.6",
-    "opentelemetry-sdk>=1.30",
-    "opentelemetry-exporter-otlp-proto-http>=1.30",
-    "fastapi>=0.115",
+    "neo4j>=6.4.0",
+    "langgraph>=1.2.14",
+    "opentelemetry-sdk>=1.45.1",
+    "opentelemetry-exporter-otlp-proto-http>=1.45.1",
+    "fastapi>=0.143.0",
     "jinja2>=3.1",
     # The Console is a shipped feature, so the server that runs it is a dependency of the
     # product rather than of development. It sat in `dev` until Phase 12, which meant an
