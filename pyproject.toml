@@ -7,19 +7,19 @@ requires-python = ">=3.12,<3.13"
 license = { file = "LICENSE" }
 authors = [{ name = "Hooman Esteki" }]
 dependencies = [
-    "pydantic>=2.9",
-    "pydantic-settings>=2.6",
+    "pydantic>=2.14.1",
+    "pydantic-settings>=2.16.0",
     "pyyaml>=6.0",
-    "typer>=0.15",
+    "typer>=0.27.3",
     "rich>=13.9",
     "httpx>=0.28.1",
-    "pyarrow>=25.0.1",
+    "pyarrow>=26.0.0",
     "duckdb>=1.5.5",
-    "neo4j>=5.28",
-    "langgraph>=0.6",
-    "opentelemetry-sdk>=1.30",
-    "opentelemetry-exporter-otlp-proto-http>=1.30",
-    "fastapi>=0.115",
+    "neo4j>=6.4.1",
+    "langgraph>=1.2.15",
+    "opentelemetry-sdk>=1.45.1",
+    "opentelemetry-exporter-otlp-proto-http>=1.45.1",
+    "fastapi>=0.143.2",
     "jinja2>=3.1",
     # The Console is a shipped feature, so the server that runs it is a dependency of the
     # product rather than of development. It sat in `dev` until Phase 12, which meant an
@@ -29,7 +29,7 @@ dependencies = [
     # Console's one write path. Floored well above PYSEC-2024-207, the denial of service in
     # its multipart parser, since a form on a loopback port is still a parser taking input.
     "python-multipart>=0.0.18",
-    "langgraph-checkpoint-sqlite>=3.1.1",
+    "langgraph-checkpoint-sqlite>=3.1.2",
 ]
 
 [project.scripts]
@@ -62,7 +62,7 @@ logcompare = [
 ]
 
 optimize = [
-    "dspy>=3.0",
+    "dspy>=3.4.1",
 ]
 
 # uv resolves every group into one environment unless told they conflict, so putting
